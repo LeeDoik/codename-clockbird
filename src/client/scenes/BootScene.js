@@ -1,4 +1,8 @@
 import Phaser from 'phaser';
+// Vite 가 번들·핑거프린팅하도록 에셋을 import 한다 (문자열 URL 을 그대로 load 하면
+// import 되지 않은 assets/ 는 프로덕션 빌드의 dist 에 복사되지 않아 404 가 난다).
+import tilesUrl from '../assets/tiles/tiles.png';
+import charsUrl from '../assets/chars.png';
 
 /**
  * 로딩 씬.
@@ -8,6 +12,14 @@ import Phaser from 'phaser';
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
+  }
+
+  preload() {
+    // 타일 스프라이트시트 (32×32 프레임). map.json 자체는 StageScene 에서 직접 import 한다.
+    // 텍스처는 게임 전역이라 여기서 한 번 로드하면 StageScene 에서 바로 쓸 수 있다.
+    this.load.spritesheet('tiles', tilesUrl, { frameWidth: 32, frameHeight: 32 });
+    // 캐릭터 7프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민
+    this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });
   }
 
   create() {

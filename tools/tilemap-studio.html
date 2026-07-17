@@ -1,0 +1,1526 @@
+<title>타일 스튜디오 · 태엽새</title>
+<style>
+  /* ── 디자인 토큰 ─────────────────────────────────────────
+     팔레트는 게임 실물에서 그대로 가져왔다: 플레이어 #e8dcc0,
+     저택 바닥 #231f19, 황동 #c9a227, 녹 #c25b4a, 동료 청록 #4a7a6b.
+     기본(:root)은 라이트(제도 책상), @media·data-theme 로 다크(황동 작업대)를 얹는다.
+     다크가 이 도구의 주(主) 비전이다 — 게임이 실제로 렌더되는 어두운 환경과 같아
+     타일 밝기를 눈으로 판단하기 좋다. */
+  :root {
+    --bg: #ece3d2;        --panel: #f5eddc;      --panel-2: #e6dcc5;
+    --ink: #2a2419;       --ink-dim: #6b6151;    --line: #cdbfa1;
+    --brass: #a1780f;     --brass-bright: #866312;
+    --rust: #b1452f;      --teal: #2f6a58;       --steel: #4a5f74;
+    --void: #d8ccb1;      --checker-a: #ddd0b5;  --checker-b: #cec0a1;
+    --grid: rgba(60,50,25,.20); --grid-major: rgba(60,50,25,.42);
+    --shadow: 0 1px 0 rgba(255,255,255,.4), 0 2px 8px rgba(40,30,10,.10);
+    --focus: #a1780f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17130e;      --panel: #201a12;      --panel-2: #2a2218;
+      --ink: #e8dcc0;     --ink-dim: #9a8f77;    --line: #3a3120;
+      --brass: #c9a227;   --brass-bright: #e6c24c;
+      --rust: #c25b4a;    --teal: #5c9a86;       --steel: #6d8399;
+      --void: #14110b;    --checker-a: #262019;  --checker-b: #1e1811;
+      --grid: rgba(201,162,39,.14); --grid-major: rgba(201,162,39,.30);
+      --shadow: 0 1px 0 rgba(255,255,255,.03), 0 2px 10px rgba(0,0,0,.45);
+      --focus: #e6c24c;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #ece3d2; --panel: #f5eddc; --panel-2: #e6dcc5;
+    --ink: #2a2419; --ink-dim: #6b6151; --line: #cdbfa1;
+    --brass: #a1780f; --brass-bright: #866312;
+    --rust: #b1452f; --teal: #2f6a58; --steel: #4a5f74;
+    --void: #d8ccb1; --checker-a: #ddd0b5; --checker-b: #cec0a1;
+    --grid: rgba(60,50,25,.20); --grid-major: rgba(60,50,25,.42);
+    --shadow: 0 1px 0 rgba(255,255,255,.4), 0 2px 8px rgba(40,30,10,.10);
+    --focus: #a1780f;
+  }
+  :root[data-theme="dark"] {
+    --bg: #17130e; --panel: #201a12; --panel-2: #2a2218;
+    --ink: #e8dcc0; --ink-dim: #9a8f77; --line: #3a3120;
+    --brass: #c9a227; --brass-bright: #e6c24c;
+    --rust: #c25b4a; --teal: #5c9a86; --steel: #6d8399;
+    --void: #14110b; --checker-a: #262019; --checker-b: #1e1811;
+    --grid: rgba(201,162,39,.14); --grid-major: rgba(201,162,39,.30);
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 2px 10px rgba(0,0,0,.45);
+    --focus: #e6c24c;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .mono {
+    font-family: ui-monospace, "Cascadia Code", "Consolas", "Menlo", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+    font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  button { font-family: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+
+  /* ── 셸 레이아웃 ───────────────────────────────────────── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  header.bar {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 16px; height: 54px; flex: 0 0 auto;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    z-index: 5;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .cog {
+    width: 30px; height: 30px; flex: 0 0 auto; color: var(--brass);
+    animation: spin 24s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .cog { animation: none; } }
+  .brand h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: .01em; white-space: nowrap; }
+  .brand .sub { font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
+
+  .modes { display: flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
+  .modes button {
+    border: 0; background: transparent; color: var(--ink-dim);
+    padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .modes button[aria-pressed="true"] { background: var(--brass); color: #17130e; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  :root[data-theme="light"] .modes button[aria-pressed="true"] { color: #f5eddc; }
+  @media (prefers-color-scheme: light) { .modes button[aria-pressed="true"] { color: #f5eddc; } }
+
+  .bar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  .btn {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+    padding: 7px 12px; border-radius: 7px; font-size: 12.5px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--brass); }
+  .btn.primary { background: var(--brass); border-color: var(--brass); color: #17130e; }
+  .btn.primary:hover { background: var(--brass-bright); }
+  .btn.ghost { background: transparent; }
+  .btn svg { width: 15px; height: 15px; }
+  .icon-btn {
+    width: 34px; height: 34px; padding: 0; justify-content: center;
+    border: 1px solid var(--line); background: var(--panel-2); border-radius: 7px;
+    display: inline-flex; align-items: center;
+  }
+  .icon-btn:hover { border-color: var(--brass); }
+  .icon-btn svg { width: 17px; height: 17px; }
+
+  main { flex: 1 1 auto; display: grid; grid-template-columns: 232px 1fr 288px; min-height: 0; }
+
+  aside {
+    background: var(--panel); overflow-y: auto; display: flex; flex-direction: column;
+    gap: 2px; padding: 14px 12px;
+  }
+  aside.left { border-right: 1px solid var(--line); }
+  aside.right { border-left: 1px solid var(--line); }
+
+  .center-wrap {
+    background:
+      radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--brass) 5%, var(--bg)), var(--bg) 60%);
+    display: flex; align-items: center; justify-content: center;
+    overflow: auto; padding: 22px; min-width: 0; min-height: 0; position: relative;
+  }
+
+  .panel-title { display: flex; align-items: center; justify-content: space-between; margin: 4px 2px 10px; }
+  .panel-title:not(:first-child) { margin-top: 18px; }
+  .panel-title h2 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); margin: 0; font-weight: 700; }
+  .panel-title .count { font-size: 11px; color: var(--ink-dim); }
+
+  /* ── 도구 버튼 ─────────────────────────────────────────── */
+  .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .tool {
+    position: relative;
+    aspect-ratio: 1; border: 1px solid var(--line); background: var(--panel-2);
+    border-radius: 8px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; color: var(--ink-dim); font-size: 9.5px;
+  }
+  .tool svg { width: 18px; height: 18px; }
+  .tool:hover { border-color: var(--brass); color: var(--ink); }
+  .tool[aria-pressed="true"] { background: color-mix(in srgb, var(--brass) 20%, var(--panel-2)); border-color: var(--brass); color: var(--ink); }
+  .tool[aria-pressed="true"] svg { color: var(--brass); }
+  .tool kbd {
+    position: absolute; top: 3px; right: 4px; font-size: 8px; color: var(--ink-dim);
+    font-family: ui-monospace, monospace; opacity: .7;
+  }
+
+  /* ── 타일 팔레트 ───────────────────────────────────────── */
+  .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .tile-swatch {
+    position: relative; aspect-ratio: 1; border: 1.5px solid var(--line);
+    border-radius: 6px; overflow: hidden; padding: 0; background: var(--void);
+    image-rendering: pixelated;
+  }
+  .tile-swatch canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .tile-swatch:hover { border-color: var(--brass); }
+  .tile-swatch[aria-pressed="true"] { border-color: var(--brass); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brass) 45%, transparent); }
+  .tile-swatch .solid-flag {
+    position: absolute; top: 0; left: 0; width: 0; height: 0;
+    border-top: 11px solid var(--rust); border-right: 11px solid transparent;
+  }
+  .tile-swatch.empty { display: flex; align-items: center; justify-content: center; color: var(--ink-dim); font-size: 20px; background:
+     repeating-conic-gradient(var(--checker-a) 0% 25%, var(--checker-b) 0% 50%) 50% / 12px 12px; }
+  .add-tile {
+    aspect-ratio: 1; border: 1.5px dashed var(--line); background: transparent;
+    border-radius: 6px; color: var(--ink-dim); display: flex; align-items: center;
+    justify-content: center; font-size: 20px;
+  }
+  .add-tile:hover { border-color: var(--brass); color: var(--brass); }
+
+  /* ── 픽셀 에디터 색상 ──────────────────────────────────── */
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+  .swatches button { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 5px; padding: 0; }
+  .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--brass); }
+  .color-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .color-chip { width: 42px; height: 42px; border-radius: 8px; border: 1px solid var(--line); flex: 0 0 auto; }
+  input[type="color"] { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; }
+  input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 4px; }
+
+  /* ── 캔버스 ────────────────────────────────────────────── */
+  .stage-frame {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; box-shadow: var(--shadow); position: relative;
+  }
+  .stage-frame::before {
+    content: ""; position: absolute; inset: 6px; border: 1px solid color-mix(in srgb, var(--brass) 22%, transparent);
+    border-radius: 8px; pointer-events: none;
+  }
+  canvas.editor { display: block; image-rendering: pixelated; cursor: crosshair; border-radius: 3px; touch-action: none; }
+  .stage-caption { display: flex; align-items: center; justify-content: space-between; margin-top: 11px; gap: 12px; }
+  .readout { font-size: 11.5px; color: var(--ink-dim); }
+  .readout b { color: var(--ink); font-weight: 600; }
+  .stage-toggles { display: flex; gap: 6px; }
+  .chip-toggle {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-dim);
+    font-size: 11px; padding: 4px 9px; border-radius: 20px; font-weight: 600;
+  }
+  .chip-toggle[aria-pressed="true"] { color: var(--brass); border-color: var(--brass); background: color-mix(in srgb, var(--brass) 12%, transparent); }
+
+  /* ── 인스펙터 ──────────────────────────────────────────── */
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .field label { font-size: 11px; color: var(--ink-dim); font-weight: 600; }
+  .field input[type="text"] {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 7px; padding: 8px 10px; font-size: 13px; font-family: inherit;
+  }
+  .field input[type="text"]:focus { border-color: var(--brass); outline: none; }
+  .toggle-line { display: flex; align-items: center; gap: 9px; padding: 9px 11px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+  .toggle-line label { flex: 1; font-size: 12.5px; }
+  .switch { position: relative; width: 38px; height: 22px; flex: 0 0 auto; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider { position: absolute; inset: 0; background: var(--line); border-radius: 22px; transition: .15s; }
+  .switch .slider::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: var(--panel); border-radius: 50%; transition: .15s; }
+  .switch input:checked + .slider { background: var(--rust); }
+  .switch input:checked + .slider::before { transform: translateX(16px); background: #fff; }
+
+  /* 품질 검사 (check-tile.js 이식) */
+  .qc { display: flex; flex-direction: column; gap: 5px; }
+  .qc-row {
+    display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px;
+    padding: 7px 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+    font-size: 12px;
+  }
+  .qc-row .qc-name { color: var(--ink); font-weight: 600; }
+  .qc-row .qc-val { font-size: 11px; color: var(--ink-dim); }
+  .qc-verdict { font-size: 10px; font-weight: 800; letter-spacing: .06em; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; }
+  .qc-verdict.pass { color: var(--teal); background: color-mix(in srgb, var(--teal) 15%, transparent); }
+  .qc-verdict.fail { color: var(--rust); background: color-mix(in srgb, var(--rust) 15%, transparent); }
+  .qc-verdict.na  { color: var(--ink-dim); background: color-mix(in srgb, var(--ink-dim) 12%, transparent); }
+
+  .preview-wrap { display: flex; gap: 12px; align-items: center; margin-top: 4px; }
+  .preview-wrap canvas { border: 1px solid var(--line); border-radius: 6px; image-rendering: pixelated; }
+  .preview-wrap .cap { font-size: 11px; color: var(--ink-dim); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; }
+  .stat .k { font-size: 10px; color: var(--ink-dim); letter-spacing: .04em; text-transform: uppercase; }
+  .stat .v { font-size: 18px; font-weight: 700; font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .stat .v small { font-size: 11px; color: var(--ink-dim); font-weight: 500; }
+
+  .legend { display: flex; flex-direction: column; gap: 5px; }
+  .legend-row { display: flex; align-items: center; gap: 9px; font-size: 12px; padding: 4px 2px; }
+  .legend-row canvas { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--line); image-rendering: pixelated; }
+  .legend-row .frame { margin-left: auto; font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-dim); }
+  .legend-row .badge { font-size: 9.5px; color: var(--rust); border: 1px solid var(--rust); border-radius: 4px; padding: 1px 4px; font-weight: 700; }
+
+  .spawn-picker { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+  .spawn-picker button { border: 1px solid var(--line); background: var(--panel-2); border-radius: 7px; padding: 7px 4px; font-size: 11px; font-weight: 600; color: var(--ink-dim); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .spawn-picker button[aria-pressed="true"] { border-color: var(--brass); color: var(--ink); background: color-mix(in srgb, var(--brass) 12%, transparent); }
+  .spawn-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+  .help { font-size: 11px; color: var(--ink-dim); line-height: 1.6; }
+  .help kbd { font-family: ui-monospace, monospace; background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 10.5px; }
+
+  details.export-help { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+  details.export-help summary { padding: 9px 11px; font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; }
+  details.export-help summary::-webkit-details-marker { display: none; }
+  details.export-help summary::before { content: "▸"; color: var(--brass); transition: .15s; }
+  details.export-help[open] summary::before { transform: rotate(90deg); }
+  details.export-help pre {
+    margin: 0; padding: 11px; font-size: 11px; line-height: 1.55; overflow-x: auto;
+    border-top: 1px solid var(--line); color: var(--ink-dim);
+    font-family: ui-monospace, "Consolas", monospace;
+  }
+  details.export-help pre .kw { color: var(--brass); }
+  details.export-help pre .str { color: var(--teal); }
+
+  .menu { position: relative; }
+  .menu-pop {
+    position: absolute; right: 0; top: calc(100% + 6px); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
+    padding: 6px; min-width: 220px; z-index: 20; display: none; flex-direction: column; gap: 2px;
+  }
+  .menu-pop.open { display: flex; }
+  .menu-pop button { text-align: left; border: 0; background: transparent; padding: 9px 11px; border-radius: 7px; font-size: 12.5px; display: flex; align-items: center; gap: 9px; width: 100%; }
+  .menu-pop button:hover { background: var(--panel-2); }
+  .menu-pop button svg { width: 15px; height: 15px; color: var(--brass); flex: 0 0 auto; }
+  .menu-pop .m-sub { font-size: 10.5px; color: var(--ink-dim); display: block; }
+  .menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+
+  .divider { height: 1px; background: var(--line); margin: 14px 0 4px; }
+
+  /* 토스트 */
+  #toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 9px;
+    font-size: 13px; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.35);
+    opacity: 0; pointer-events: none; transition: .22s; z-index: 50; display: flex; align-items: center; gap: 9px;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast svg { width: 16px; height: 16px; color: var(--brass-bright); }
+
+  .empty-hint { color: var(--ink-dim); font-size: 12px; text-align: center; padding: 10px; }
+
+  /* 내보내기 모달 (샌드박스 다운로드 차단 대비 — 우클릭 저장 + 복사) */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(8,6,3,.62); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; padding: 22px; z-index: 100; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 54px rgba(0,0,0,.5); width: 100%; max-width: 580px; max-height: 88vh; overflow-y: auto; }
+  .modal > header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+  .modal > header h2 { margin: 0; font-size: 16px; font-weight: 650; }
+  .modal .body { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 20px; }
+  .modal .close { border: 0; background: transparent; font-size: 22px; line-height: 1; color: var(--ink-dim); padding: 4px 8px; border-radius: 6px; }
+  .modal .close:hover { background: var(--panel-2); color: var(--ink); }
+  .ex-sec h3 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 8px; }
+  .ex-sheet { background: repeating-conic-gradient(var(--checker-a) 0% 25%, var(--checker-b) 0% 50%) 50% / 14px 14px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; text-align: center; }
+  .ex-sheet img { image-rendering: pixelated; display: inline-block; max-width: none; }
+  .ex-note { font-size: 11.5px; color: var(--ink-dim); margin: 8px 0 0; line-height: 1.6; }
+  .ex-note b { color: var(--brass); }
+  .ex-json { width: 100%; height: 180px; resize: vertical; background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 10px 12px; font-family: ui-monospace, "Consolas", monospace; font-size: 11.5px; line-height: 1.5; }
+  .ex-json:focus { outline: none; border-color: var(--brass); }
+  .ex-actions { display: flex; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+  .ex-filename { font-family: ui-monospace, monospace; font-size: 11px; color: var(--teal); }
+
+  /* 좁은 화면 */
+  @media (max-width: 1000px) {
+    main { grid-template-columns: 200px 1fr; }
+    aside.right { display: none; }
+    .brand .sub { display: none; }
+  }
+  @media (max-width: 680px) {
+    main { grid-template-columns: 1fr; }
+    aside.left { display: none; }
+  }
+</style>
+
+<div id="app">
+  <header class="bar">
+    <div class="brand">
+      <svg class="cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
+      </svg>
+      <div style="min-width:0">
+        <h1>타일 스튜디오</h1>
+        <div class="sub">코드네임: 태엽새 · 타일 &amp; 맵 에디터</div>
+      </div>
+    </div>
+
+    <div class="modes" role="tablist" aria-label="편집 모드">
+      <button id="mode-map" role="tab" aria-pressed="true">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
+        맵
+      </button>
+      <button id="mode-tile" role="tab" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+        타일
+      </button>
+    </div>
+
+    <div class="bar-right">
+      <button class="btn ghost" id="btn-undo" title="실행 취소 (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button class="btn ghost" id="btn-redo" title="다시 실행 (Ctrl+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+      <span style="width:1px;height:22px;background:var(--line)"></span>
+      <button class="btn" id="btn-import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>불러오기</button>
+      <div class="menu">
+        <button class="btn primary" id="btn-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 21h16"/></svg>내보내기</button>
+        <div class="menu-pop" id="export-menu">
+          <button data-act="map-json"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>맵 JSON <small class="m-sub">2D 배열 + 스폰 · Phaser 로더용</small></span></button>
+          <button data-act="tilesheet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg><span>스프라이트시트 PNG <small class="m-sub">타일 전체 · frameWidth 32</small></span></button>
+          <button data-act="tiles-zip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/></svg><span>타일 PNG 낱장 <small class="m-sub">32×32 개별 다운로드</small></span></button>
+          <hr/>
+          <button data-act="save-project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg><span>프로젝트 저장 <small class="m-sub">.json — 나중에 이어서 편집</small></span></button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 좌측: 팔레트 + 도구 -->
+    <aside class="left">
+      <div class="panel-title"><h2>타일</h2><span class="count" id="tile-count"></span></div>
+      <div class="palette" id="palette"></div>
+
+      <div class="panel-title" id="tools-title"><h2>도구</h2></div>
+      <div class="tools" id="tools"></div>
+
+      <div id="left-extra"></div>
+    </aside>
+
+    <!-- 중앙: 캔버스 -->
+    <div class="center-wrap">
+      <div class="stage-frame">
+        <canvas class="editor" id="stage"></canvas>
+        <div class="stage-caption">
+          <div class="readout" id="readout"></div>
+          <div class="stage-toggles" id="stage-toggles"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 우측: 인스펙터 -->
+    <aside class="right" id="inspector"></aside>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<div class="modal-backdrop" id="export-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ex-title">
+    <header>
+      <h2 id="ex-title">내보내기</h2>
+      <button class="close" id="ex-close" aria-label="닫기">×</button>
+    </header>
+    <div class="body">
+      <p class="ex-note" style="margin:0">아티팩트는 샌드박스라 자동 다운로드가 막힐 수 있습니다. 아래 방식이 확실합니다 — 이미지는 <b>우클릭 → 다른 이름으로 저장</b>, JSON은 <b>복사</b>.</p>
+
+      <div class="ex-sec">
+        <h3>① 스프라이트시트 → <span class="ex-filename">src/client/assets/tiles/tiles.png</span></h3>
+        <div class="ex-sheet"><img id="export-img" alt="타일 스프라이트시트"></div>
+        <p class="ex-note"><span id="export-sheet-info"></span> · 위 이미지를 <b>우클릭 → 다른 이름으로 저장</b> 하세요. Phaser <code>load.spritesheet(frameWidth:32)</code> 용입니다.</p>
+        <div class="ex-actions"><button class="btn" id="ex-dl-sheet">PNG 다운로드 시도</button></div>
+      </div>
+
+      <div class="ex-sec">
+        <h3>② 맵 JSON → <span class="ex-filename">src/client/assets/map.json</span></h3>
+        <textarea class="ex-json mono" id="export-json" readonly spellcheck="false"></textarea>
+        <div class="ex-actions">
+          <button class="btn primary" id="ex-copy-json">JSON 복사</button>
+          <button class="btn" id="ex-dl-json">JSON 다운로드 시도</button>
+        </div>
+        <p class="ex-note">복사한 내용을 대화창에 그대로 붙여넣으면 데모를 바로 만들어 드립니다.</p>
+      </div>
+
+      <div class="ex-sec">
+        <h3>③ 프로젝트 백업 (선택)</h3>
+        <div class="ex-actions"><button class="btn ghost" id="ex-dl-project">프로젝트 .json 저장 시도</button></div>
+        <p class="ex-note">타일 픽셀까지 담긴 편집용 백업입니다. 나중에 <b>불러오기</b>로 이어서 편집할 때만 필요합니다.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-import" accept="image/png,application/json,.json" style="display:none" multiple>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════
+   타일 스튜디오 — 코드네임: 태엽새 (Codename: Clockbird)
+   ─────────────────────────────────────────────────────────────
+   · 32×32 타일을 픽셀 단위로 그리고, 28×18 격자에 칠해 맵을 만든다.
+   · 내보내기: 맵 JSON(2D 배열 + 충돌 플래그 + 스폰) / 스프라이트시트 PNG / 낱장 PNG.
+   · 품질 검사는 프로젝트의 scripts/check-tile.js 를 그대로 이식했다 —
+     내보내기 전에 이음새·테두리·대비·디테일이 검수기를 통과할지 미리 본다.
+   ══════════════════════════════════════════════════════════════ */
+
+const TS = 32;                    // 타일 한 변 (px)
+const COLS = 28, ROWS = 18;       // 896×576 = 게임 캔버스에 딱 맞는 격자 (README 참고)
+const PLAYER_LUM = 220;           // #e8dcc0 — check-tile.js 의 플레이어 대비 기준
+const LS_KEY = "clockbird-tilemap-v2";
+
+/* ── 상태 ──────────────────────────────────────────────────── */
+const state = {
+  mode: "map",                    // "map" | "tile"
+  tiles: [],                      // { id, name, solid, data:Uint8ClampedArray(32*32*4), canvas, ctx }
+  activeTileId: null,             // 팔레트에서 고른 타일 (맵 칠하기 · 픽셀 편집 대상)
+  layout: Array.from({ length: ROWS }, () => Array(COLS).fill(-1)), // ROWS × COLS, 각 칸 = 타일 id 또는 -1(빈칸)
+  spawns: { player: null, allies: [], citizen: null },
+  // 도구
+  mapTool: "pencil",              // pencil | fill | rect | erase | pick | spawn
+  spawnKind: "player",            // player | ally | citizen
+  tileTool: "pencil",             // pencil | erase | fill | pick
+  color: "#c9a227",
+  recent: ["#c9a227", "#e8dcc0", "#8a7f6a", "#3a342b"],
+  showGrid: true,
+  showSolid: true,
+  nextId: 1,
+};
+const undo = [], redo = [];
+
+/* ── DOM 참조 ──────────────────────────────────────────────── */
+const $ = (s) => document.querySelector(s);
+const stage = $("#stage");
+const sctx = stage.getContext("2d");
+const palette = $("#palette");
+const toolsEl = $("#tools");
+const inspector = $("#inspector");
+const readoutEl = $("#readout");
+const togglesEl = $("#stage-toggles");
+const leftExtra = $("#left-extra");
+
+/* ── 유틸 ──────────────────────────────────────────────────── */
+function hexToRgb(h) {
+  h = h.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function tileById(id) { return state.tiles.find((t) => t.id === id); }
+function activeTile() { return tileById(state.activeTileId); }
+
+function toast(msg, icon) {
+  const t = $("#toast");
+  t.innerHTML = (icon ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg>` : "") + `<span>${msg}</span>`;
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* dpr 을 반영해 CSS 크기(cssW×cssH)로 캔버스를 세팅하고, 픽셀 보간을 끈다.
+   반환된 컨텍스트는 CSS 픽셀 좌표계에서 그린다. */
+function fitCanvas(cv, cssW, cssH) {
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cv.width = Math.round(cssW * dpr);
+  cv.height = Math.round(cssH * dpr);
+  cv.style.width = cssW + "px";
+  cv.style.height = cssH + "px";
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  return ctx;
+}
+
+/* ── 타일 생성 / 관리 ──────────────────────────────────────── */
+function makeTile(name, solid) {
+  const canvas = document.createElement("canvas");
+  canvas.width = TS; canvas.height = TS;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  return { id: state.nextId++, name, solid: !!solid, data: new Uint8ClampedArray(TS*TS*4), canvas, ctx };
+}
+function syncTile(t) { t.ctx.putImageData(new ImageData(t.data, TS, TS), 0, 0); }
+
+/* 씨앗 타일은 이음새 없이 타일링되는 값 노이즈로 그린다 (정수 주파수 → wrap 완벽).
+   base 밝기를 어둡게 잡아 플레이어(220) 대비를 확보한다. */
+function seedTexture(t, base, tint, amp, rivets) {
+  const [tr, tg, tb] = tint;
+  for (let y = 0; y < TS; y++) {
+    for (let x = 0; x < TS; x++) {
+      const n =
+        Math.sin((2*Math.PI*2*x)/TS) * Math.sin((2*Math.PI*2*y)/TS) * amp +
+        Math.cos((2*Math.PI*3*x)/TS + 1.1) * (amp*0.5) +
+        Math.sin((2*Math.PI*3*y)/TS + 2.3) * (amp*0.5);
+      const L = base + n;
+      const k = L / 128;
+      const i = (y*TS + x) * 4;
+      t.data[i]   = Math.max(0, Math.min(255, tr * k));
+      t.data[i+1] = Math.max(0, Math.min(255, tg * k));
+      t.data[i+2] = Math.max(0, Math.min(255, tb * k));
+      t.data[i+3] = 255;
+    }
+  }
+  // 리벳(고정 위치 — 가장자리를 건드리지 않아 이음새·테두리 검사에 안전)
+  if (rivets) {
+    for (const [rx, ry] of [[8,8],[24,8],[8,24],[24,24]]) {
+      for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+        const i = ((ry+dy)*TS + (rx+dx)) * 4;
+        const d = (dx===0&&dy===0) ? 1.35 : 0.7;
+        t.data[i]   = Math.min(255, t.data[i]*d);
+        t.data[i+1] = Math.min(255, t.data[i+1]*d);
+        t.data[i+2] = Math.min(255, t.data[i+2]*d);
+      }
+    }
+  }
+  syncTile(t);
+}
+
+function seedProject() {
+  const floor = makeTile("금속 바닥", false);
+  seedTexture(floor, 58, [150, 138, 110], 7, true);
+  const floor2 = makeTile("바닥 · 변형", false);
+  seedTexture(floor2, 66, [140, 132, 118], 5, false);
+  const wall = makeTile("벽", true);
+  seedTexture(wall, 92, [120, 108, 92], 10, true);
+  state.tiles = [floor, floor2, wall];
+  state.activeTileId = floor.id;
+  state.layout = Array.from({ length: ROWS }, () => Array(COLS).fill(-1));
+  // 바닥으로 한 번 채우고 테두리를 벽으로 (예시 맵)
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      state.layout[r][c] = (r===0||c===0||r===ROWS-1||c===COLS-1) ? wall.id : floor.id;
+  state.spawns.player = { col: 14, row: 15 };
+}
+
+/* ── 실행 취소 ─────────────────────────────────────────────── */
+function snapshot() {
+  return {
+    tile: state.mode === "tile" && activeTile()
+      ? { id: state.activeTileId, data: activeTile().data.slice() } : null,
+    layout: state.layout.map((r) => r.slice()),
+    spawns: JSON.parse(JSON.stringify(state.spawns)),
+  };
+}
+function pushUndo() {
+  undo.push(snapshot());
+  if (undo.length > 60) undo.shift();
+  redo.length = 0;
+  updateUndoButtons();
+}
+function applySnap(s) {
+  state.layout = s.layout.map((r) => r.slice());
+  state.spawns = JSON.parse(JSON.stringify(s.spawns));
+  if (s.tile) {
+    const t = tileById(s.tile.id);
+    if (t) { t.data.set(s.tile.data); syncTile(t); }
+  }
+}
+function doUndo() {
+  if (!undo.length) return;
+  redo.push(snapshot());
+  applySnap(undo.pop());
+  refreshAll(); updateUndoButtons(); persist();
+}
+function doRedo() {
+  if (!redo.length) return;
+  undo.push(snapshot());
+  applySnap(redo.pop());
+  refreshAll(); updateUndoButtons(); persist();
+}
+function updateUndoButtons() {
+  $("#btn-undo").style.opacity = undo.length ? 1 : .4;
+  $("#btn-redo").style.opacity = redo.length ? 1 : .4;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   품질 검사 — scripts/check-tile.js 를 픽셀 단위로 그대로 이식
+   ══════════════════════════════════════════════════════════════ */
+function quality(d) {
+  const lum = (x, y) => { const i=(y*TS+x)*4; return 0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]; };
+  const alpha = (x, y) => d[(y*TS+x)*4+3];
+
+  // 1. 규격 — 완전 불투명 여부
+  let transparent = 0;
+  for (let y=0;y<TS;y++) for (let x=0;x<TS;x++) if (alpha(x,y) < 255) transparent++;
+
+  // 2. 이음새 — wrap 차이를 내부 인접 픽셀 차이로 정규화 (비율 < 1.5)
+  const meanAdj = (dx, dy) => {
+    let s=0, n=0;
+    for (let y=0; y+dy<TS; y++) for (let x=0; x+dx<TS; x++) { s += Math.abs(lum(x,y)-lum(x+dx,y+dy)); n++; }
+    return s/n;
+  };
+  const interiorH = meanAdj(1,0), interiorV = meanAdj(0,1);
+  let wrapH=0, wrapV=0;
+  for (let y=0;y<TS;y++) wrapH += Math.abs(lum(TS-1,y)-lum(0,y));
+  for (let x=0;x<TS;x++) wrapV += Math.abs(lum(x,TS-1)-lum(x,0));
+  wrapH/=TS; wrapV/=TS;
+  const safeRatio = (w, i) => (i < 0.01 ? (w < 0.01 ? 0 : 99) : w/i);
+  const ratioH = safeRatio(wrapH, interiorH), ratioV = safeRatio(wrapV, interiorV);
+
+  // 3. 테두리 — 각 변 줄 평균 vs 전체 평균, 최대 편차 < 15
+  let global=0;
+  for (let y=0;y<TS;y++) for (let x=0;x<TS;x++) global += lum(x,y);
+  global /= TS*TS;
+  const lineMean = (pick, n) => { let s=0; for (let i=0;i<n;i++) s+=pick(i); return s/n; };
+  const edges = [
+    lineMean((i)=>lum(i,0), TS), lineMean((i)=>lum(i,TS-1), TS),
+    lineMean((i)=>lum(0,i), TS), lineMean((i)=>lum(TS-1,i), TS),
+  ];
+  let dev = 0;
+  for (const e of edges) if (Math.abs(e-global) > Math.abs(dev)) dev = e-global;
+
+  // 4. 밝기 — 플레이어(220) 대비 > 90
+  const mean = global, contrast = PLAYER_LUM - mean;
+
+  // 5. 디테일 밀도 < 18
+  const detail = (interiorH + interiorV) / 2;
+
+  return {
+    transparent, opaque: transparent === 0,
+    ratioH, ratioV, seamOk: ratioH < 1.5 && ratioV < 1.5,
+    dev, borderOk: Math.abs(dev) < 15,
+    mean, contrast, brightOk: contrast > 90,
+    detail, detailOk: detail < 18,
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   렌더링
+   ══════════════════════════════════════════════════════════════ */
+let cell = 30;  // 맵 셀 CSS px (fit 으로 재계산)
+
+function renderStage() {
+  if (state.mode === "map") renderMap();
+  else renderTile();
+}
+
+function renderMap() {
+  const wrap = stage.parentElement.parentElement; // center-wrap
+  const avail = Math.min(wrap.clientWidth - 60, 960);
+  cell = Math.max(16, Math.min(34, Math.floor(avail / COLS)));
+  const W = COLS*cell, H = ROWS*cell;
+  const ctx = fitCanvas(stage, W, H);
+
+  ctx.fillStyle = css("--void");
+  ctx.fillRect(0, 0, W, H);
+
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+    const id = state.layout[r]?.[c] ?? -1;
+    if (id < 0) continue;
+    const t = tileById(id);
+    if (t) ctx.drawImage(t.canvas, c*cell, r*cell, cell, cell);
+  }
+
+  // 충돌 오버레이
+  if (state.showSolid) {
+    ctx.fillStyle = css("--rust");
+    ctx.save(); ctx.globalAlpha = 0.24;
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+      const t = tileById(state.layout[r]?.[c] ?? -1);
+      if (t && t.solid) ctx.fillRect(c*cell, r*cell, cell, cell);
+    }
+    ctx.restore();
+  }
+
+  // 격자
+  if (state.showGrid) {
+    ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let c=0;c<=COLS;c++) { ctx.moveTo(c*cell+.5, 0); ctx.lineTo(c*cell+.5, H); }
+    for (let r=0;r<=ROWS;r++) { ctx.moveTo(0, r*cell+.5); ctx.lineTo(W, r*cell+.5); }
+    ctx.stroke();
+  }
+
+  // 스폰 마커
+  drawSpawns(ctx, cell);
+
+  // 호버 하이라이트
+  if (hover.col >= 0) {
+    ctx.strokeStyle = css("--brass"); ctx.lineWidth = 2;
+    ctx.strokeRect(hover.col*cell+1, hover.row*cell+1, cell-2, cell-2);
+  }
+}
+
+function drawSpawns(ctx, cs) {
+  const marker = (col, row, color, label, ring) => {
+    const cx = col*cs + cs/2, cy = row*cs + cs/2, rad = Math.max(6, cs*0.34);
+    ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = ring; ctx.stroke();
+    ctx.fillStyle = "#17130e";
+    ctx.font = `700 ${Math.max(9, cs*0.42)}px ui-monospace, monospace`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(label, cx, cy+.5);
+  };
+  const s = state.spawns;
+  if (s.player) marker(s.player.col, s.player.row, css("--ink"), "P", css("--brass"));
+  s.allies.forEach((a, i) => marker(a.col, a.row, css("--teal"), String(i+1), "#17130e"));
+  if (s.citizen) marker(s.citizen.col, s.citizen.row, css("--brass"), "C", "#17130e");
+}
+
+const ZOOM = 15; // 픽셀 에디터 확대율
+function renderTile() {
+  const t = activeTile();
+  const size = TS*ZOOM;
+  const ctx = fitCanvas(stage, size, size);
+  // 투명 체커
+  const cs = ZOOM;
+  for (let y=0;y<TS;y++) for (let x=0;x<TS;x++) {
+    ctx.fillStyle = ((x+y)&1) ? css("--checker-a") : css("--checker-b");
+    ctx.fillRect(x*cs, y*cs, cs, cs);
+  }
+  if (t) ctx.drawImage(t.canvas, 0, 0, size, size);
+
+  if (state.showGrid) {
+    ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i=0;i<=TS;i++) {
+      const p = i*cs + .5;
+      ctx.moveTo(p, 0); ctx.lineTo(p, size);
+      ctx.moveTo(0, p); ctx.lineTo(size, p);
+    }
+    ctx.stroke();
+    // 8px 마다 굵은 안내선
+    ctx.strokeStyle = css("--grid-major"); ctx.beginPath();
+    for (let i=0;i<=TS;i+=8) { const p=i*cs+.5; ctx.moveTo(p,0); ctx.lineTo(p,size); ctx.moveTo(0,p); ctx.lineTo(size,p); }
+    ctx.stroke();
+  }
+  if (hover.px >= 0 && state.tileTool !== "pick") {
+    ctx.strokeStyle = css("--brass"); ctx.lineWidth = 2;
+    ctx.strokeRect(hover.px*cs+1, hover.py*cs+1, cs-2, cs-2);
+  }
+}
+
+/* ── 팔레트 (좌측) ─────────────────────────────────────────── */
+function renderPalette() {
+  palette.innerHTML = "";
+  // 빈칸 선택 (맵 모드에서만 의미 있음 — 지우개 대체)
+  state.tiles.forEach((t) => {
+    const b = document.createElement("button");
+    b.className = "tile-swatch";
+    b.setAttribute("aria-pressed", t.id === state.activeTileId);
+    b.title = `${t.name}${t.solid ? " · 충돌" : ""}`;
+    const cv = document.createElement("canvas");
+    cv.width = TS; cv.height = TS;
+    cv.getContext("2d").drawImage(t.canvas, 0, 0);
+    b.appendChild(cv);
+    if (t.solid) { const f = document.createElement("span"); f.className = "solid-flag"; b.appendChild(f); }
+    b.onclick = () => { state.activeTileId = t.id; refreshAll(); };
+    palette.appendChild(b);
+  });
+  const add = document.createElement("button");
+  add.className = "add-tile"; add.title = "새 타일"; add.textContent = "+";
+  add.onclick = addTile;
+  palette.appendChild(add);
+  $("#tile-count").textContent = `${state.tiles.length}종`;
+}
+
+function addTile() {
+  const t = makeTile(`타일 ${state.tiles.length+1}`, false);
+  // 새 타일은 어두운 단색으로 시작
+  for (let i=0;i<t.data.length;i+=4) { t.data[i]=42; t.data[i+1]=38; t.data[i+2]=32; t.data[i+3]=255; }
+  syncTile(t);
+  state.tiles.push(t);
+  state.activeTileId = t.id;
+  state.mode = "tile";
+  refreshAll(); persist();
+  toast("새 타일 추가됨");
+}
+
+/* ══════════════════════════════════════════════════════════════
+   도구 정의 + 좌측 렌더
+   ══════════════════════════════════════════════════════════════ */
+const ICONS = {
+  pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  erase: '<path d="M20 20H7L3 16a2 2 0 0 1 0-3l8-8 8 8-6 6"/><path d="M6 12l6 6"/>',
+  fill: '<path d="M19 11L9 1 3 7l8 8 8-8"/><path d="M12 4l8 8"/><path d="M20 15c0 1.6-1.5 3-1.5 3S17 16.6 17 15a1.5 1.5 0 0 1 3 0z"/>',
+  rect: '<rect x="3" y="5" width="18" height="14" rx="1"/>',
+  pick: '<path d="M2 22l1-4 12-12 3 3L6 21l-4 1z"/><path d="M13 6l5 5"/><path d="M17 2l5 5-3 3-5-5z"/>',
+  spawn: '<circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8z"/>',
+};
+function toolBtn(id, label, key, active, onclick) {
+  const b = document.createElement("button");
+  b.className = "tool";
+  b.setAttribute("aria-pressed", active);
+  b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[id]}</svg><span>${label}</span>` + (key ? `<kbd>${key}</kbd>` : "");
+  b.onclick = onclick;
+  return b;
+}
+function renderTools() {
+  toolsEl.innerHTML = "";
+  leftExtra.innerHTML = "";
+  if (state.mode === "map") {
+    $("#tools-title").querySelector("h2").textContent = "맵 도구";
+    const defs = [["pencil","연필","B"],["fill","채우기","G"],["rect","사각형","R"],["erase","지우개","E"],["pick","스포이드","I"],["spawn","스폰","S"]];
+    for (const [id,label,key] of defs)
+      toolsEl.appendChild(toolBtn(id, label, key, state.mapTool===id, () => { state.mapTool=id; renderTools(); renderInspector(); }));
+    if (state.mapTool === "spawn") renderSpawnPicker();
+  } else {
+    $("#tools-title").querySelector("h2").textContent = "픽셀 도구";
+    const defs = [["pencil","연필","B"],["erase","지우개","E"],["fill","채우기","G"],["pick","스포이드","I"]];
+    for (const [id,label,key] of defs)
+      toolsEl.appendChild(toolBtn(id, label, key, state.tileTool===id, () => { state.tileTool=id; renderTools(); }));
+    renderColorPanel();
+  }
+}
+
+function renderSpawnPicker() {
+  const box = document.createElement("div");
+  box.innerHTML = `<div class="panel-title"><h2>스폰 종류</h2></div>`;
+  const grid = document.createElement("div"); grid.className = "spawn-picker";
+  const kinds = [["player","플레이어","var(--ink)"],["ally","동료","var(--teal)"],["citizen","시민","var(--brass)"]];
+  for (const [k,label,color] of kinds) {
+    const b = document.createElement("button");
+    b.setAttribute("aria-pressed", state.spawnKind===k);
+    b.innerHTML = `<span class="spawn-dot" style="background:${color}"></span>${label}`;
+    b.onclick = () => { state.spawnKind=k; renderTools(); };
+    grid.appendChild(b);
+  }
+  box.appendChild(grid);
+  const hint = document.createElement("p"); hint.className = "help"; hint.style.marginTop="8px";
+  hint.innerHTML = "칸을 클릭해 배치. 플레이어·시민은 1개, 동료는 최대 5개. 기존 동료를 다시 클릭하면 제거됩니다.";
+  box.appendChild(hint);
+  leftExtra.appendChild(box);
+}
+
+function renderColorPanel() {
+  const SW = ["#e8dcc0","#cbb27a","#c9a227","#a1780f","#8a7f6a","#6b5d48","#4a4038","#2b2620",
+              "#1c1813","#3a342b","#5a6b7a","#4a7a6b","#7a6a4a","#9a8a6a","#c25b4a","#8a5a2a"];
+  const box = document.createElement("div");
+  box.innerHTML = `<div class="panel-title"><h2>색</h2></div>`;
+  const sw = document.createElement("div"); sw.className = "swatches";
+  for (const c of SW) {
+    const b = document.createElement("button");
+    b.style.background = c;
+    b.setAttribute("aria-pressed", c.toLowerCase()===state.color.toLowerCase());
+    b.title = c;
+    b.onclick = () => setColor(c);
+    sw.appendChild(b);
+  }
+  box.appendChild(sw);
+
+  const row = document.createElement("div"); row.className = "color-row";
+  const chip = document.createElement("div"); chip.className = "color-chip"; chip.style.background = state.color;
+  const pick = document.createElement("input"); pick.type = "color"; pick.value = state.color;
+  pick.oninput = (e) => setColor(e.target.value);
+  const label = document.createElement("div");
+  label.innerHTML = `<div class="eyebrow">현재 색</div><div class="mono" style="font-size:13px">${state.color}</div>`;
+  row.append(chip, pick, label);
+  box.appendChild(row);
+
+  if (state.recent.length) {
+    const rec = document.createElement("div"); rec.className = "swatches"; rec.style.marginTop = "10px";
+    rec.style.gridTemplateColumns = "repeat(8,1fr)";
+    state.recent.slice(0,8).forEach((c) => {
+      const b = document.createElement("button"); b.style.background = c; b.title = c; b.onclick = () => setColor(c);
+      rec.appendChild(b);
+    });
+    box.appendChild(rec);
+  }
+  leftExtra.appendChild(box);
+}
+function setColor(c) {
+  state.color = c;
+  state.recent = [c, ...state.recent.filter((x) => x !== c)].slice(0, 8);
+  if (state.mode === "tile") renderTools();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   우측 인스펙터
+   ══════════════════════════════════════════════════════════════ */
+function renderInspector() {
+  inspector.innerHTML = "";
+  if (state.mode === "tile") renderTileInspector();
+  else renderMapInspector();
+}
+
+function renderTileInspector() {
+  const t = activeTile();
+  if (!t) { inspector.innerHTML = `<p class="empty-hint">타일을 선택하세요.</p>`; return; }
+
+  const wrap = document.createElement("div");
+  wrap.innerHTML = `<div class="panel-title"><h2>타일 속성</h2><span class="count mono">#${t.id}</span></div>`;
+
+  const nameField = document.createElement("div"); nameField.className = "field";
+  nameField.innerHTML = `<label>이름</label>`;
+  const nameIn = document.createElement("input"); nameIn.type = "text"; nameIn.value = t.name;
+  nameIn.oninput = (e) => { t.name = e.target.value; renderPalette(); persist(); };
+  nameField.appendChild(nameIn);
+  wrap.appendChild(nameField);
+
+  const solid = document.createElement("div"); solid.className = "toggle-line";
+  solid.innerHTML = `<label for="solid-cb">충돌 (벽 · 이동 불가)</label>
+    <span class="switch"><input type="checkbox" id="solid-cb" ${t.solid?"checked":""}><span class="slider"></span></span>`;
+  solid.querySelector("input").onchange = (e) => { t.solid = e.target.checked; renderPalette(); persist(); };
+  wrap.appendChild(solid);
+
+  // 품질 검사
+  const q = quality(t.data);
+  const objectTile = t.solid || q.transparent > 0; // 오브젝트/벽은 바닥 기준을 강제하지 않는다
+  wrap.innerHTML += `<div class="panel-title"><h2>품질 검사</h2><span class="count">check-tile.js</span></div>`;
+  const qc = document.createElement("div"); qc.className = "qc";
+  const rows = [
+    ["불투명", q.transparent === 0 ? "투명 0" : `투명 ${q.transparent}px`, q.opaque ? "pass" : (objectTile ? "na" : "fail")],
+    ["이음새", `좌우 ${q.ratioH.toFixed(2)} · 상하 ${q.ratioV.toFixed(2)}`, q.seamOk ? "pass" : "fail"],
+    ["테두리", `편차 ${q.dev>0?"+":""}${q.dev.toFixed(1)}`, q.borderOk ? "pass" : "fail"],
+    ["밝기 대비", `${q.contrast.toFixed(0)} / 90`, q.brightOk ? "pass" : (objectTile ? "na" : "fail")],
+    ["디테일", `${q.detail.toFixed(1)} / 18`, q.detailOk ? "pass" : "fail"],
+  ];
+  for (const [name, val, verdict] of rows) {
+    const r = document.createElement("div"); r.className = "qc-row";
+    r.innerHTML = `<span class="qc-name">${name}</span><span class="qc-val mono">${val}</span>
+      <span class="qc-verdict ${verdict}">${verdict==="na"?"—":verdict.toUpperCase()}</span>`;
+    qc.appendChild(r);
+  }
+  wrap.appendChild(qc);
+  if (objectTile) {
+    const n = document.createElement("p"); n.className = "help"; n.style.marginTop = "8px";
+    n.innerHTML = "충돌·투명 타일은 <b>바닥</b> 기준(불투명·대비)을 적용하지 않습니다. 이음새·테두리·디테일만 참고하세요.";
+    wrap.appendChild(n);
+  }
+
+  // 이음새 미리보기 (4×4 타일링)
+  wrap.innerHTML += `<div class="panel-title"><h2>이음새 미리보기</h2></div>`;
+  const pv = document.createElement("div"); pv.className = "preview-wrap";
+  const pvcv = document.createElement("canvas");
+  const N = 4, Z = 3, pxs = TS*N*Z;
+  pvcv.width = TS*N; pvcv.height = TS*N;
+  const pc = pvcv.getContext("2d"); pc.imageSmoothingEnabled = false;
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++) pc.drawImage(t.canvas, i*TS, j*TS);
+  pvcv.style.width = pxs/2+"px"; pvcv.style.height = pxs/2+"px";
+  pv.appendChild(pvcv);
+  const cap = document.createElement("div"); cap.className = "cap";
+  cap.innerHTML = "4×4 로 깔았을 때<br>격자무늬·이음선이<br>보이면 실패입니다.";
+  pv.appendChild(cap);
+  wrap.appendChild(pv);
+
+  // 타일 액션
+  const div = document.createElement("div"); div.className = "divider"; wrap.appendChild(div);
+  const actions = document.createElement("div");
+  actions.style.cssText = "display:flex;gap:7px;flex-wrap:wrap";
+  const mk = (label, fn) => { const b=document.createElement("button"); b.className="btn ghost"; b.style.flex="1"; b.textContent=label; b.onclick=fn; return b; };
+  actions.appendChild(mk("복제", () => {
+    const c = makeTile(t.name+" 복사", t.solid); c.data.set(t.data); syncTile(c);
+    const i = state.tiles.indexOf(t); state.tiles.splice(i+1, 0, c); state.activeTileId = c.id;
+    refreshAll(); persist(); toast("타일 복제됨");
+  }));
+  actions.appendChild(mk("PNG 저장", () => downloadPNG(t.canvas, `${t.name || "tile"}.png`)));
+  const del = mk("삭제", () => deleteTile(t)); del.style.color = "var(--rust)";
+  actions.appendChild(del);
+  wrap.appendChild(actions);
+
+  inspector.appendChild(wrap);
+}
+
+function deleteTile(t) {
+  if (state.tiles.length <= 1) { toast("타일이 하나뿐이라 삭제할 수 없습니다"); return; }
+  pushUndo();
+  const i = state.tiles.indexOf(t);
+  state.tiles.splice(i, 1);
+  // 맵에서 이 타일을 빈칸으로
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) if (state.layout[r][c]===t.id) state.layout[r][c] = -1;
+  if (state.activeTileId === t.id) state.activeTileId = state.tiles[Math.max(0,i-1)].id;
+  refreshAll(); persist(); toast("타일 삭제됨");
+}
+
+function renderMapInspector() {
+  const wrap = document.createElement("div");
+  // 요약 통계
+  let filled = 0, solid = 0;
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+    const t = tileById(state.layout[r][c]);
+    if (t) { filled++; if (t.solid) solid++; }
+  }
+  const total = ROWS*COLS;
+  wrap.innerHTML = `<div class="panel-title"><h2>맵 요약</h2></div>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">크기</div><div class="v">${COLS}×${ROWS} <small>896×576px</small></div></div>
+      <div class="stat"><div class="k">채움</div><div class="v">${Math.round(filled/total*100)}% <small>${filled}/${total}</small></div></div>
+      <div class="stat"><div class="k">충돌 칸</div><div class="v">${solid}</div></div>
+      <div class="stat"><div class="k">타일 종류</div><div class="v">${state.tiles.length}</div></div>
+    </div>`;
+
+  // 스폰 현황
+  const s = state.spawns;
+  wrap.innerHTML += `<div class="panel-title"><h2>스폰</h2><span class="count">동료 ${s.allies.length}/5</span></div>`;
+  const sp = document.createElement("div"); sp.className = "legend";
+  const spRow = (label, val, color) => `<div class="legend-row"><span class="spawn-dot" style="width:14px;height:14px;background:${color};border:1px solid var(--line)"></span>${label}<span class="frame">${val}</span></div>`;
+  sp.innerHTML =
+    spRow("플레이어", s.player ? `${s.player.col},${s.player.row}` : "미배치", "var(--ink)") +
+    spRow("동료", s.allies.length ? s.allies.map((a)=>`${a.col},${a.row}`).join(" ") : "미배치", "var(--teal)") +
+    spRow("시민", s.citizen ? `${s.citizen.col},${s.citizen.row}` : "미배치", "var(--brass)");
+  wrap.appendChild(sp);
+
+  // 타일 범례
+  wrap.innerHTML += `<div class="panel-title"><h2>타일 범례</h2></div>`;
+  const leg = document.createElement("div"); leg.className = "legend";
+  state.tiles.forEach((t, i) => {
+    const row = document.createElement("div"); row.className = "legend-row";
+    const cv = document.createElement("canvas"); cv.width=TS; cv.height=TS;
+    cv.getContext("2d").drawImage(t.canvas, 0, 0);
+    row.appendChild(cv);
+    row.insertAdjacentHTML("beforeend", `<span>${t.name}</span>${t.solid?'<span class="badge">충돌</span>':""}<span class="frame">frame ${i}</span>`);
+    leg.appendChild(row);
+  });
+  wrap.appendChild(leg);
+
+  // 빠른 채우기
+  const div = document.createElement("div"); div.className = "divider"; wrap.appendChild(div);
+  const quick = document.createElement("div"); quick.style.cssText = "display:flex;gap:7px";
+  const b1 = document.createElement("button"); b1.className = "btn ghost"; b1.style.flex="1"; b1.textContent = "선택 타일로 전체 채우기";
+  b1.onclick = () => { if (!activeTile()) return; pushUndo(); const id=state.activeTileId; for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) state.layout[r][c]=id; refreshAll(); persist(); };
+  const b2 = document.createElement("button"); b2.className = "btn ghost"; b2.style.flex="1"; b2.textContent = "전체 비우기";
+  b2.onclick = () => { pushUndo(); for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) state.layout[r][c]=-1; refreshAll(); persist(); };
+  quick.append(b1, b2);
+  wrap.appendChild(quick);
+
+  // Phaser 로더 도움말
+  const help = document.createElement("details"); help.className = "export-help";
+  help.innerHTML = `<summary>Phaser 에서 불러오는 법</summary><pre>
+<span class="kw">// BootScene.preload()</span>
+this.load.spritesheet(<span class="str">'tiles'</span>, <span class="str">'assets/tiles.png'</span>,
+  { frameWidth: 32, frameHeight: 32 });
+this.load.json(<span class="str">'map'</span>, <span class="str">'assets/map.json'</span>);
+
+<span class="kw">// StageScene.create()</span>
+const m = this.cache.json.get(<span class="str">'map'</span>);
+for (let r = 0; r &lt; m.rows; r++)
+  for (let c = 0; c &lt; m.cols; c++) {
+    const f = m.layout[r][c];
+    if (f &lt; 0) continue;
+    this.add.image(c*32+16, r*32+16, <span class="str">'tiles'</span>, f);
+    if (m.tiles[f].solid) { <span class="kw">/* 정적 바디 추가 */</span> }
+  }
+<span class="kw">// 스폰: x = col*32+16, y = row*32+16</span>
+<span class="kw">// ⚠ 게임 캔버스를 896×576 으로 (현재 920×600)</span></pre>`;
+  wrap.appendChild(help);
+
+  inspector.appendChild(wrap);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   포인터 입력 (그리기)
+   ══════════════════════════════════════════════════════════════ */
+const hover = { col:-1, row:-1, px:-1, py:-1 };
+let painting = false, rectStart = null, strokeErased = false;
+
+function mapCellFromEvent(e) {
+  const r = stage.getBoundingClientRect();
+  return {
+    col: Math.floor((e.clientX - r.left) / cell),
+    row: Math.floor((e.clientY - r.top) / cell),
+  };
+}
+function tilePxFromEvent(e) {
+  const r = stage.getBoundingClientRect();
+  const u = (TS*ZOOM) / r.width; // CSS 스케일 보정
+  return {
+    px: Math.floor((e.clientX - r.left) * u / ZOOM),
+    py: Math.floor((e.clientY - r.top) * u / ZOOM),
+  };
+}
+
+stage.addEventListener("pointerdown", (e) => {
+  stage.setPointerCapture(e.pointerId);
+  pushUndo();
+  painting = true;
+  if (state.mode === "map") {
+    const { col, row } = mapCellFromEvent(e);
+    if (state.mapTool === "rect") { rectStart = { col, row }; return; }
+    if (state.mapTool === "pick") { const id = state.layout[row]?.[col]; if (id>=0){ state.activeTileId=id; renderPalette(); } painting=false; undo.pop(); return; }
+    if (state.mapTool === "fill") { floodMap(col, row); refreshMapUI(); painting=false; persist(); return; }
+    if (state.mapTool === "spawn") { placeSpawn(col, row); painting=false; renderStage(); renderInspector(); persist(); return; }
+    paintMapCell(col, row);
+  } else {
+    const { px, py } = tilePxFromEvent(e);
+    if (state.tileTool === "pick") { pickPixel(px, py); painting=false; undo.pop(); return; }
+    if (state.tileTool === "fill") { floodTile(px, py); painting=false; refreshTileUI(); persist(); return; }
+    paintPixel(px, py);
+  }
+});
+
+stage.addEventListener("pointermove", (e) => {
+  if (state.mode === "map") {
+    const { col, row } = mapCellFromEvent(e);
+    const changed = col!==hover.col || row!==hover.row;
+    hover.col = (col>=0&&col<COLS&&row>=0&&row<ROWS)?col:-1;
+    hover.row = hover.col<0?-1:row;
+    readoutEl.innerHTML = hover.col>=0 ? `칸 <b>${col}, ${row}</b> · 좌표 <b>${col*32+16}, ${row*32+16}</b>px` : `${COLS}×${ROWS} 격자 · 32px 타일`;
+    if (painting && hover.col>=0 && state.mapTool!=="rect") paintMapCell(col, row);
+    if (painting && state.mapTool==="rect") renderStage();
+    else if (changed) renderStage();
+  } else {
+    const { px, py } = tilePxFromEvent(e);
+    const changed = px!==hover.px || py!==hover.py;
+    hover.px = (px>=0&&px<TS&&py>=0&&py<TS)?px:-1;
+    hover.py = hover.px<0?-1:py;
+    readoutEl.innerHTML = hover.px>=0 ? `픽셀 <b>${px}, ${py}</b>` : `32×32 픽셀 · 확대 ${ZOOM}×`;
+    if (painting && hover.px>=0) paintPixel(px, py);
+    else if (changed) renderStage();
+  }
+});
+
+function endStroke(e) {
+  if (!painting) return;
+  if (state.mode==="map" && state.mapTool==="rect" && rectStart) {
+    const { col, row } = mapCellFromEvent(e);
+    const id = state.activeTileId;
+    const [c0,c1] = [rectStart.col, col].sort((a,b)=>a-b);
+    const [r0,r1] = [rectStart.row, row].sort((a,b)=>a-b);
+    for (let r=Math.max(0,r0); r<=Math.min(ROWS-1,r1); r++)
+      for (let c=Math.max(0,c0); c<=Math.min(COLS-1,c1); c++)
+        state.layout[r][c] = id;
+    rectStart = null;
+    refreshMapUI();
+  }
+  painting = false;
+  if (state.mode === "tile") refreshTileUI();
+  persist();
+}
+stage.addEventListener("pointerup", endStroke);
+stage.addEventListener("pointercancel", () => { painting=false; rectStart=null; });
+stage.addEventListener("pointerleave", () => {
+  if (!painting) { hover.col=hover.row=hover.px=hover.py=-1; renderStage(); }
+});
+
+/* ── 맵 편집 연산 ──────────────────────────────────────────── */
+function paintMapCell(col, row) {
+  if (col<0||col>=COLS||row<0||row>=ROWS) return;
+  const id = state.mapTool==="erase" ? -1 : state.activeTileId;
+  if (state.layout[row][col] === id) { renderStage(); return; }
+  state.layout[row][col] = id;
+  renderStage();
+}
+function floodMap(col, row) {
+  if (col<0||col>=COLS||row<0||row>=ROWS) return;
+  const target = state.layout[row][col];
+  const repl = state.activeTileId;
+  if (target === repl) return;
+  const stack = [[col,row]];
+  while (stack.length) {
+    const [c,r] = stack.pop();
+    if (c<0||c>=COLS||r<0||r>=ROWS) continue;
+    if (state.layout[r][c] !== target) continue;
+    state.layout[r][c] = repl;
+    stack.push([c+1,r],[c-1,r],[c,r+1],[c,r-1]);
+  }
+  renderStage();
+}
+function placeSpawn(col, row) {
+  if (col<0||col>=COLS||row<0||row>=ROWS) return;
+  const s = state.spawns;
+  if (state.spawnKind === "player") s.player = { col, row };
+  else if (state.spawnKind === "citizen") s.citizen = { col, row };
+  else {
+    const i = s.allies.findIndex((a) => a.col===col && a.row===row);
+    if (i >= 0) s.allies.splice(i, 1);
+    else if (s.allies.length < 5) s.allies.push({ col, row });
+    else toast("동료 스폰은 최대 5개입니다");
+  }
+}
+
+/* ── 픽셀 편집 연산 ────────────────────────────────────────── */
+function paintPixel(px, py) {
+  if (px<0||px>=TS||py<0||py>=TS) return;
+  const t = activeTile(); if (!t) return;
+  const i = (py*TS+px)*4;
+  if (state.tileTool === "erase") { t.data[i+3] = 0; }
+  else { const [r,g,b] = hexToRgb(state.color); t.data[i]=r; t.data[i+1]=g; t.data[i+2]=b; t.data[i+3]=255; }
+  syncTile(t);
+  renderStage();
+}
+function floodTile(px, py) {
+  if (px<0||px>=TS||py<0||py>=TS) return;
+  const t = activeTile(); if (!t) return;
+  const d = t.data;
+  const i0 = (py*TS+px)*4;
+  const tgt = [d[i0],d[i0+1],d[i0+2],d[i0+3]];
+  const [nr,ng,nb] = hexToRgb(state.color);
+  const na = state.tileTool==="erase" ? 0 : 255;
+  const nrgb = [nr,ng,nb,na];
+  if (tgt.every((v,k)=>v===nrgb[k])) return;
+  const stack = [[px,py]];
+  const match = (i) => d[i]===tgt[0]&&d[i+1]===tgt[1]&&d[i+2]===tgt[2]&&d[i+3]===tgt[3];
+  while (stack.length) {
+    const [x,y] = stack.pop();
+    if (x<0||x>=TS||y<0||y>=TS) continue;
+    const i = (y*TS+x)*4;
+    if (!match(i)) continue;
+    d[i]=nrgb[0]; d[i+1]=nrgb[1]; d[i+2]=nrgb[2]; d[i+3]=nrgb[3];
+    stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+  }
+  syncTile(t);
+  renderStage();
+}
+function pickPixel(px, py) {
+  const t = activeTile(); if (!t) return;
+  if (px<0||px>=TS||py<0||py>=TS) return;
+  const i = (py*TS+px)*4;
+  if (t.data[i+3] === 0) return;
+  const hex = "#" + [t.data[i],t.data[i+1],t.data[i+2]].map((v)=>v.toString(16).padStart(2,"0")).join("");
+  setColor(hex);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   불러오기 / 내보내기
+   ══════════════════════════════════════════════════════════════ */
+function downloadURL(url, name) {
+  const a = document.createElement("a"); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function downloadPNG(canvas, name) { downloadURL(canvas.toDataURL("image/png"), name); }
+function downloadText(text, name, type) {
+  downloadURL(URL.createObjectURL(new Blob([text], { type: type||"application/json" })), name);
+}
+
+function buildMapJSON() {
+  return {
+    format: "clockbird-tilemap", version: 1,
+    tileSize: TS, cols: COLS, rows: ROWS,
+    tileset: "tiles.png",
+    tiles: state.tiles.map((t) => ({ name: t.name, solid: t.solid })),
+    layout: state.layout.map((row) => row.map((id) => {
+      const i = state.tiles.findIndex((t) => t.id === id);
+      return i; // 빈칸(-1)은 findIndex 도 -1
+    })),
+    spawns: state.spawns,
+  };
+}
+function exportMapJSON() {
+  downloadText(JSON.stringify(buildMapJSON(), null, 2), "map.json");
+  toast("map.json 저장됨", true);
+}
+function exportTilesheet() {
+  const cv = document.createElement("canvas");
+  cv.width = TS*state.tiles.length; cv.height = TS;
+  const ctx = cv.getContext("2d"); ctx.imageSmoothingEnabled = false;
+  state.tiles.forEach((t, i) => ctx.drawImage(t.canvas, i*TS, 0));
+  downloadPNG(cv, "tiles.png");
+  toast(`tiles.png 저장됨 (${state.tiles.length} 프레임)`, true);
+}
+function exportTilesIndividual() {
+  state.tiles.forEach((t, i) => setTimeout(() => downloadPNG(t.canvas, `tile_${i}_${t.name || "tile"}.png`), i*120));
+  toast(`${state.tiles.length}장 낱장 저장 중…`, true);
+}
+function saveProject() {
+  const proj = {
+    format: "clockbird-tilemap-project", version: 2,
+    cols: COLS, rows: ROWS, nextId: state.nextId,
+    tiles: state.tiles.map((t) => ({ id: t.id, name: t.name, solid: t.solid, png: t.canvas.toDataURL("image/png") })),
+    layout: state.layout, spawns: state.spawns,
+  };
+  downloadText(JSON.stringify(proj), "clockbird-map.project.json");
+  toast("프로젝트 저장됨", true);
+}
+
+/* 불러오기 — PNG(타일/시트) 또는 프로젝트 JSON */
+$("#btn-import").onclick = () => $("#file-import").click();
+$("#file-import").onchange = (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  for (const f of files) {
+    if (f.type === "application/json" || f.name.endsWith(".json")) importProjectFile(f);
+    else importImageFile(f);
+  }
+};
+
+function importProjectFile(f) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const p = JSON.parse(rd.result);
+      if (p.format === "clockbird-tilemap-project" || p.tiles) loadProjectObject(p);
+      else toast("알 수 없는 JSON 형식입니다");
+    } catch { toast("JSON 파싱 실패"); }
+  };
+  rd.readAsText(f);
+}
+function loadProjectObject(p) {
+  let pending = p.tiles.length;
+  const newTiles = [];
+  if (!pending) return;
+  p.tiles.forEach((td, idx) => {
+    const t = makeTile(td.name || `타일 ${idx+1}`, td.solid);
+    if (td.id != null) t.id = td.id;
+    const img = new Image();
+    img.onload = () => {
+      t.ctx.drawImage(img, 0, 0, TS, TS);
+      t.data.set(t.ctx.getImageData(0,0,TS,TS).data);
+      if (--pending === 0) finishLoad();
+    };
+    img.onerror = () => { if (--pending === 0) finishLoad(); };
+    img.src = td.png;
+    newTiles[idx] = t;
+  });
+  function finishLoad() {
+    state.tiles = newTiles.filter(Boolean);
+    state.nextId = p.nextId || (Math.max(0, ...state.tiles.map((t)=>t.id)) + 1);
+    if (p.layout) state.layout = p.layout.map((r)=>r.slice());
+    else state.layout = Array.from({length:ROWS},()=>Array(COLS).fill(-1));
+    state.spawns = p.spawns || { player:null, allies:[], citizen:null };
+    state.activeTileId = state.tiles[0]?.id ?? null;
+    undo.length = redo.length = 0;
+    refreshAll(); persist(); toast("프로젝트 불러옴", true);
+  }
+}
+
+/* PNG 불러오기: 32의 배수면 타일시트로 슬라이스, 아니면 32×32 로 맞춰 1장 */
+function importImageFile(f) {
+  const img = new Image();
+  img.onload = () => {
+    pushUndo();
+    if (img.width % TS === 0 && img.height % TS === 0 && (img.width > TS || img.height > TS)) {
+      const cols = img.width/TS, rows = img.height/TS;
+      let added = 0;
+      for (let ry=0; ry<rows; ry++) for (let rx=0; rx<cols; rx++) {
+        const t = makeTile(`${f.name.replace(/\.png$/i,"")} ${ry*cols+rx}`, false);
+        t.ctx.drawImage(img, rx*TS, ry*TS, TS, TS, 0, 0, TS, TS);
+        t.data.set(t.ctx.getImageData(0,0,TS,TS).data);
+        state.tiles.push(t); added++;
+      }
+      toast(`${added}개 타일 불러옴`, true);
+    } else {
+      const t = makeTile(f.name.replace(/\.png$/i,""), false);
+      t.ctx.drawImage(img, 0, 0, TS, TS);
+      t.data.set(t.ctx.getImageData(0,0,TS,TS).data);
+      state.tiles.push(t);
+      state.activeTileId = t.id; state.mode = "tile";
+      toast("타일 1장 불러옴", true);
+    }
+    if (state.tiles.length) state.activeTileId = state.activeTileId ?? state.tiles[0].id;
+    refreshAll(); persist();
+  };
+  img.onerror = () => toast("이미지를 읽지 못했습니다");
+  const rd = new FileReader();
+  rd.onload = () => (img.src = rd.result);
+  rd.readAsDataURL(f);
+}
+
+/* 내보내기 메뉴 → 모든 항목을 내보내기 모달로 (샌드박스 다운로드 차단 대비) */
+const exportMenu = $("#export-menu");
+$("#btn-export").onclick = (e) => { e.stopPropagation(); exportMenu.classList.toggle("open"); };
+document.addEventListener("click", () => exportMenu.classList.remove("open"));
+exportMenu.addEventListener("click", (e) => {
+  if (!e.target.closest("button")?.dataset.act) return;
+  exportMenu.classList.remove("open");
+  openExportModal();
+});
+
+/* 내보내기 모달 */
+let sheetURL = "";
+function buildTilesheetURL() {
+  const cv = document.createElement("canvas");
+  cv.width = TS*state.tiles.length; cv.height = TS;
+  const ctx = cv.getContext("2d"); ctx.imageSmoothingEnabled = false;
+  state.tiles.forEach((t, i) => ctx.drawImage(t.canvas, i*TS, 0));
+  return cv.toDataURL("image/png");
+}
+function openExportModal() {
+  sheetURL = buildTilesheetURL();
+  const img = $("#export-img");
+  img.src = sheetURL;
+  img.style.width = (TS*state.tiles.length*3) + "px";  // 3× 확대 미리보기
+  $("#export-sheet-info").textContent = `${state.tiles.length} 프레임 · ${TS*state.tiles.length}×${TS}px`;
+  $("#export-json").value = JSON.stringify(buildMapJSON(), null, 2);
+  $("#export-modal").classList.add("open");
+}
+function closeExportModal() { $("#export-modal").classList.remove("open"); }
+$("#ex-close").onclick = closeExportModal;
+$("#export-modal").addEventListener("click", (e) => { if (e.target.id === "export-modal") closeExportModal(); });
+window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeExportModal(); });
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    const ta = $("#export-json"); ta.focus(); ta.select();
+    try { const ok = document.execCommand("copy"); return ok; } catch { return false; }
+  }
+}
+$("#ex-copy-json").onclick = async () => {
+  const ok = await copyText($("#export-json").value);
+  toast(ok ? "JSON 복사됨 — 대화창에 붙여넣으세요" : "복사 실패 — 직접 선택해 복사하세요", ok);
+};
+$("#ex-dl-sheet").onclick = () => downloadURL(sheetURL, "tiles.png");
+$("#ex-dl-json").onclick = () => downloadText($("#export-json").value, "map.json");
+$("#ex-dl-project").onclick = saveProject;
+
+/* ══════════════════════════════════════════════════════════════
+   자동 저장 (localStorage)
+   ══════════════════════════════════════════════════════════════ */
+let persistTimer = null;
+function persist() {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    try {
+      const proj = {
+        format: "clockbird-tilemap-project", version: 2, nextId: state.nextId,
+        tiles: state.tiles.map((t) => ({ id:t.id, name:t.name, solid:t.solid, png:t.canvas.toDataURL("image/png") })),
+        layout: state.layout, spawns: state.spawns, activeTileId: state.activeTileId,
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(proj));
+    } catch { /* 용량 초과 등은 조용히 무시 */ }
+  }, 400);
+}
+function restore() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const p = JSON.parse(raw);
+    if (!p.tiles || !p.tiles.length) return false;
+    // 동기 복원이 안 되므로(이미지 로드) 시드 후 비동기 덮어쓰기
+    loadProjectObject(p);
+    return true;
+  } catch { return false; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   모드 전환 · 토글 · 새로고침
+   ══════════════════════════════════════════════════════════════ */
+function refreshMapUI() { renderStage(); renderInspector(); }
+function refreshTileUI() { renderStage(); renderPalette(); renderInspector(); }
+function refreshAll() { renderPalette(); renderTools(); renderStage(); renderInspector(); renderToggles(); }
+
+function setMode(mode) {
+  state.mode = mode;
+  $("#mode-map").setAttribute("aria-pressed", mode==="map");
+  $("#mode-tile").setAttribute("aria-pressed", mode==="tile");
+  hover.col=hover.row=hover.px=hover.py=-1;
+  refreshAll();
+}
+$("#mode-map").onclick = () => setMode("map");
+$("#mode-tile").onclick = () => setMode("tile");
+
+function renderToggles() {
+  togglesEl.innerHTML = "";
+  const mk = (label, on, fn) => { const b=document.createElement("button"); b.className="chip-toggle"; b.setAttribute("aria-pressed",on); b.textContent=label; b.onclick=fn; return b; };
+  togglesEl.appendChild(mk("격자", state.showGrid, () => { state.showGrid=!state.showGrid; renderStage(); renderToggles(); }));
+  if (state.mode === "map")
+    togglesEl.appendChild(mk("충돌", state.showSolid, () => { state.showSolid=!state.showSolid; renderStage(); renderToggles(); }));
+}
+
+$("#btn-undo").onclick = doUndo;
+$("#btn-redo").onclick = doRedo;
+
+/* 키보드 단축키 */
+window.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if ($("#export-modal").classList.contains("open")) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey||e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); doUndo(); return; }
+  if ((e.ctrlKey||e.metaKey) && (k === "y" || (k==="z"&&e.shiftKey))) { e.preventDefault(); doRedo(); return; }
+  if (e.ctrlKey||e.metaKey) return;
+  const mapKeys = { b:"pencil", g:"fill", r:"rect", e:"erase", i:"pick", s:"spawn" };
+  const tileKeys = { b:"pencil", e:"erase", g:"fill", i:"pick" };
+  if (state.mode==="map" && mapKeys[k]) { state.mapTool=mapKeys[k]; renderTools(); renderInspector(); }
+  else if (state.mode==="tile" && tileKeys[k]) { state.tileTool=tileKeys[k]; renderTools(); }
+  if (k === "m") setMode(state.mode==="map"?"tile":"map");
+});
+
+/* 테마 변경 시 캔버스 다시 그림 (색을 CSS 변수에서 읽으므로) */
+const mq = window.matchMedia("(prefers-color-scheme: dark)");
+mq.addEventListener?.("change", () => renderStage());
+new MutationObserver(() => renderStage()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+window.addEventListener("resize", () => { if (state.mode==="map") renderStage(); });
+
+/* ── 부팅 ──────────────────────────────────────────────────── */
+if (!restore()) { seedProject(); refreshAll(); }
+else { setMode("map"); }
+updateUndoButtons();
+</script>

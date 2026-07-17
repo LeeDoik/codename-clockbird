@@ -1,0 +1,19 @@
+STYLE FORMULA — 코드네임: 태엽새 (byte-identical, insert into every asset prompt)
+=============================================================================
+
+Chunky pixel art, 32x32 grid feel, limited palette, crisp hard edges; compact rounded character silhouettes with dark warm-brown outlines and minimal interior detail; environment in dark tarnished brass-brown stone with charcoal shadows, the player agent in warm cream and pale gold that pops against the gloom, allied characters in muted steampunk teal, rust and worn leather so each reads distinct, guards marked with a rust-red signal; dim gaslit Victorian-steampunk mansion at night, moody clandestine flat ambient light; high contrast between characters and dark floor, clean readable silhouettes, consistent top-down perspective.
+
+-----------------------------------------------------------------------------
+Derivation (fixed by the existing game art — tiles.png + in-game palette):
+  1. Rendering : chunky pixel art, 32x32 grid feel, limited palette, crisp hard edges
+  2. Shape/line: compact rounded silhouettes, dark warm-brown outlines, minimal interior detail
+  3. Palette by role:
+       - environment : dark tarnished brass-brown stone, charcoal shadows   (#231f19 / #3a342b)
+       - player      : warm cream + pale gold, must POP against the gloom     (#e8dcc0 / #c9a227)
+       - allies      : muted steampunk teal / rust / worn leather, each distinct (#4a7a6b / #c25b4a)
+       - hazards     : rust-red signal hue                                    (#c25b4a)
+  4. Light/mood: dim gaslit Victorian-steampunk mansion at night, moody clandestine flat ambient light
+  5. Readability + perspective: high contrast vs dark floor, clean silhouettes, TOP-DOWN (game is top-down)
+
+STYLE TOKEN (compressed, for length-limited fields):
+  chunky pixel art, dark brass-brown steampunk palette, cream-gold hero, teal/rust allies, gaslit night, top-down

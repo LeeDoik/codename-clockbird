@@ -8,3 +8,7 @@ npm-debug.log*
 
 # check-tile.js 가 뱉는 육안 검수용 미리보기
 *.preview4x4.png
+
+# 공유 링크용 (share.bat 이 자동 다운로드)
+cloudflared.exe
+*.preview8x.png

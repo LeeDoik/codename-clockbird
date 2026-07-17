@@ -20,15 +20,26 @@ export class DialogueBox {
     this.onSend = null;
     /** 접선 코드 전달 */
     this.onCode = null;
+    /** 입력창 Enter 가 무엇을 하는지: 'chat'(대화) | 'code'(코드 전달) */
+    this.inputMode = 'chat';
 
     this.sendBtn.addEventListener('click', () => this.#fire(this.onSend));
     this.codeBtn.addEventListener('click', () => this.#fire(this.onCode));
 
     this.field.addEventListener('keydown', (e) => {
+      // 입력칸이 포커스된 동안에는 stopPropagation 때문에 Phaser 가 키를 못 받는다.
+      // 그래서 Esc 닫기는 여기서 직접 처리한다 (입력 중 취소).
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.hide();
+        return;
+      }
       // IME 조합 중 Enter 는 무시해야 한글 입력이 중간에 끊기지 않는다.
       if (e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
-        this.#fire(this.onSend);
+        // 코드 모드면 Enter 가 접선 코드 전달, 아니면 자유 대화.
+        this.#fire(this.inputMode === 'code' ? this.onCode : this.onSend);
       }
       e.stopPropagation(); // Phaser 키 입력(이동)과 충돌 방지
     });
@@ -68,7 +79,8 @@ export class DialogueBox {
     this.textEl.textContent += chunk;
   }
 
-  showInput(placeholder = '말을 건넨다...') {
+  showInput(placeholder = '말을 건넨다...', mode = 'chat') {
+    this.inputMode = mode;
     this.field.placeholder = placeholder;
     this.inputWrap.classList.add('visible');
     this.field.focus();

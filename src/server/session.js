@@ -12,7 +12,7 @@ const sessions = new Map();
 
 const MAX_TRUST = 3;
 
-export function createSession({ codeWord, category, allies, associations, arrestedIds }) {
+export function createSession({ codeWord, category, allies, associations, duplicateGroups }) {
   const id = randomUUID();
 
   const allyState = allies.map((ally) => {
@@ -25,7 +25,9 @@ export function createSession({ codeWord, category, allies, associations, arrest
       word: assoc?.word ?? null,
       reason: assoc?.reason ?? null,
       trust: MAX_TRUST,
-      arrested: arrestedIds.includes(ally.id),
+      // 접선(대화) 여부. 체포는 시작 시가 아니라, 같은 그룹에서 2명 이상 접선됐을 때 발동한다.
+      contacted: false,
+      arrested: false,
       informed: false,
       // 이 동료와 나눈 대화 이력 (Claude messages 형식). 클라이언트로 내보내지 않는다.
       history: [],
@@ -37,6 +39,9 @@ export function createSession({ codeWord, category, allies, associations, arrest
     codeWord, // ← 서버 전용
     category, // ← 서버 전용
     allies: allyState,
+    // 같은 단어를 낸 동료 묶음 [{ npcIds, reason }]. 체포는 플레이어가 접선으로 중복을
+    // 확인했을 때 비로소 발동하므로, 여기 숨겨두고 contactAlly 에서 판정한다.
+    duplicateGroups: duplicateGroups ?? [],
     alertLevel: 0,
     cleared: false,
     gameOver: false,
@@ -65,8 +70,10 @@ export function toClientView(session) {
       name: a.name,
       role: a.role,
       spawn: a.spawn,
-      // 체포·밀고된 동료의 단어는 노출하지 않는다.
-      word: a.arrested || a.informed ? null : a.word,
+      // 단어는 접선(대화)한 뒤에만 내려간다 — 접선하기 전엔 알 수 없다.
+      // 체포·밀고된 동료의 단어도 감춘다.
+      word: a.contacted && !a.arrested && !a.informed ? a.word : null,
+      contacted: a.contacted,
       trust: a.trust,
       maxTrust: MAX_TRUST,
       arrested: a.arrested,
@@ -77,6 +84,40 @@ export function toClientView(session) {
 
 export function getAlly(session, allyId) {
   return session.allies.find((a) => a.id === allyId);
+}
+
+/**
+ * 플레이어가 동료에게 접선한다.
+ *  - 접선한 동료의 연상 단어를 밝힌다 (contacted = true).
+ *  - 같은 단어를 낸 중복 그룹에서 2명 이상이 접선되면(= 플레이어가 중복을 확인함)
+ *    그 순간 해당 그룹의 접선된 구성원 전원을 체포한다.
+ *
+ * @returns {{ word: string, reason: string, newlyArrested: string[] } | null}
+ *          접선할 수 없는 동료(없음·체포·밀고)면 null.
+ */
+export function contactAlly(session, allyId) {
+  const ally = getAlly(session, allyId);
+  if (!ally || ally.arrested || ally.informed) return null;
+
+  ally.contacted = true;
+
+  const newlyArrested = [];
+  for (const group of session.duplicateGroups) {
+    if (!group.npcIds.includes(allyId)) continue;
+    const contacted = group.npcIds.filter((id) => getAlly(session, id)?.contacted);
+    // 접선된 구성원이 2명 이상 → 중복이 확인됨 → 전원 체포.
+    if (contacted.length >= 2) {
+      for (const id of contacted) {
+        const m = getAlly(session, id);
+        if (m && !m.arrested) {
+          m.arrested = true;
+          newlyArrested.push(id);
+        }
+      }
+    }
+  }
+
+  return { word: ally.word, reason: ally.reason, newlyArrested };
 }
 
 /** 마을 NPC 대사 분기와 대화 프롬프트에 쓰이는 현재 체포 인원 */

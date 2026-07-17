@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>맵 데모 · 태엽새</title>
+<style>
+  :root {
+    --bg: #17130e; --panel: #201a12; --line: #3a3120;
+    --ink: #e8dcc0; --dim: #9a8f77; --brass: #c9a227; --teal: #5c9a86; --rust: #c25b4a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(120% 90% at 50% -10%, #241d13, var(--bg) 60%);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, "Malgun Gothic", sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    padding: 22px 16px 40px; min-height: 100%;
+  }
+  .mono { font-family: ui-monospace, "Cascadia Code", "Consolas", monospace; font-variant-numeric: tabular-nums; }
+  header { text-align: center; }
+  header h1 { margin: 0 0 4px; font-size: 18px; font-weight: 650; }
+  header h1 b { color: var(--brass); }
+  header p { margin: 0; font-size: 12.5px; color: var(--dim); }
+
+  .stage {
+    position: relative; padding: 12px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 14px 44px rgba(0,0,0,.5);
+  }
+  .stage::before { content: ""; position: absolute; inset: 6px; border: 1px solid rgba(201,162,39,.2); border-radius: 9px; pointer-events: none; }
+  canvas {
+    display: block; image-rendering: pixelated; border-radius: 4px;
+    max-width: 100%; height: auto; touch-action: none;
+  }
+
+  .hud {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    font-size: 12.5px; color: var(--dim);
+  }
+  .hud .key { color: var(--ink); }
+  kbd {
+    font-family: ui-monospace, monospace; background: #2a2218; border: 1px solid var(--line);
+    border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: 11px; color: var(--ink);
+  }
+  .toggles { display: flex; gap: 8px; }
+  .toggles button {
+    font-family: inherit; cursor: pointer; border: 1px solid var(--line);
+    background: #2a2218; color: var(--dim); border-radius: 20px; padding: 5px 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .toggles button[aria-pressed="true"] { color: var(--brass); border-color: var(--brass); background: rgba(201,162,39,.1); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .box { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>맵 데모 — <b>코드네임: 태엽새</b></h1>
+    <p>내보낸 <span class="mono">map.json</span> + <span class="mono">tiles.png</span> 를 그대로 렌더합니다 · 서버·API 키 불필요</p>
+  </header>
+
+  <div class="stage"><canvas id="c" width="896" height="576"></canvas></div>
+
+  <div class="hud">
+    <span><span class="key">이동</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>←↑↓→</kbd></span>
+    <span class="mono" id="pos"></span>
+    <div class="toggles">
+      <button id="t-grid" aria-pressed="false">격자</button>
+      <button id="t-solid" aria-pressed="false">충돌</button>
+      <button id="t-spawn" aria-pressed="true">스폰</button>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="box" style="background:#e8dcc0"></span>플레이어</span>
+    <span><span class="dot" style="background:#5c9a86"></span>동료 스폰 ×<span id="n-ally"></span></span>
+    <span><span class="dot" style="background:#c9a227"></span>시민 스폰</span>
+    <span><span class="box" style="background:#c25b4a;opacity:.6"></span>충돌(벽)</span>
+  </div>
+
+<script>
+"use strict";
+/* 데모용 — 실제 게임 엔진(Phaser)이 아니라 검증용 바닐라 캔버스 렌더러.
+   내보낸 맵/타일이 제대로 나오는지, solid 타일에 충돌이 걸리는지 눈으로 확인한다. */
+const MAP = {
+  "format": "clockbird-tilemap",
+  "version": 1,
+  "tileSize": 32,
+  "cols": 28,
+  "rows": 18,
+  "tileset": "tiles.png",
+  "tiles": [
+    { "name": "금속 바닥", "solid": false },
+    { "name": "바닥 · 변형", "solid": false },
+    { "name": "벽", "solid": true }
+  ],
+  "layout": [
+    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+    [2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+    [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]
+  ],
+  "spawns": {
+    "player": { "col": 14, "row": 15 },
+    "allies": [
+      { "col": 4, "row": 3 },
+      { "col": 13, "row": 3 },
+      { "col": 23, "row": 3 },
+      { "col": 3, "row": 14 },
+      { "col": 23, "row": 14 }
+    ],
+    "citizen": { "col": 10, "row": 11 }
+  }
+};
+const TILES_PNG = "data:image/png;base64,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";
+
+const TS = MAP.tileSize, COLS = MAP.cols, ROWS = MAP.rows;
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+const show = { grid: false, solid: false, spawn: true };
+document.getElementById("n-ally").textContent = MAP.spawns.allies.length;
+
+const sheet = new Image();
+let ready = false;
+sheet.onload = () => { ready = true; requestAnimationFrame(loop); };
+sheet.src = TILES_PNG;
+
+// 플레이어 (게임과 동일: 20×20, #e8dcc0). 스폰 칸 중심에 배치.
+const PW = 20, PH = 20, SPEED = 185;
+const sp = MAP.spawns.player || { col: 1, row: 1 };
+const player = { x: sp.col*TS + TS/2 - PW/2, y: sp.row*TS + TS/2 - PH/2 };
+
+const keys = {};
+addEventListener("keydown", (e) => {
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+});
+addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
+
+function solidAt(px, py) {
+  const l = Math.floor(px / TS), r = Math.floor((px + PW - 1) / TS);
+  const t = Math.floor(py / TS), b = Math.floor((py + PH - 1) / TS);
+  for (let ry = t; ry <= b; ry++) for (let cx = l; cx <= r; cx++) {
+    if (ry < 0 || cx < 0 || ry >= ROWS || cx >= COLS) return true; // 맵 밖 = 벽
+    const f = MAP.layout[ry][cx];
+    if (f >= 0 && MAP.tiles[f] && MAP.tiles[f].solid) return true;
+  }
+  return false;
+}
+
+let last = 0;
+function loop(ts) {
+  const dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts;
+
+  const vx = (keys["d"]||keys["arrowright"]?1:0) - (keys["a"]||keys["arrowleft"]?1:0);
+  const vy = (keys["s"]||keys["arrowdown"]?1:0) - (keys["w"]||keys["arrowup"]?1:0);
+  // 축별로 이동·충돌 → 벽을 따라 미끄러진다
+  const nx = player.x + vx * SPEED * dt;
+  if (!solidAt(nx, player.y)) player.x = nx;
+  const ny = player.y + vy * SPEED * dt;
+  if (!solidAt(player.x, ny)) player.y = ny;
+
+  render();
+  requestAnimationFrame(loop);
+}
+
+function render() {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = "#14110b";
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // 타일
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const f = MAP.layout[r][c];
+    if (f >= 0) ctx.drawImage(sheet, f*TS, 0, TS, TS, c*TS, r*TS, TS, TS);
+  }
+
+  // 충돌 오버레이
+  if (show.solid) {
+    ctx.save(); ctx.globalAlpha = 0.34; ctx.fillStyle = "#c25b4a";
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const f = MAP.layout[r][c];
+      if (f >= 0 && MAP.tiles[f].solid) ctx.fillRect(c*TS, r*TS, TS, TS);
+    }
+    ctx.restore();
+  }
+
+  // 격자
+  if (show.grid) {
+    ctx.strokeStyle = "rgba(201,162,39,.16)"; ctx.lineWidth = 1; ctx.beginPath();
+    for (let c = 0; c <= COLS; c++) { ctx.moveTo(c*TS+.5, 0); ctx.lineTo(c*TS+.5, cv.height); }
+    for (let r = 0; r <= ROWS; r++) { ctx.moveTo(0, r*TS+.5); ctx.lineTo(cv.width, r*TS+.5); }
+    ctx.stroke();
+  }
+
+  // 스폰 마커
+  if (show.spawn) {
+    const marker = (col, row, color, label, ring) => {
+      const x = col*TS + TS/2, y = row*TS + TS/2;
+      ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ring; ctx.stroke();
+      ctx.fillStyle = "#17130e"; ctx.font = "700 12px ui-monospace, monospace";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(label, x, y+.5);
+    };
+    MAP.spawns.allies.forEach((a, i) => marker(a.col, a.row, "#5c9a86", String(i+1), "#17130e"));
+    if (MAP.spawns.citizen) marker(MAP.spawns.citizen.col, MAP.spawns.citizen.row, "#c9a227", "C", "#17130e");
+  }
+
+  // 플레이어
+  ctx.fillStyle = "#e8dcc0";
+  ctx.fillRect(player.x, player.y, PW, PH);
+  ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 1;
+  ctx.strokeRect(player.x+.5, player.y+.5, PW-1, PH-1);
+
+  document.getElementById("pos").textContent =
+    `칸 ${Math.floor((player.x+PW/2)/TS)}, ${Math.floor((player.y+PH/2)/TS)}`;
+}
+
+// 토글
+const bind = (id, key) => {
+  const b = document.getElementById(id);
+  b.onclick = () => { show[key] = !show[key]; b.setAttribute("aria-pressed", show[key]); };
+};
+bind("t-grid", "grid"); bind("t-solid", "solid"); bind("t-spawn", "spawn");
+</script>
+</body>
+</html>

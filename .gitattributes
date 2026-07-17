@@ -1,0 +1,5 @@
+# 배치 파일은 항상 CRLF 로 체크아웃 — LF 면 Windows cmd 가 파싱에 실패한다.
+*.bat text eol=crlf
+
+# 바이너리 에셋은 라인엔딩 변환 금지
+*.png binary

@@ -9,6 +9,7 @@ import {
   toClientView,
   loseTrust,
   getAlly,
+  contactAlly,
   arrestedCount,
   pushDialogue,
 } from '../session.js';
@@ -48,20 +49,39 @@ router.post('/start', async (req, res, next) => {
       category: picked.category,
       allies,
       associations: gen.associations,
-      arrestedIds: dup.arrestedIds,
+      duplicateGroups: dup.groups,
     });
 
-    // 서버 콘솔에만 정답을 남긴다 (개발용).
+    // 서버 콘솔에만 정답을 남긴다 (개발용). 체포는 시작 시가 아니라 플레이 중 접선으로 발동한다.
     console.log(
-      `[stage] 세션 ${sessionId.slice(0, 8)} 시작 — 코드: "${picked.word}", 체포: ${
-        dup.arrestedIds.length
-      }명`,
+      `[stage] 세션 ${sessionId.slice(0, 8)} 시작 — 코드: "${picked.word}", 중복 그룹: ${
+        dup.groups.length
+      }개`,
     );
 
     res.json(toClientView(getSession(sessionId)));
   } catch (err) {
     next(err);
   }
+});
+
+/**
+ * POST /api/stage/contact  { sessionId, allyId }
+ * 동료 접선 — 연상 단어를 밝히고, 같은 단어가 확인되면 그 순간 체포를 갱신한다.
+ */
+router.post('/contact', (req, res) => {
+  const { sessionId, allyId } = req.body ?? {};
+  const session = getSession(sessionId);
+
+  if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
+  if (session.cleared || session.gameOver) {
+    return res.status(409).json({ error: '이미 종료된 세션입니다.' });
+  }
+
+  const result = contactAlly(session, allyId);
+  if (!result) return res.status(409).json({ error: '접선할 수 없는 동료입니다.' });
+
+  res.json({ ...result, state: toClientView(session) });
 });
 
 /**
@@ -150,6 +170,22 @@ router.post('/talk', async (req, res) => {
   } finally {
     res.end();
   }
+});
+
+/**
+ * GET /api/stage/:sessionId/answer — 개발용 정답 확인.
+ *
+ * 접선 코드는 원래 클라이언트로 내려가지 않는다(정답 비유출 원칙). 이 라우트는
+ * 플레이테스트 편의를 위한 것으로, 환경변수 REVEAL_ANSWER=1 일 때만 동작한다.
+ * 제출 빌드에서는 .env 에서 이 값을 빼면(또는 0) 완전히 비활성화된다.
+ */
+router.get('/:sessionId/answer', (req, res) => {
+  if (process.env.REVEAL_ANSWER !== '1') {
+    return res.status(403).json({ error: '정답 확인이 비활성화되어 있습니다. (.env 에 REVEAL_ANSWER=1 설정 후 재시작)' });
+  }
+  const session = getSession(req.params.sessionId);
+  if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
+  res.json({ codeWord: session.codeWord, category: session.category });
 });
 
 /** GET /api/stage/:sessionId — 현재 상태 조회 */

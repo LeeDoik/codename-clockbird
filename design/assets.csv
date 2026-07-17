@@ -1,0 +1,10 @@
+id,role,type,description,size/ratio,style line ref,source
+player,protagonist,sprite,hooded steampunk infiltration agent,1:1 -> 32x32,STYLE FORMULA,procedural — scripts/gen-characters.js (Higgsfield blocked: 0 credits)
+ally_watchmaker,ally NPC (에이다·시계공),sprite,old steampunk clock-tower watchmaker,1:1 -> 32x32,STYLE FORMULA,procedural — scripts/gen-characters.js (Higgsfield blocked: 0 credits)
+ally_maid,ally NPC (리나·주방하녀),sprite,young steampunk kitchen maid,1:1 -> 32x32,STYLE FORMULA,procedural — scripts/gen-characters.js (Higgsfield blocked: 0 credits)
+ally_engineer,ally NPC (보리스·기관사),sprite,burly steampunk steam-engine driver,1:1 -> 32x32,STYLE FORMULA,procedural — scripts/gen-characters.js (Higgsfield blocked: 0 credits)
+ally_smuggler,ally NPC (카이·밀수꾼),sprite,sly steampunk smuggler in a long coat,1:1 -> 32x32,STYLE FORMULA,procedural — scripts/gen-characters.js (Higgsfield blocked: 0 credits)
+ally_musician,ally NPC (노아·거리악사),sprite,steampunk street musician with a hand organ,1:1 -> 32x32,STYLE FORMULA,procedural — scripts/gen-characters.js (Higgsfield blocked: 0 credits)
+citizen,neutral NPC (시민),sprite,steampunk town civilian,1:1 -> 32x32,STYLE FORMULA,procedural — scripts/gen-characters.js (Higgsfield blocked: 0 credits)
+floor,tile (existing),tile,dark tarnished metal floor,32x32,STYLE FORMULA,ALREADY DONE — src/client/assets/tiles/tiles.png frame 0
+wall,tile (existing),tile,dark steampunk brick wall,32x32,STYLE FORMULA,ALREADY DONE — src/client/assets/tiles/tiles.png frame 2
