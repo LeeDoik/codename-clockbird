@@ -105,6 +105,7 @@ scripts/
 ## 구현 메모
 
 - **structured outputs**: SDK `@anthropic-ai/sdk@0.71.x` 기준으로 `client.beta.messages.parse({ output_format: betaZodOutputFormat(schema) })` 형태를 씁니다. 이 버전은 최상위 `output_format` 필드를 받으며, `parse()` 가 `structured-outputs-2025-11-13` 베타 헤더를 자동으로 붙입니다. (SDK 소스 확인 결과 — `output_config.format` 은 이 버전의 `parse()` 가 읽지 않습니다.) SDK 업그레이드 시 재확인 필요.
+- **zod 는 반드시 v4** 여야 합니다. SDK 의 `betaZodOutputFormat` 이 `z.toJSONSchema()` 를 호출하는데, 이는 zod v4 API 입니다. zod 3.25.x 의 루트 export 는 아직 v3 라 `z.toJSONSchema is not a function` 으로 실패합니다 (SDK peer 범위는 `^3.25.0 || ^4.0.0` 이라 설치 시 경고가 없으니 주의).
 - **ESM**: 프로젝트 전체가 `"type": "module"` 입니다. `__dirname` 대신 `fileURLToPath(import.meta.url)` 을 쓰세요.
 - **Express 5**: `app.get('*')` 는 path-to-regexp v8 에서 에러가 납니다. SPA 폴백은 `app.use()` 미들웨어로 구현돼 있습니다.
 
