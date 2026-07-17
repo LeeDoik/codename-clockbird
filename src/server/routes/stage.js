@@ -10,6 +10,7 @@ import {
   loseTrust,
   getAlly,
   contactAlly,
+  rescueAlly,
   arrestedCount,
   pushDialogue,
 } from '../session.js';
@@ -81,6 +82,32 @@ router.post('/contact', (req, res) => {
 
   const result = contactAlly(session, allyId);
   if (!result) return res.status(409).json({ error: '접선할 수 없는 동료입니다.' });
+
+  res.json({ ...result, state: toClientView(session) });
+});
+
+/**
+ * POST /api/stage/rescue  { sessionId, allyId }
+ * 감옥의 동료 구출 — 경계 레벨이 오르는 대가로 다시 접선·대화할 수 있게 된다.
+ *
+ * 연상 단어는 여기서 주지 않는다. 구출은 접선 자격을 되돌려 줄 뿐이고,
+ * 단서는 /contact 를 거쳐야 얻는다 (구출 = 접선이 아니다).
+ */
+router.post('/rescue', (req, res) => {
+  const { sessionId, allyId } = req.body ?? {};
+  const session = getSession(sessionId);
+
+  if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
+  if (session.cleared || session.gameOver) {
+    return res.status(409).json({ error: '이미 종료된 세션입니다.' });
+  }
+
+  const result = rescueAlly(session, allyId);
+  if (!result) return res.status(409).json({ error: '구출할 수 없는 동료입니다.' });
+
+  console.log(
+    `[stage] 세션 ${session.id.slice(0, 8)} — ${result.name} 구출, 경계 레벨 ${result.alertLevel}`,
+  );
 
   res.json({ ...result, state: toClientView(session) });
 });
