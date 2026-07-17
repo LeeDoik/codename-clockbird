@@ -13,7 +13,12 @@ if (!process.env.ANTHROPIC_API_KEY) {
   );
 }
 
-export const anthropic = new Anthropic();
+/**
+ * maxRetries 기본값은 2. 스테이지 시작 시 5개 호출을 동시에 쏘는 구조라
+ * 일시적 과부하(529)에 노출되기 쉽고, 하나만 실패해도 스테이지 시작이 통째로 실패한다.
+ * 시연 중 사고를 막기 위해 넉넉히 올린다. (SDK 가 지수 백오프로 429/5xx/529 를 재시도)
+ */
+export const anthropic = new Anthropic({ maxRetries: 5 });
 
 /** 게임 룰에 영향을 주는 생성·판정용 (품질 우선) */
 export const MODEL_JUDGE = 'claude-sonnet-5';

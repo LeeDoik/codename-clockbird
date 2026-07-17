@@ -44,7 +44,7 @@ async function main() {
 
   const t0 = Date.now();
 
-  console.log('  연상 단어 생성 중...');
+  console.log('  연상 단어 생성 중... (동료 5인 독립 병렬 호출)');
   const gen = await generateAssociations({ codeWord: picked.word, allies });
   const tGen = Date.now();
 
@@ -82,7 +82,7 @@ async function main() {
 
   const tok = (u) => (u ? u.input_tokens + u.output_tokens : 0);
   console.log('  ── 성능 ──');
-  console.log(`  단어 생성: ${tGen - t0}ms (재시도 ${gen.retries}회, ${tok(gen.usage)} 토큰)`);
+  console.log(`  단어 생성: ${tGen - t0}ms (병렬 ${gen.calls}회 호출, ${tok(gen.usage)} 토큰)`);
   console.log(`  중복 판정: ${tEnd - tGen}ms (${tok(dup.usage)} 토큰)`);
   console.log(`  합계: ${tEnd - t0}ms\n`);
 }

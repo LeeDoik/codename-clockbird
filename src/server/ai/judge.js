@@ -56,6 +56,7 @@ export async function judgeDuplicates({ associations }) {
     const message = await anthropic.beta.messages.parse({
       model: MODEL_JUDGE,
       max_tokens: 1000,
+      thinking: { type: 'disabled' },
       system: `너는 단어 게임의 심판이다. 주어진 단어들 중 "사실상 같은 단어"인 것들을 찾아 묶어라.
 
 같은 단어로 보는 기준:
