@@ -30,6 +30,8 @@ export class StageScene extends Phaser.Scene {
     // 개발용 정답 보기 (백틱 ` 키로 토글, REVEAL_ANSWER=1 일 때만 서버가 응답)
     this.debugAnswer = null;
     this.answerShown = false;
+    // 단서 수첩 — F 접선으로 얻은 NPC → 연상 단어. (C 키로 열람)
+    this.clues = new Map();
   }
 
   create() {
@@ -83,6 +85,7 @@ export class StageScene extends Phaser.Scene {
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
     this.keyReveal = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKTICK);
+    this.keyClues = this.input.keyboard.addKey('C');
 
     this.hud = this.add.text(12, 10, '', {
       fontFamily: 'Malgun Gothic, sans-serif',
@@ -90,7 +93,80 @@ export class StageScene extends Phaser.Scene {
       color: '#8a7f6a',
     });
 
+    this.#buildCluePanel();
+    this.add.text(12, this.scale.height - 22, '[E] 대화    [F] 접선 코드    [C] 단서 수첩', {
+      fontFamily: 'Malgun Gothic, sans-serif',
+      fontSize: '11px',
+      color: '#6b6152',
+    });
+
     this.#updateHud();
+    this.#showBriefing();
+  }
+
+  /** 진입 쪽지 — 이미 붙잡힌 동료 수와 남은 동료 수를 알린다. */
+  #showBriefing() {
+    const total = this.state.allies.length;
+    const arrested = this.state.allies.filter((a) => a.arrested).length;
+    const remain = total - arrested;
+
+    const lines = ['품 안에 접선책이 남긴 쪽지가 잡힌다.\n'];
+    if (arrested === 0) {
+      lines.push(`동료 ${total}명 전원이 아직 무사하다.`);
+    } else if (remain === 0) {
+      lines.push(`동료 ${total}명이 모두 같은 암호를 떠올려 정체가 드러났다.\n남은 접선책이 없다 — 물러나야 한다.`);
+    } else {
+      lines.push(
+        `동료 ${total}명 중 ${arrested}명은 같은 암호를 떠올려 정체가 드러나 이미 붙잡혀 갔다.\n(감옥에 갇힌 얼굴을 확인하라.)`,
+      );
+    }
+    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [F] 접선해 단서를 모으고, 접선 코드를 추리하라.\n[E] 대화 · [F] 접선 코드 · [C] 단서 수첩`);
+
+    this.dialogue.show('접선 지령', lines.join('\n'));
+    this.dialogue.setHint('[Space] / [Esc] 로 쪽지를 접는다');
+  }
+
+  /** 단서 수첩 패널 (숨김 상태로 생성). */
+  #buildCluePanel() {
+    const w = 380, h = 280;
+    const cx = this.scale.width / 2, cy = this.scale.height / 2;
+    const bg = this.add.rectangle(cx, cy, w, h, 0x17130e, 0.97).setStrokeStyle(2, 0xc9a227);
+    const title = this.add
+      .text(cx, cy - h / 2 + 20, '단서 수첩', {
+        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '16px', color: '#c9a227', fontStyle: 'bold',
+      })
+      .setOrigin(0.5);
+    const rule = this.add.rectangle(cx, cy - h / 2 + 38, w - 36, 1, 0x3a3120);
+    this.clueText = this.add.text(cx - w / 2 + 22, cy - h / 2 + 54, '', {
+      fontFamily: 'Malgun Gothic, sans-serif', fontSize: '13px', color: '#e8dcc0',
+      lineSpacing: 8, wordWrap: { width: w - 44 },
+    });
+    const hint = this.add
+      .text(cx, cy + h / 2 - 16, '[C] 닫기', {
+        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '11px', color: '#8a7f6a',
+      })
+      .setOrigin(0.5);
+    this.cluePanel = this.add.container(0, 0, [bg, title, rule, this.clueText, hint]).setDepth(1000).setVisible(false);
+  }
+
+  #toggleClues() {
+    if (!this.cluePanel) return;
+    const show = !this.cluePanel.visible;
+    if (show) this.#refreshClues();
+    this.cluePanel.setVisible(show);
+  }
+
+  #refreshClues() {
+    if (this.clues.size === 0) {
+      this.clueText.setText('아직 수집한 단서가 없다.\n\n동료 근처에서 [F] 로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.');
+      return;
+    }
+    const lines = [];
+    for (const { name, role, word } of this.clues.values()) {
+      lines.push(`· ${name} (${role})\n     「${word}」`);
+    }
+    lines.push(`\n수집한 단서 ${this.clues.size}개 — 이 단어들로 접선 코드를 추리하라.`);
+    this.clueText.setText(lines.join('\n'));
   }
 
   /**
@@ -219,6 +295,10 @@ export class StageScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keyReveal)) {
       this.#toggleAnswer();
     }
+    // C — 단서 수첩 열람
+    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyClues)) {
+      this.#toggleClues();
+    }
   }
 
   #checkProximity() {
@@ -234,18 +314,27 @@ export class StageScene extends Phaser.Scene {
     if (found !== this.nearbyAlly) {
       this.nearbyAlly = found;
       if (found && !this.dialogue.isOpen) {
-        this.dialogue.show(found.name, `[E] 대화 · [F] 접선 코드 전달 — ${found.name}`);
+        this.dialogue.show(found.name, `${found.name} — [E] 대화 · [F] 접선 코드`);
       } else if (!found) {
         this.dialogue.hide();
       }
     }
   }
 
-  async #talk(ally) {
+  /** E — 자유 대화. 연상 단어는 밝히지 않는다 (단서는 F 접선으로 얻는다). */
+  #talk(ally) {
+    this.currentAllyId = ally.id;
+    this.dialogue.show(`${ally.name} (${ally.role})`, `${ally.name}에게 말을 건넨다.`);
+    this.dialogue.showInput('말을 건넨다...', 'chat');
+    this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
+  }
+
+  /** F — 접선: NPC 가 흘린 연상 단어(단서)를 밝혀 단서 수첩에 기록하고, 접선 코드 입력창을 연다. */
+  async #offerCode(ally) {
     if (this.contacting) return;
     this.contacting = true;
     this.currentAllyId = ally.id;
-    this.dialogue.show(`${ally.name} (${ally.role})`, '접선하는 중...');
+    this.dialogue.show(`${ally.name} (${ally.role})`, '조심스럽게 접선을 시도한다...');
 
     let contact;
     try {
@@ -263,49 +352,23 @@ export class StageScene extends Phaser.Scene {
       this.contacting = false;
     }
 
-    // 접선으로 상태가 바뀌었을 수 있다 (중복 확인 → 체포).
     this.state = contact.state;
+    this.#recordClue(ally, contact.word);
     this.#syncAllyNodes();
-    this.#updateHud();
-
-    const newlyArrested = contact.newlyArrested ?? [];
-    const selfArrested = newlyArrested.includes(ally.id);
-
-    // 연상 단어를 밝힌다. (접선하기 전엔 알 수 없던 정보)
-    if (selfArrested) {
-      // 접선한 이 동료의 단어가 이미 접선한 다른 동료와 겹쳐, 그 자리에서 체포됐다.
-      const others = newlyArrested
-        .filter((id) => id !== ally.id)
-        .map((id) => this.state.allies.find((a) => a.id === id)?.name)
-        .filter(Boolean);
-      this.dialogue.hideInput();
-      this.dialogue.setHint('');
-      this.dialogue.show(
-        `${ally.name} (${ally.role})`,
-        `"...「${contact.word}」."\n\n그 단어를 입에 올리는 순간, ${
-          others.length ? `${others.join('·')}과(와) ` : ''
-        }같은 패턴이 드러났다.\n정체가 노출되어 그 자리에서 붙잡혀 갔다.`,
-      );
-      return;
-    }
 
     this.dialogue.show(
       `${ally.name} (${ally.role})`,
-      `"...「${contact.word}」."\n\n그는 그 한 마디만 남기고 입을 다물었다.`,
-    );
-    this.dialogue.showInput('말을 건넨다...');
-    this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
-  }
-
-  /** F — 근처 동료에게 곧바로 접선 코드를 건넨다 (대화 없이 코드 입력창을 연다). */
-  #offerCode(ally) {
-    this.currentAllyId = ally.id;
-    this.dialogue.show(
-      `${ally.name} (${ally.role})`,
-      '접선 코드를 건넨다...\n\n조심스럽게 암호를 말할 준비를 한다.',
+      `"...「${contact.word}」."\n\n그가 흘린 단서다. [C] 단서 수첩에 기록됐다.\n접선 코드를 안다면 지금 건네라.`,
     );
     this.dialogue.showInput('접선 코드 입력...', 'code');
     this.dialogue.setHint('[Enter] 코드 전달 · [Esc] 취소');
+  }
+
+  /** F 접선으로 얻은 단서(NPC → 연상 단어)를 수첩에 기록한다. */
+  #recordClue(ally, word) {
+    if (!word) return;
+    this.clues.set(ally.id, { name: ally.name, role: ally.role, word });
+    if (this.cluePanel && this.cluePanel.visible) this.#refreshClues();
   }
 
   /** 자유 대화 — 서버가 SSE 로 흘려보내는 응답을 델타 단위로 붙인다 */

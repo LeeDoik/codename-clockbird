@@ -50,13 +50,14 @@ router.post('/start', async (req, res, next) => {
       allies,
       associations: gen.associations,
       duplicateGroups: dup.groups,
+      arrestedIds: dup.arrestedIds,
     });
 
-    // 서버 콘솔에만 정답을 남긴다 (개발용). 체포는 시작 시가 아니라 플레이 중 접선으로 발동한다.
+    // 서버 콘솔에만 정답을 남긴다 (개발용). 같은 단어를 낸 동료는 시작 시점에 이미 붙잡혀 있다.
     console.log(
-      `[stage] 세션 ${sessionId.slice(0, 8)} 시작 — 코드: "${picked.word}", 중복 그룹: ${
-        dup.groups.length
-      }개`,
+      `[stage] 세션 ${sessionId.slice(0, 8)} 시작 — 코드: "${picked.word}", 체포: ${
+        dup.arrestedIds.length
+      }명 / 남음 ${allies.length - dup.arrestedIds.length}명`,
     );
 
     res.json(toClientView(getSession(sessionId)));

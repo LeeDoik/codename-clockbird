@@ -82,6 +82,9 @@ export class DialogueBox {
   showInput(placeholder = '말을 건넨다...', mode = 'chat') {
     this.inputMode = mode;
     this.field.placeholder = placeholder;
+    // 대화(E)와 접선 코드 제출(F)을 구분한다 — 모드에 맞는 버튼만 보인다.
+    this.sendBtn.style.display = mode === 'code' ? 'none' : '';
+    this.codeBtn.style.display = mode === 'code' ? '' : 'none';
     this.inputWrap.classList.add('visible');
     this.field.focus();
   }

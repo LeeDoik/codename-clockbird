@@ -12,7 +12,7 @@ const sessions = new Map();
 
 const MAX_TRUST = 3;
 
-export function createSession({ codeWord, category, allies, associations, duplicateGroups }) {
+export function createSession({ codeWord, category, allies, associations, duplicateGroups, arrestedIds = [] }) {
   const id = randomUUID();
 
   const allyState = allies.map((ally) => {
@@ -25,9 +25,10 @@ export function createSession({ codeWord, category, allies, associations, duplic
       word: assoc?.word ?? null,
       reason: assoc?.reason ?? null,
       trust: MAX_TRUST,
-      // 접선(대화) 여부. 체포는 시작 시가 아니라, 같은 그룹에서 2명 이상 접선됐을 때 발동한다.
+      // 접선(대화) 여부 — 연상 단어는 접선한 뒤에만 밝혀진다.
       contacted: false,
-      arrested: false,
+      // 같은 단어를 낸 동료는 스테이지 시작 시점에 이미 정체가 드러나 붙잡혀 있다 (저스트원 규칙).
+      arrested: arrestedIds.includes(ally.id),
       informed: false,
       // 이 동료와 나눈 대화 이력 (Claude messages 형식). 클라이언트로 내보내지 않는다.
       history: [],
