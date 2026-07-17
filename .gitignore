@@ -5,3 +5,6 @@ dist/
 .DS_Store
 Thumbs.db
 npm-debug.log*
+
+# check-tile.js 가 뱉는 육안 검수용 미리보기
+*.preview4x4.png
