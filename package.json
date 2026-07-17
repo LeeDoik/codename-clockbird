@@ -1,0 +1,30 @@
+{
+  "name": "codename-clockbird",
+  "version": "0.1.0",
+  "description": "코드네임: 태엽새 — NAN 2026 (NHN Game x AI Hackathon) 출품작",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n SERVER,CLIENT -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "node --watch src/server/index.js",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "cross-env NODE_ENV=production node src/server/index.js",
+    "poc": "node scripts/poc-wordgen.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "cross-env": "^10.1.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "phaser": "^3.90.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "vite": "^7.1.9"
+  }
+}

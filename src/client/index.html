@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>코드네임: 태엽새</title>
+    <style>
+      :root {
+        --brass: #c9a227;
+        --ink: #1a1712;
+        --paper: #e8dcc0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--ink);
+        color: var(--paper);
+        font-family: 'Malgun Gothic', system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+      }
+      #game-root { position: relative; }
+      #game-canvas canvas { display: block; }
+
+      /* 대화창은 DOM 오버레이 — 한글 입력과 스트리밍 표시에 유리하다. */
+      #dialogue {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        background: rgba(26, 23, 18, 0.94);
+        border: 2px solid var(--brass);
+        border-radius: 4px;
+        padding: 14px 18px;
+        display: none;
+      }
+      #dialogue.visible { display: block; }
+      #dialogue-speaker { color: var(--brass); font-weight: 700; margin-bottom: 6px; }
+      #dialogue-text { line-height: 1.6; min-height: 3em; white-space: pre-wrap; }
+      #dialogue-hint { opacity: 0.5; font-size: 0.8rem; margin-top: 8px; }
+      #dialogue-input { display: none; margin-top: 10px; gap: 8px; }
+      #dialogue-input.visible { display: flex; }
+      #dialogue-input input {
+        flex: 1;
+        background: #0f0d0a;
+        border: 1px solid var(--brass);
+        color: var(--paper);
+        padding: 8px 10px;
+        border-radius: 3px;
+        font-family: inherit;
+        font-size: 1rem;
+      }
+      #dialogue-input button {
+        background: var(--brass);
+        border: 0;
+        color: var(--ink);
+        font-weight: 700;
+        padding: 8px 16px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      header { padding: 12px; opacity: 0.55; font-size: 0.85rem; letter-spacing: 0.05em; }
+    </style>
+  </head>
+  <body>
+    <header>코드네임: 태엽새 — 개발 스켈레톤 (W1)</header>
+    <div id="game-root">
+      <div id="game-canvas"></div>
+      <div id="dialogue">
+        <div id="dialogue-speaker"></div>
+        <div id="dialogue-text"></div>
+        <div id="dialogue-input">
+          <input id="dialogue-field" type="text" placeholder="접선 코드를 입력..." autocomplete="off" />
+          <button id="dialogue-submit">전달</button>
+        </div>
+        <div id="dialogue-hint">[Space] 닫기 · [E] 접선 코드 말하기</div>
+      </div>
+    </div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
