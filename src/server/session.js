@@ -27,6 +27,8 @@ export function createSession({ codeWord, category, allies, associations, arrest
       trust: MAX_TRUST,
       arrested: arrestedIds.includes(ally.id),
       informed: false,
+      // 이 동료와 나눈 대화 이력 (Claude messages 형식). 클라이언트로 내보내지 않는다.
+      history: [],
     };
   });
 
@@ -71,6 +73,21 @@ export function toClientView(session) {
       informed: a.informed,
     })),
   };
+}
+
+export function getAlly(session, allyId) {
+  return session.allies.find((a) => a.id === allyId);
+}
+
+/** 마을 NPC 대사 분기와 대화 프롬프트에 쓰이는 현재 체포 인원 */
+export function arrestedCount(session) {
+  return session.allies.filter((a) => a.arrested).length;
+}
+
+/** 대화 이력에 한 턴 추가 */
+export function pushDialogue(session, allyId, role, content) {
+  const ally = getAlly(session, allyId);
+  if (ally) ally.history.push({ role, content });
 }
 
 /**

@@ -13,7 +13,9 @@
     "dev:client": "vite",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production node src/server/index.js",
-    "poc": "node scripts/poc-wordgen.js"
+    "poc": "node scripts/poc-wordgen.js",
+    "poc:talk": "node scripts/poc-dialogue.js",
+    "smoke": "node scripts/smoke-talk-sse.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",

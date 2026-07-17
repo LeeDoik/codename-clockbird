@@ -23,7 +23,8 @@ export class StageScene extends Phaser.Scene {
 
   create() {
     this.dialogue = new DialogueBox();
-    this.dialogue.onSubmit = (value) => this.#submitGuess(value);
+    this.dialogue.onSend = (message) => this.#chat(message);
+    this.dialogue.onCode = (guess) => this.#submitGuess(guess);
 
     this.#drawRoom();
 
@@ -142,15 +143,80 @@ export class StageScene extends Phaser.Scene {
 
   #talk(ally) {
     this.currentAllyId = ally.id;
+    // 연상 단어는 스테이지 시작 시 이미 확정돼 있다. 접선 첫 마디로 그것부터 흘린다.
     this.dialogue.show(
       `${ally.name} (${ally.role})`,
-      `"...「${ally.word}」."\n\n그가 남긴 말은 그것뿐이었다.`,
+      `"...「${ally.word}」."\n\n그는 그 한 마디만 남기고 입을 다물었다.`,
     );
-    this.dialogue.showInput('접선 코드를 입력 (Enter)');
+    this.dialogue.showInput('말을 건넨다...');
+    this.dialogue.setHint('[Enter] 대화 · [Space] 닫기');
+  }
+
+  /** 자유 대화 — 서버가 SSE 로 흘려보내는 응답을 델타 단위로 붙인다 */
+  async #chat(message) {
+    const ally = this.state.allies.find((a) => a.id === this.currentAllyId);
+    if (!ally) return;
+
+    this.dialogue.setBusy(true);
+    this.dialogue.beginStream(`${ally.name} (${ally.role})`);
+
+    try {
+      const res = await fetch('/api/stage/talk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: this.state.sessionId,
+          allyId: this.currentAllyId,
+          message,
+        }),
+      });
+
+      // 실패는 SSE 가 아니라 JSON 으로 온다 (스트림 시작 전에 거절된 경우).
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+
+      await this.#readSSE(res, (payload) => {
+        if (payload.type === 'text') this.dialogue.append(payload.text);
+        else if (payload.type === 'error') throw new Error(payload.error);
+      });
+    } catch (err) {
+      this.dialogue.show('오류', err.message);
+    } finally {
+      this.dialogue.setBusy(false);
+    }
+  }
+
+  /**
+   * POST 응답의 SSE 스트림을 읽는다.
+   * EventSource 는 GET 전용이라 쓸 수 없어 fetch 스트림을 직접 파싱한다.
+   */
+  async #readSSE(res, onPayload) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE 이벤트 경계는 빈 줄. 마지막 조각은 미완성일 수 있으니 버퍼에 남긴다.
+      const events = buffer.split('\n\n');
+      buffer = events.pop() ?? '';
+
+      for (const event of events) {
+        const line = event.split('\n').find((l) => l.startsWith('data: '));
+        if (line) onPayload(JSON.parse(line.slice(6)));
+      }
+    }
   }
 
   async #submitGuess(guess) {
-    this.dialogue.show('...', '코드를 전달하는 중...');
+    this.dialogue.setBusy(true);
+    this.dialogue.show('...', `"${guess}"...\n\n조심스럽게 코드를 건넨다.`);
 
     try {
       const res = await fetch('/api/stage/guess', {
@@ -170,6 +236,7 @@ export class StageScene extends Phaser.Scene {
 
       if (result.correct) {
         this.dialogue.hideInput();
+        this.dialogue.setHint('');
         this.dialogue.show(
           '접선 성공',
           `접선 코드는 「${result.codeWord}」 였다.\n\nSTAGE 1 CLEAR`,
@@ -190,10 +257,11 @@ export class StageScene extends Phaser.Scene {
           '접선 실패',
           `틀렸다. 동료가 의심스러운 눈으로 당신을 본다.\n남은 신뢰: ${'●'.repeat(result.trust)}${'○'.repeat(3 - result.trust)}`,
         );
-        this.dialogue.showInput('다시 입력 (Enter)');
       }
     } catch (err) {
       this.dialogue.show('오류', err.message);
+    } finally {
+      this.dialogue.setBusy(false);
     }
   }
 
