@@ -21,8 +21,17 @@
         align-items: center;
         min-height: 100vh;
       }
-      #game-root { position: relative; }
-      #game-canvas canvas { display: block; }
+      /* 캔버스 표시 크기 — 창에 들어가는 최대 14:9(896:576) 박스.
+         내부 해상도는 main.js 가 896×576 으로 고정하고, Phaser FIT 모드가 이 박스를 채운다.
+         (100vh - 72px) 는 상단 헤더 몫을 뺀 세로 여유. */
+      #game-root {
+        position: relative;
+        width: min(100vw - 32px, calc((100vh - 72px) * 896 / 576));
+        aspect-ratio: 896 / 576;
+      }
+      #game-canvas { width: 100%; height: 100%; }
+      /* 픽셀 아트 확대가 흐릿해지지 않게 — CSS 업스케일 단계의 보간을 끈다 */
+      #game-canvas canvas { display: block; image-rendering: pixelated; }
 
       /* 대화창은 DOM 오버레이 — 한글 입력과 스트리밍 표시에 유리하다. */
       #dialogue {
