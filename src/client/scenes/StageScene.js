@@ -94,6 +94,8 @@ export class StageScene extends Phaser.Scene {
       fontFamily: 'Malgun Gothic, sans-serif',
       fontSize: '12px',
       color: '#8a7f6a',
+      // 디버그(백틱) 표시의 이유 문장이 캔버스 밖으로 흘러넘치지 않게 감싼다.
+      wordWrap: { width: 872 },
     });
 
     this.#buildCluePanel();
@@ -236,6 +238,13 @@ export class StageScene extends Phaser.Scene {
     ];
     if (this.answerShown && this.debugAnswer) {
       lines.push(`[디버그] 접선 코드: 「${this.debugAnswer.codeWord}」 (${this.debugAnswer.category})`);
+      // 동료별 연상 단어 + 그 단어를 떠올린 이유 (wordGen 의 reason).
+      // 단어·이유는 판이 끝날 때까지 불변이라 캐시해도 되지만, 체포 여부는 플레이 중
+      // 변하므로 실시간 state 쪽에서 읽는다.
+      for (const a of this.debugAnswer.allies ?? []) {
+        const live = this.state.allies.find((s) => s.id === a.id);
+        lines.push(`  ${live?.arrested ? '✕' : '·'} ${a.name}「${a.word}」 — ${a.reason}`);
+      }
     }
     this.hud.setText(lines.join('\n'));
   }

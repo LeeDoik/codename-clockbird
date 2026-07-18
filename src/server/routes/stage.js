@@ -213,7 +213,18 @@ router.get('/:sessionId/answer', (req, res) => {
   }
   const session = getSession(req.params.sessionId);
   if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
-  res.json({ codeWord: session.codeWord, category: session.category });
+  res.json({
+    codeWord: session.codeWord,
+    category: session.category,
+    // 동료별 연상 단어 + 떠올린 이유(wordGen 의 reason). 이 라우트 자체가 개발 전용이라
+    // 코드 단서가 섞인 reason 을 내려도 괜찮다 — toClientView 의 비유출 원칙과는 별개다.
+    allies: session.allies.map((a) => ({
+      id: a.id,
+      name: a.name,
+      word: a.word,
+      reason: a.reason,
+    })),
+  });
 });
 
 /** GET /api/stage/:sessionId — 현재 상태 조회 */
