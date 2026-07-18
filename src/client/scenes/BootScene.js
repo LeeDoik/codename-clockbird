@@ -6,8 +6,11 @@ import charsUrl from '../assets/chars.png';
 
 /**
  * 로딩 씬.
- * 스테이지 시작은 LLM 호출(연상 단어 생성 + 중복 판정)을 기다려야 하므로
- * 그 지연을 여기서 흡수한다 — 계획서 §5.4 의 "로딩 화면 뒤로 숨김" 전략.
+ * 스테이지 시작은 LLM 호출(연상 단어 생성 + 중복 판정)로 11~20초 걸린다.
+ * 그 fetch 를 여기서 미리 쏘아 레지스트리에 프로미스로 얹어두고, 오프닝(IntroScene)이
+ * 도는 동안 뒤에서 완성시킨다 — 계획서 §5.4 "로딩 화면 뒤로 숨김" 전략을, 이제
+ * 정적 로딩 화면이 아니라 오프닝 시네마틱이 대신 수행한다.
+ * (개발 중 오프닝을 건너뛰려면 URL 에 ?nointro 를 붙인다.)
  */
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -23,6 +26,35 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
+    const noIntro = new URLSearchParams(window.location.search).has('nointro');
+
+    // 스테이지 시작을 지금 쏘고 그 대기를 오프닝이 가린다. 프로미스는 {state} 또는 {error}
+    // 로만 resolve 하게 감싼다 — 오프닝이 끝날 때까지 소비되지 않아도 unhandledrejection
+    // 경고가 뜨지 않도록(그래서 IntroScene 이 30여 초 뒤에 한가롭게 await 해도 안전하다).
+    const startPromise = this.#fetchStart();
+    this.registry.set('startPromise', startPromise);
+
+    if (noIntro) {
+      this.#legacyBoot(startPromise);
+      return;
+    }
+    this.scene.start('Intro');
+  }
+
+  #fetchStart() {
+    return fetch('/api/stage/start', { method: 'POST' })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? `HTTP ${res.status}`);
+        }
+        return { state: await res.json() };
+      })
+      .catch((err) => ({ error: err.message }));
+  }
+
+  /** 개발용(?nointro) — 오프닝을 건너뛰고 기존 로딩 화면을 거쳐 곧장 스테이지로 간다. */
+  #legacyBoot(startPromise) {
     const { width, height } = this.scale;
 
     this.add
@@ -41,29 +73,12 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.tweens.add({
-      targets: sub,
-      alpha: 0.3,
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
+    this.tweens.add({ targets: sub, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+
+    startPromise.then((r) => {
+      if (r.error) this.#showError(r.error);
+      else this.scene.start('Stage', { state: r.state });
     });
-
-    this.#start();
-  }
-
-  async #start() {
-    try {
-      const res = await fetch('/api/stage/start', { method: 'POST' });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const state = await res.json();
-      this.scene.start('Stage', { state });
-    } catch (err) {
-      this.#showError(err.message);
-    }
   }
 
   #showError(message) {
