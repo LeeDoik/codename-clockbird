@@ -19,11 +19,19 @@ const router = express.Router();
 
 const load = async (p) => JSON.parse(await readFile(new URL(p, import.meta.url), 'utf8'));
 
-// 정적 데이터는 프로세스 시작 후 1회만 읽는다.
-const dataPromise = Promise.all([
-  load('../../data/codewords.json'),
-  load('../../data/personas.json'),
-]).then(([pool, personas]) => ({ pool, allies: personas.allies }));
+const loadData = () =>
+  Promise.all([load('../../data/codewords.json'), load('../../data/personas.json')]).then(
+    ([pool, personas]) => ({ pool, allies: personas.allies }),
+  );
+
+// 프로덕션에서는 1회 읽고 캐시, 개발 모드에서는 매 스테이지 시작마다 다시 읽는다
+// — 프롬프트 스튜디오에서 페르소나를 저장하면 서버 재시작 없이 다음 판부터 반영된다.
+const isProd = process.env.NODE_ENV === 'production';
+let dataCache = null;
+function getData() {
+  if (isProd) return (dataCache ??= loadData());
+  return loadData();
+}
 
 function pickRandomCodeWord(pool) {
   const all = Object.entries(pool.categories).flatMap(([category, words]) =>
@@ -39,7 +47,7 @@ function pickRandomCodeWord(pool) {
  */
 router.post('/start', async (req, res, next) => {
   try {
-    const { pool, allies } = await dataPromise;
+    const { pool, allies } = await getData();
     const picked = pickRandomCodeWord(pool);
 
     const gen = await generateAssociations({ codeWord: picked.word, allies });

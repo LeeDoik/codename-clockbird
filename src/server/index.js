@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import stageRouter from './routes/stage.js';
+import studioRouter from './routes/studio.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +16,13 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/stage', stageRouter);
+app.use('/api/studio', studioRouter);
+
+// 프롬프트 스튜디오 (팀원용 프롬프트 튜닝 UI) — 개발 모드 전용.
+if (!isProd) {
+  const studioPage = fileURLToPath(new URL('./studio.html', import.meta.url));
+  app.get('/prompt-studio', (req, res) => res.sendFile(studioPage));
+}
 
 // 제출 빌드에서는 Express 가 dist/ 를 직접 서빙한다 (심사위원은 npm start 하나로 실행).
 // 개발 중에는 Vite dev 서버가 클라이언트를 서빙하고 /api 만 이쪽으로 프록시한다.
@@ -42,7 +50,8 @@ app.listen(PORT, () => {
   if (isProd) {
     console.log(`  게임: http://localhost:${PORT}\n`);
   } else {
-    console.log(`  게임: http://localhost:5173  (Vite dev)\n`);
+    console.log(`  게임: http://localhost:5173  (Vite dev)`);
+    console.log(`  프롬프트 스튜디오: http://localhost:${PORT}/prompt-studio\n`);
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     console.warn('  [!] ANTHROPIC_API_KEY 미설정 — 스테이지 시작이 실패합니다.\n');

@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>태엽새 프롬프트 스튜디오</title>
+    <style>
+      :root {
+        --brass: #c9a227;
+        --ink: #1a1712;
+        --panel: #231f19;
+        --paper: #e8dcc0;
+        --faint: #8a7f6a;
+        --danger: #c25b4a;
+        --ok: #4a7a6b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--ink);
+        color: var(--paper);
+        font-family: 'Malgun Gothic', system-ui, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      header {
+        padding: 14px 24px;
+        border-bottom: 1px solid #3a332a;
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      header h1 { margin: 0; font-size: 17px; color: var(--brass); }
+      header .note { color: var(--faint); font-size: 12px; }
+      main {
+        display: grid;
+        grid-template-columns: minmax(420px, 1fr) minmax(380px, 1fr);
+        gap: 20px;
+        padding: 20px 24px 60px;
+        max-width: 1500px;
+        margin: 0 auto;
+      }
+      @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+      section {
+        background: var(--panel);
+        border: 1px solid #3a332a;
+        border-radius: 6px;
+        padding: 16px 18px;
+        margin-bottom: 20px;
+      }
+      h2 { margin: 0 0 10px; font-size: 15px; color: var(--brass); }
+      h2 .dirty { color: var(--danger); font-size: 12px; margin-left: 8px; }
+      label { display: block; color: var(--faint); font-size: 12px; margin: 10px 0 3px; }
+      input[type='text'], input[type='number'], select, textarea {
+        width: 100%;
+        background: #0f0d0a;
+        border: 1px solid #4a4234;
+        color: var(--paper);
+        padding: 7px 10px;
+        border-radius: 3px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      textarea { resize: vertical; line-height: 1.7; }
+      input:focus, textarea:focus, select:focus { outline: none; border-color: var(--brass); }
+      button {
+        border: 0;
+        font-weight: 700;
+        padding: 8px 14px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        background: #4a4234;
+        color: var(--paper);
+      }
+      button.primary { background: var(--brass); color: var(--ink); }
+      button.action { background: var(--ok); }
+      button:disabled { opacity: 0.35; cursor: default; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+      .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+      .tabs button { padding: 6px 12px; background: #0f0d0a; border: 1px solid #4a4234; font-weight: 400; }
+      .tabs button.active { border-color: var(--brass); color: var(--brass); font-weight: 700; }
+      .warn {
+        background: rgba(194, 91, 74, 0.12);
+        border: 1px solid var(--danger);
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 12px;
+        margin: 10px 0;
+      }
+      .legend { color: var(--faint); font-size: 12px; margin: 6px 0; }
+      .legend code { color: var(--brass); background: #0f0d0a; padding: 1px 5px; border-radius: 3px; }
+      .out {
+        background: #0f0d0a;
+        border: 1px solid #3a332a;
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin-top: 10px;
+        white-space: pre-wrap;
+        min-height: 2.5em;
+        font-size: 13px;
+      }
+      .out .meta { color: var(--faint); font-size: 12px; }
+      .out .arrest { color: var(--danger); }
+      .status { font-size: 12px; color: var(--faint); min-height: 1.4em; margin-top: 6px; }
+      .status.err { color: var(--danger); }
+      .status.ok { color: #7fae9b; }
+      details summary { cursor: pointer; color: var(--brass); font-weight: 700; margin-bottom: 8px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>⚙ 태엽새 프롬프트 스튜디오</h1>
+      <span class="note">개발 모드 전용 · 저장하면 실제 파일에 반영 · 미리보기는 저장 전 초안으로 실행되며 실제 Claude API 를 호출합니다 (건당 소액 과금, 수 초~20초)</span>
+    </header>
+
+    <main>
+      <!-- ══════════ 왼쪽: 편집 ══════════ -->
+      <div>
+        <section id="sec-personas">
+          <h2>동료 페르소나 <span class="dirty" id="personas-dirty" hidden>● 저장 안 됨</span></h2>
+          <div class="tabs" id="npc-tabs"></div>
+          <label>이름</label>
+          <input type="text" id="p-name" />
+          <label>직업</label>
+          <input type="text" id="p-role" />
+          <label>성격·배경 (연상 단어 생성과 자유 대화 양쪽에 주입됨)</label>
+          <textarea id="p-persona" rows="5"></textarea>
+          <div class="row">
+            <button class="primary" id="save-personas">페르소나 5인 저장</button>
+            <span class="status" id="personas-status"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>연상 단어 프롬프트 <span class="dirty" id="wordgen-dirty" hidden>● 저장 안 됨</span></h2>
+          <div class="warn">
+            ⚠ <b>여길 만질 땐 반드시 오른쪽 [5인 전원 생성 + 중복 판정]으로 확인하세요.</b><br />
+            연상 단어를 "더 직접적으로" 몰면 5인이 같은 단어로 수렴해 중복(체포)이 폭등하고,
+            시작하자마자 단서가 사라져 <b>오히려 못 푸는 판</b>이 됩니다 (실측된 함정).
+            대규모 측정은 터미널에서 <code>npm run exp:diff</code>.
+          </div>
+          <div class="legend">치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{persona}}</code> — 접선 코드는 유저 메시지로 별도 전달됨</div>
+          <textarea id="t-wordgen" rows="16" spellcheck="false"></textarea>
+          <div class="row">
+            <button class="primary" id="save-wordgen">연상 단어 프롬프트 저장</button>
+            <span class="status" id="wordgen-status"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>자유 대화 프롬프트 <span class="dirty" id="dialogue-dirty" hidden>● 저장 안 됨</span></h2>
+          <div class="legend">
+            치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{persona}}</code> <code>{{word}}</code>
+            <code>{{alertLevel}}</code> <code>{{arrestedCount}}</code><br />
+            안전 설계: 접선 코드는 이 프롬프트에 <b>주입 자체가 안 되므로</b> 어떻게 고쳐도 코드가 유출될 수 없습니다. 톤·힌트 강도는 자유롭게 조율하세요.
+          </div>
+          <textarea id="t-dialogue" rows="20" spellcheck="false"></textarea>
+          <div class="row">
+            <button class="primary" id="save-dialogue">자유 대화 프롬프트 저장</button>
+            <span class="status" id="dialogue-status"></span>
+          </div>
+        </section>
+      </div>
+
+      <!-- ══════════ 오른쪽: 미리보기 ══════════ -->
+      <div>
+        <section>
+          <h2>연상 단어 미리보기</h2>
+          <label>접선 코드 단어 (목록에서 고르거나 직접 입력)</label>
+          <input type="text" id="pv-code" list="codewords" placeholder="예: 톱니바퀴" />
+          <datalist id="codewords"></datalist>
+          <div class="row">
+            <button class="action" id="pv-one">선택 NPC 1인 생성</button>
+            <button class="action" id="pv-all">5인 전원 생성 + 중복 판정</button>
+            <span class="status" id="pv-word-status"></span>
+          </div>
+          <div class="out" id="pv-word-out">코드 단어를 넣고 생성해 보세요. 1인 ≈ 5초, 전원 ≈ 15~25초.</div>
+        </section>
+
+        <section>
+          <h2>자유 대화 미리보기 <span class="note" style="font-weight:400;font-size:12px;color:var(--faint)">— 선택된 NPC 초안으로 실행</span></h2>
+          <label>이 NPC 가 흘린 연상 단어 (위에서 생성한 단어를 넣어보세요)</label>
+          <input type="text" id="pv-npcword" placeholder="예: 태엽" />
+          <div class="row">
+            <div style="flex:1">
+              <label>경계 수위</label>
+              <select id="pv-alert"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+            </div>
+            <div style="flex:1">
+              <label>붙잡힌 동료 수</label>
+              <select id="pv-arrested"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+            </div>
+          </div>
+          <label>플레이어의 질문</label>
+          <input type="text" id="pv-message" value="그 단어에 대해 좀 더 말해줘." />
+          <div class="row">
+            <button class="action" id="pv-talk">대화 미리보기</button>
+            <span class="status" id="pv-talk-status"></span>
+          </div>
+          <div class="out" id="pv-talk-out">단어와 질문을 넣고 실행해 보세요. ≈ 2~5초.</div>
+        </section>
+
+        <section>
+          <details>
+            <summary>도움말 — 무엇을 만지면 안전한가</summary>
+            <div class="legend" style="line-height:1.9">
+              <b style="color:var(--paper)">안전한 레버 (자유롭게)</b><br />
+              · 페르소나의 성격·말투·배경 묘사<br />
+              · 자유 대화 프롬프트의 톤, 힌트를 풀어주는 정도<br />
+              <b style="color:var(--paper)">위험한 레버 (측정 필수)</b><br />
+              · 연상 단어 프롬프트의 규칙 — 특히 "더 직접적/뻔한 단어" 방향<br />
+              &nbsp;&nbsp;→ 수정 후 [5인 전원 생성]을 코드 단어 2~3개로 돌려 체포 인원을 확인.<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;평균 1~2명이 정상 범위. 3명 이상이 반복되면 되돌리세요.<br />
+              <b style="color:var(--paper)">절대 금지</b><br />
+              · 대화 프롬프트에 접선 코드를 알려주는 구조로 바꾸는 것 (유출 방지 설계 붕괴)<br />
+              · id 필드 변경 (게임 세션·스프라이트 매핑이 깨짐)
+            </div>
+          </details>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const state = { allies: [], prompts: {}, selected: 0, saved: null };
+
+      const api = async (path, opts = {}) => {
+        const res = await fetch('/api/studio' + path, {
+          headers: { 'Content-Type': 'application/json' },
+          ...opts,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+        return data;
+      };
+
+      const setStatus = (id, msg, cls = '') => {
+        const el = $(id);
+        el.textContent = msg;
+        el.className = 'status ' + cls;
+      };
+
+      // ── 편집 상태 ──────────────────────────────────────────────
+      const currentAlly = () => state.allies[state.selected];
+
+      function snapshot() {
+        state.saved = JSON.stringify({ allies: state.allies, prompts: state.prompts });
+        refreshDirty();
+      }
+      function collectPersonaFields() {
+        const a = currentAlly();
+        a.name = $('p-name').value;
+        a.role = $('p-role').value;
+        a.persona = $('p-persona').value;
+      }
+      function refreshDirty() {
+        const now = JSON.parse(state.saved);
+        $('personas-dirty').hidden =
+          JSON.stringify(state.allies.map(({ id, name, role, persona }) => ({ id, name, role, persona }))) ===
+          JSON.stringify(now.allies.map(({ id, name, role, persona }) => ({ id, name, role, persona })));
+        $('wordgen-dirty').hidden = state.prompts['wordgen-system'] === now.prompts['wordgen-system'];
+        $('dialogue-dirty').hidden = state.prompts['dialogue-system'] === now.prompts['dialogue-system'];
+      }
+
+      function renderTabs() {
+        const tabs = $('npc-tabs');
+        tabs.innerHTML = '';
+        state.allies.forEach((a, i) => {
+          const b = document.createElement('button');
+          b.textContent = `${a.name} (${a.role})`;
+          b.className = i === state.selected ? 'active' : '';
+          b.onclick = () => {
+            collectPersonaFields();
+            state.selected = i;
+            renderTabs();
+            renderPersonaFields();
+            refreshDirty();
+          };
+          tabs.appendChild(b);
+        });
+      }
+      function renderPersonaFields() {
+        const a = currentAlly();
+        $('p-name').value = a.name;
+        $('p-role').value = a.role;
+        $('p-persona').value = a.persona;
+      }
+
+      for (const id of ['p-name', 'p-role', 'p-persona']) {
+        $(id).addEventListener('input', () => { collectPersonaFields(); refreshDirty(); });
+      }
+      $('t-wordgen').addEventListener('input', () => { state.prompts['wordgen-system'] = $('t-wordgen').value; refreshDirty(); });
+      $('t-dialogue').addEventListener('input', () => { state.prompts['dialogue-system'] = $('t-dialogue').value; refreshDirty(); });
+
+      // ── 저장 ──────────────────────────────────────────────────
+      $('save-personas').onclick = async () => {
+        collectPersonaFields();
+        try {
+          await api('/personas', {
+            method: 'PUT',
+            body: JSON.stringify({ allies: state.allies.map(({ id, name, role, persona }) => ({ id, name, role, persona })) }),
+          });
+          snapshot();
+          setStatus('personas-status', '저장됨 — 다음 판부터 반영됩니다.', 'ok');
+          renderTabs();
+        } catch (e) { setStatus('personas-status', e.message, 'err'); }
+      };
+
+      const savePrompt = (name, textareaId, statusId) => async () => {
+        try {
+          const r = await api('/prompts/' + name, { method: 'PUT', body: JSON.stringify({ text: $(textareaId).value }) });
+          state.prompts[name] = $(textareaId).value;
+          snapshot();
+          setStatus(statusId, r.warnings?.length ? '저장됨 · ⚠ ' + r.warnings.join(' ') : '저장됨 — 다음 호출부터 반영됩니다.', r.warnings?.length ? 'err' : 'ok');
+        } catch (e) { setStatus(statusId, e.message, 'err'); }
+      };
+      $('save-wordgen').onclick = savePrompt('wordgen-system', 't-wordgen', 'wordgen-status');
+      $('save-dialogue').onclick = savePrompt('dialogue-system', 't-dialogue', 'dialogue-status');
+
+      // ── 미리보기 ──────────────────────────────────────────────
+      const busy = (btns, on) => btns.forEach((id) => ($(id).disabled = on));
+
+      $('pv-one').onclick = async () => {
+        collectPersonaFields();
+        const codeWord = $('pv-code').value.trim();
+        if (!codeWord) return setStatus('pv-word-status', '코드 단어를 입력하세요.', 'err');
+        busy(['pv-one', 'pv-all'], true);
+        setStatus('pv-word-status', `${currentAlly().name} 이(가) 단어를 떠올리는 중…`);
+        try {
+          const r = await api('/preview/wordgen', {
+            method: 'POST',
+            body: JSON.stringify({ codeWord, ally: currentAlly(), promptOverride: $('t-wordgen').value }),
+          });
+          $('pv-word-out').innerHTML =
+            `<b>${currentAlly().name}</b> → 「${r.word}」\n<span class="meta">이유: ${r.reason}\n${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
+          setStatus('pv-word-status', '완료', 'ok');
+        } catch (e) { setStatus('pv-word-status', e.message, 'err'); }
+        busy(['pv-one', 'pv-all'], false);
+      };
+
+      $('pv-all').onclick = async () => {
+        collectPersonaFields();
+        const codeWord = $('pv-code').value.trim();
+        if (!codeWord) return setStatus('pv-word-status', '코드 단어를 입력하세요.', 'err');
+        busy(['pv-one', 'pv-all'], true);
+        setStatus('pv-word-status', '5인 독립 생성 + 중복 판정 중… (15~25초)');
+        try {
+          const r = await api('/preview/wordgen-all', {
+            method: 'POST',
+            body: JSON.stringify({ codeWord, allies: state.allies, promptOverride: $('t-wordgen').value }),
+          });
+          const byId = Object.fromEntries(state.allies.map((a) => [a.id, a]));
+          const lines = r.associations.map((a) => {
+            const arrested = r.arrestedIds.includes(a.npcId);
+            return `${arrested ? '<span class="arrest">✕</span>' : '·'} <b>${byId[a.npcId]?.name ?? a.npcId}</b> 「${a.word}」 <span class="meta">— ${a.reason}</span>`;
+          });
+          const dupLine = r.duplicateGroups.length
+            ? r.duplicateGroups.map((g) => `<span class="arrest">중복: ${g.npcIds.map((id) => byId[id]?.name ?? id).join(', ')} (${g.reason})</span>`).join('\n')
+            : '중복 없음 — 전원 무사';
+          const verdict = r.arrestedIds.length >= 3 ? '\n<span class="arrest">⚠ 체포 3명 이상 — 이 방향이 반복되면 되돌리세요.</span>' : '';
+          $('pv-word-out').innerHTML =
+            `코드 「${codeWord}」\n${lines.join('\n')}\n\n${dupLine}${verdict}\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
+          setStatus('pv-word-status', `완료 — 체포 ${r.arrestedIds.length}명`, r.arrestedIds.length >= 3 ? 'err' : 'ok');
+        } catch (e) { setStatus('pv-word-status', e.message, 'err'); }
+        busy(['pv-one', 'pv-all'], false);
+      };
+
+      $('pv-talk').onclick = async () => {
+        collectPersonaFields();
+        const word = $('pv-npcword').value.trim();
+        const message = $('pv-message').value.trim();
+        if (!word || !message) return setStatus('pv-talk-status', '단어와 질문을 입력하세요.', 'err');
+        busy(['pv-talk'], true);
+        setStatus('pv-talk-status', `${currentAlly().name} 이(가) 대답하는 중…`);
+        try {
+          const r = await api('/preview/dialogue', {
+            method: 'POST',
+            body: JSON.stringify({
+              ally: currentAlly(),
+              word,
+              alertLevel: $('pv-alert').value,
+              arrestedCount: $('pv-arrested').value,
+              message,
+              promptOverride: $('t-dialogue').value,
+            }),
+          });
+          $('pv-talk-out').innerHTML = `<b>${currentAlly().name}</b>: ${r.reply}\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
+          setStatus('pv-talk-status', '완료', 'ok');
+        } catch (e) { setStatus('pv-talk-status', e.message, 'err'); }
+        busy(['pv-talk'], false);
+      };
+
+      // ── 초기 로드 ─────────────────────────────────────────────
+      (async () => {
+        try {
+          const data = await api('/data');
+          state.allies = data.allies;
+          state.prompts = data.prompts;
+          $('t-wordgen').value = data.prompts['wordgen-system'];
+          $('t-dialogue').value = data.prompts['dialogue-system'];
+          const dl = $('codewords');
+          for (const words of Object.values(data.categories)) {
+            for (const w of words) {
+              const o = document.createElement('option');
+              o.value = w;
+              dl.appendChild(o);
+            }
+          }
+          snapshot();
+          renderTabs();
+          renderPersonaFields();
+        } catch (e) {
+          document.body.innerHTML = `<header><h1>⚙ 태엽새 프롬프트 스튜디오</h1></header><main><section><b style="color:var(--danger)">로드 실패:</b> ${e.message}<br/><span class="legend">서버(npm run dev 또는 npm run dev:server)가 떠 있는지 확인하세요.</span></section></main>`;
+        }
+      })();
+    </script>
+  </body>
+</html>

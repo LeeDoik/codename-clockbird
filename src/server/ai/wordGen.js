@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { anthropic, MODEL_JUDGE } from './client.js';
 import { leaksCodeWord } from './guardrail.js';
+import { renderPrompt } from './promptStore.js';
 
 /**
  * 동료 NPC 5인의 연상 단어 생성.
@@ -30,37 +31,21 @@ const WordSchema = z.object({
   reason: z.string().describe('이 인물이 그 단어를 떠올린 이유 (한 문장, 디버깅·연출용)'),
 });
 
-function buildSystemPrompt(ally) {
-  return `너는 스팀펑크 도시를 배경으로 한 잠입 게임의 등장인물 한 명을 연기한다.
+// 시스템 프롬프트 본문은 src/data/prompts/wordgen-system.txt 에 있다.
+// 프롬프트 스튜디오(/prompt-studio)에서 편집·미리보기할 수 있게 코드 밖으로 뺐다.
 
-너의 정체:
-- 이름: ${ally.name}
-- 직업: ${ally.role}
-- 성격·배경: ${ally.persona}
-
-너는 저항 세력의 조직원이다. 동료에게 비밀 접선 코드를 암시해야 하지만,
-감시 때문에 코드를 직접 말할 수 없다. 대신 그 코드에서 연상되는 단어 하나만 흘린다.
-
-주어진 접선 코드에서 연상되는 한국어 명사 한 단어를 골라라.
-
-규칙:
-1. 반드시 너의 직업과 삶의 경험에 비추어 자연스럽게 떠오르는 단어여야 한다.
-   너는 시계공이 아니라 ${ally.role}다. ${ally.role}의 눈으로 세상을 본다.
-2. 접선 코드 단어 자체를 쓰지 마라. 그것을 포함한 합성어도 금지다.
-3. 접선 코드의 동의어, 외래어 표기, 번역어도 금지다.
-   (예: 코드가 "톱니바퀴"라면 "기어"도 금지. 사실상 같은 사물을 가리키는 단어는 모두 금지)
-4. 코드와 다른 사물이되, 그것을 떠올리게 하는 단어여야 한다.
-   한 단어만 봐도 정답이 나올 만큼 노골적이면 안 된다.
-5. 다른 동료가 무엇을 쓸지는 신경 쓰지 마라. 너는 그들의 답을 모른다.
-   오직 너 자신에게 가장 자연스러운 단어를 골라라.
-6. 반드시 명사여야 한다. 형용사("뿌옇다", "축축한")나 동사("돌아가다")는 금지다.
-   사물·장소·현상의 이름이어야 한다.
-7. 한 단어만. 문장이나 설명은 word 필드에 넣지 마라.`;
-}
-
-/** 동료 1인의 연상 단어 생성 (실패 시 재시도) */
-async function generateOne({ codeWord, ally, maxRetries }) {
+/**
+ * 동료 1인의 연상 단어 생성 (실패 시 재시도).
+ * promptOverride 는 스튜디오의 "저장 전 미리보기"용 — 게임 경로에서는 쓰지 않는다.
+ */
+export async function generateOne({ codeWord, ally, maxRetries = 1, promptOverride }) {
   let lastError = null;
+
+  const system = await renderPrompt(
+    'wordgen-system',
+    { name: ally.name, role: ally.role, persona: ally.persona },
+    promptOverride,
+  );
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const message = await anthropic.beta.messages.parse({
@@ -69,7 +54,7 @@ async function generateOne({ codeWord, ally, maxRetries }) {
       // Sonnet 5 는 thinking 생략 시 adaptive thinking 이 켜진다.
       // 연상 단어 생성은 깊은 추론이 필요 없고 스테이지 시작 지연에 직결되므로 끈다.
       thinking: { type: 'disabled' },
-      system: buildSystemPrompt(ally),
+      system,
       output_format: betaZodOutputFormat(WordSchema),
       messages: [
         { role: 'user', content: `접선 코드 단어: "${codeWord}"\n\n네가 흘릴 단어 하나를 골라라.` },
@@ -131,12 +116,12 @@ async function pooledMap(items, limit, fn) {
 /**
  * 동료 5인의 연상 단어를 각각 독립 호출로 생성 (동시 실행 수 제한).
  *
- * @param {{ codeWord: string, allies: Array<object>, maxRetries?: number }} params
+ * @param {{ codeWord: string, allies: Array<object>, maxRetries?: number, promptOverride?: string }} params
  * @returns {Promise<{ associations: Array<{npcId,word,reason}>, usage: object, calls: number }>}
  */
-export async function generateAssociations({ codeWord, allies, maxRetries = 2 }) {
+export async function generateAssociations({ codeWord, allies, maxRetries = 2, promptOverride }) {
   const results = await pooledMap(allies, CONCURRENCY, (ally) =>
-    generateOne({ codeWord, ally, maxRetries }),
+    generateOne({ codeWord, ally, maxRetries, promptOverride }),
   );
 
   // 호출별 usage 를 합산해 하나의 usage 처럼 보고한다.

@@ -1,4 +1,5 @@
 import { anthropic, MODEL_CHAT } from './client.js';
+import { renderPrompt } from './promptStore.js';
 
 /**
  * 동료 NPC 자유 대화 (스트리밍).
@@ -29,50 +30,10 @@ import { anthropic, MODEL_CHAT } from './client.js';
  * 대화 이력이 길어져 프리픽스가 4096 토큰을 넘기면 그때 도입한다.
  */
 
-const WORLD = `[세계관]
-증기와 태엽의 도시. 로봇과 소수의 인간 협력자로 이루어진 지배 세력이 도시를 감시망으로 통제한다.
-로봇은 두 종류다 — 명령만 수행하는 구형 로봇, 그리고 스스로 사고하는 신형 로봇.
-저항 세력은 인간만으로 구성된 지하 조직이다. 발각되면 처형이다.
-지금 이 저택 구역은 지배 세력 간부의 저택이며, 곳곳에 순찰 로봇이 돌아다닌다.`;
-
-function buildSystem({ ally, word, alertLevel, arrestedCount }) {
-  return `${WORLD}
-
-[너의 정체]
-이름: ${ally.name}
-직업: ${ally.role}
-성격·배경: ${ally.persona}
-
-너는 저항 세력의 조직원이다. 지금 너에게 말을 거는 상대는 조직이 보낸 공작원이다.
-다만 너는 그가 진짜 동료인지 확신할 수 없다. 감시 로봇이 사람 흉내를 낸다는 소문도 있다.
-
-[상황]
-현재 경계 수위: ${alertLevel} (0이면 평소, 높을수록 순찰이 삼엄하다)
-최근 붙잡혀간 동료: ${arrestedCount}명
-
-[가장 중요한 규칙]
-너는 접선 코드를 알고 있다는 설정이지만, 그 코드가 무엇인지 절대 입 밖에 내지 않는다.
-너에게 실제로 주어진 단서는 네가 이미 상대에게 흘린 단어 하나뿐이다: "${word}"
-너도 코드 자체는 모른다고 여기고, "${word}" 에 대해서만 이야기하라.
-
-상대는 이 단어만으로 코드를 추리해야 하는 동료다. 못 알아내면 작전이 실패한다.
-그러니 매몰차게 굴지 말고, 캐물으면 "${word}" 를 조금 더 풀어서 도와줘라.
-
-- 상대가 "${word}" 에 대해 물으면, 그 단어가 가리키는 것을 네 경험으로 구체적으로 묘사하라.
-  네가 그것을 어디서 보고 만지고 다뤘는지, 그 생김새와 쓰임을 그려 보여라.
-  구체적인 장면과 감각(모양·소리·촉감)이 상대가 코드를 떠올리게 하는 다리다.
-- 상대가 여전히 헤매면, "${word}" 와 나란히 놓일 만한 관련된 사물이나 장면을 하나쯤 더 얹어줘도 된다.
-- 다만 코드 단어 자체나 그 동의어를 네 입으로 말하지는 마라 — 너도 그게 뭔지 모르니 당연하다.
-  너는 "${word}" 언저리를 맴돌 뿐이고, 마지막 한 걸음(코드)은 상대가 딛는다.
-- 상대가 코드를 맞히려 하면, 맞았는지 틀렸는지 알려주지 마라. 그건 네가 판단할 일이 아니다.
-
-[말투]
-너의 직업과 성격이 말투에 드러나야 한다. ${ally.role}답게 말하라.
-짧게 답하라. 2~3문장을 넘기지 마라. 긴장한 사람은 말이 길지 않다.
-줄바꿈 없이 한 문단으로 답하라.
-말투(어미)를 대화 내내 일관되게 유지하라. 반말과 서술체를 섞지 마라.
-나레이션이나 행동 묘사(*고개를 끄덕인다* 같은)는 쓰지 마라. 대사만 말하라.`;
-}
+// 시스템 프롬프트 본문(세계관·정체·상황·규칙·말투)은 src/data/prompts/dialogue-system.txt 에 있다.
+// 프롬프트 스튜디오(/prompt-studio)에서 편집·미리보기할 수 있게 코드 밖으로 뺐다.
+// 위의 "코드를 프롬프트에 넣지 않는다 / reason 을 넣지 않는다" 보장은 renderPrompt 에 넘기는
+// vars 가 전부이므로 그대로 유지된다 — 템플릿을 어떻게 고쳐도 모델은 코드를 모른다.
 
 /** 대화 이력이 무한정 길어지지 않게 제한 (비용·지연 관리) */
 const MAX_HISTORY = 12;
@@ -96,11 +57,18 @@ export async function streamAllyReply({
   history,
   userMessage,
   onText,
+  promptOverride, // 스튜디오의 "저장 전 미리보기"용 — 게임 경로에서는 쓰지 않는다
 }) {
+  const system = await renderPrompt(
+    'dialogue-system',
+    { name: ally.name, role: ally.role, persona: ally.persona, word, alertLevel, arrestedCount },
+    promptOverride,
+  );
+
   const stream = anthropic.messages.stream({
     model: MODEL_CHAT,
     max_tokens: 300,
-    system: buildSystem({ ally, word, alertLevel, arrestedCount }),
+    system,
     messages: [...trimHistory(history), { role: 'user', content: userMessage }],
   });
 
