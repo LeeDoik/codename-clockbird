@@ -18,6 +18,8 @@ import mapData from '../assets/map.json';
  */
 const SPEED = 200;
 const TALK_RANGE = 48;
+/** 검문이 끝난 뒤 다시 잡히지 않는 시간. 서버의 checkpointCooldownUntil 과 같은 값이어야 한다. */
+const CHECKPOINT_COOLDOWN_MS = 10_000;
 const TILE = mapData.tileSize; // 32
 
 // chars.png 스프라이트시트 프레임 — 동료 id → 프레임 (personas.json 순서)
@@ -427,11 +429,19 @@ export class StageScene extends Phaser.Scene {
   /**
    * 순찰을 전진시키고 감지 여부를 돌려준다.
    *
-   * 대화창이 열려 있는 동안에는 감지하지 않는다 — SSE 로 대사가 흘러나오는 중에
-   * 검문이 끼어들면 대화창을 강탈해 응답이 허공으로 사라진다.
+   * 감지를 멈추는 조건은 "대화창이 떠 있다" 가 아니라 "대화에 손이 묶여 있다" 다.
+   * 이 게임은 근처를 지나기만 해도 안내 대화창이 뜨고, 검문 결과 메시지도 플레이어가
+   * 닫을 때까지 남는다. 떠 있다는 이유로 감지를 끄면 한 번 검문당한 뒤 그 메시지를
+   * 닫지 않는 한 순찰이 영원히 눈이 먼다.
+   *
+   * 실제로 막아야 하는 건 두 가지뿐이다:
+   *  - 응답 대기 중(busy) — SSE 로 대사가 흘러나오는 중에 검문이 끼어들면 대화창을
+   *    강탈해 응답이 허공으로 사라진다
+   *  - 입력칸에 타이핑 중 — 손이 키보드에 묶여 있어 피할 수단이 없다
    */
   #updatePatrols(delta) {
-    const canDetect = !this.checkpointActive && !this.dialogue.isOpen;
+    const busyTalking = this.dialogue.busy || this.dialogue.isTyping;
+    const canDetect = !this.checkpointActive && !busyTalking;
     let seen = false;
     for (const p of this.patrols) {
       if (p.update(delta, this.state.alertLevel, canDetect ? this.player : null)) seen = true;
@@ -504,8 +514,9 @@ export class StageScene extends Phaser.Scene {
       console.warn('[checkpoint]', err.message);
     } finally {
       this.checkpointActive = false;
-      // 통과 직후 같은 자리에서 다시 잡히면 빠져나갈 방법이 없다 (서버 쿨다운 10초가 이중 안전망).
-      for (const p of this.patrols) p.resume();
+      // 통과 직후 같은 자리에서 다시 잡히면 빠져나갈 방법이 없다. 유예를 서버 쿨다운과
+      // 같은 길이로 준다 — 짧게 주면 그 차이만큼 거절당할 요청을 계속 쏘게 된다.
+      for (const p of this.patrols) p.resume({ graceMs: CHECKPOINT_COOLDOWN_MS });
     }
   }
 
