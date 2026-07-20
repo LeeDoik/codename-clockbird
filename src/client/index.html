@@ -76,10 +76,49 @@
       /* 코드 전달은 되돌릴 수 없고 신뢰도를 깎는다 — 색으로 무게를 준다. */
       #dialogue-code { background: var(--brass); color: var(--ink); }
       header { padding: 12px; opacity: 0.55; font-size: 0.85rem; letter-spacing: 0.05em; }
+
+      /* 결과 화면 — 씬 전환이 아니라 정지된 월드 위에 덮는 오버레이. */
+      #result {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 9, 7, 0.86);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      #result.visible { display: flex; }
+      #result-card {
+        border: 2px solid var(--brass);
+        background: rgba(26, 23, 18, 0.96);
+        border-radius: 4px;
+        padding: 28px 36px;
+        text-align: center;
+        min-width: 340px;
+        max-width: 80%;
+      }
+      #result-title { color: var(--brass); font-size: 1.5rem; font-weight: 700; letter-spacing: 0.08em; }
+      #result-line { margin-top: 14px; line-height: 1.7; white-space: pre-wrap; }
+      #result-code { margin-top: 12px; font-size: 1.1rem; }
+      #result-code b { color: var(--brass); }
+      #result-stats { margin-top: 12px; opacity: 0.6; font-size: 0.85rem; }
+      #result-restart {
+        margin-top: 22px;
+        border: 0;
+        background: var(--brass);
+        color: var(--ink);
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 1rem;
+        padding: 10px 26px;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      #result-restart:disabled { opacity: 0.35; cursor: default; }
+      #result-wait { margin-top: 14px; opacity: 0.55; font-size: 0.85rem; min-height: 1.2em; }
     </style>
   </head>
   <body>
-    <header>코드네임: 태엽새 — 개발 스켈레톤 (W1)</header>
+    <header>코드네임: 태엽새</header>
     <div id="game-root">
       <div id="game-canvas"></div>
       <div id="dialogue">
@@ -91,6 +130,16 @@
           <button id="dialogue-code">접선 코드 전달</button>
         </div>
         <div id="dialogue-hint">[Enter] 대화 · [Esc] 닫기</div>
+      </div>
+      <div id="result">
+        <div id="result-card">
+          <div id="result-title"></div>
+          <div id="result-line"></div>
+          <div id="result-code"></div>
+          <div id="result-stats"></div>
+          <button id="result-restart">다시 잠입한다</button>
+          <div id="result-wait"></div>
+        </div>
       </div>
     </div>
     <script type="module" src="./main.js"></script>

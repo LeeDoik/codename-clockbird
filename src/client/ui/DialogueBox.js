@@ -5,8 +5,19 @@
  *  - 한글 IME 입력이 정상 동작한다 (자유 대화·접선 코드 입력에 필수)
  *  - LLM 스트리밍 응답을 델타 단위로 붙이기 쉽다
  */
+let instance = null;
+
 export class DialogueBox {
   constructor() {
+    // 싱글턴 — scene.restart 로 create() 가 다시 돌 때마다 새 인스턴스를 만들면
+    // 같은 DOM 노드에 keydown/click 리스너가 겹겹이 쌓여, 재시작 후에는 Enter 한 번에
+    // 전송이 여러 번 걸린다. 두 번째부터는 상태만 초기화하고 기존 객체를 돌려준다.
+    if (instance) {
+      instance.#reset();
+      return instance;
+    }
+    instance = this;
+
     this.root = document.getElementById('dialogue');
     this.speakerEl = document.getElementById('dialogue-speaker');
     this.textEl = document.getElementById('dialogue-text');
@@ -43,6 +54,19 @@ export class DialogueBox {
       }
       e.stopPropagation(); // Phaser 키 입력(이동)과 충돌 방지
     });
+  }
+
+  /** 재시작 시 이전 판의 잔재(열린 창·잠긴 입력·묵은 핸들러)를 털어낸다. */
+  #reset() {
+    this.onSend = null;
+    this.onCode = null;
+    this.inputMode = 'chat';
+    this.busy = false;
+    this.field.value = '';
+    this.field.disabled = false;
+    this.sendBtn.disabled = false;
+    this.codeBtn.disabled = false;
+    this.hide();
   }
 
   #fire(handler) {

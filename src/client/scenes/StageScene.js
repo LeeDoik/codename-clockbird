@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { ResultOverlay } from '../ui/ResultOverlay.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
 
@@ -36,12 +37,17 @@ export class StageScene extends Phaser.Scene {
     this.answerShown = false;
     // 단서 수첩 — F 접선으로 얻은 NPC → 연상 단어. (C 키로 열람)
     this.clues = new Map();
+    // 판이 끝났는가. update() 를 멈추는 스위치이자 결과 화면 중복 호출 가드.
+    this.ended = false;
+    this.startedAt = Date.now();
   }
 
   create() {
     this.dialogue = new DialogueBox();
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
+    this.result = new ResultOverlay();
+    this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
 
     this.#buildMap();
 
@@ -274,8 +280,40 @@ export class StageScene extends Phaser.Scene {
     this.#updateHud();
   }
 
+  /**
+   * 판을 끝내고 결과 화면을 띄운다.
+   *
+   * 클리어는 기존 "STAGE 1 CLEAR" 대사를 읽을 틈을 준 뒤 덮고, 게임오버는 즉시 덮는다
+   * — 진 이유는 이미 대사로 나왔고, 늘어질수록 다시 하기 싫어진다.
+   *
+   * @param {'cleared'|'caught'|'informerCaught'|'allInformed'} outcome
+   */
+  #endGame(outcome, { delay = 0 } = {}) {
+    if (this.ended) return;
+    this.ended = true;
+    // 조기 return 만으로 멈추면 마지막 프레임의 속도가 남아 플레이어가 계속 미끄러진다.
+    this.player.body.setVelocity(0, 0);
+
+    const show = () => {
+      this.dialogue.hide();
+      this.result.show({
+        outcome,
+        codeWord: this.state.codeWord,
+        stats: [
+          `단서 ${this.clues.size}개`,
+          `경계 레벨 ${this.state.alertLevel}`,
+          `${Math.round((Date.now() - this.startedAt) / 1000)}초`,
+        ],
+        onRestart: (state) => this.scene.restart({ state }),
+      });
+    };
+
+    if (delay) this.time.delayedCall(delay, show);
+    else show();
+  }
+
   update() {
-    if (this.state.cleared || this.state.gameOver) return;
+    if (this.ended) return;
 
     // 대화창 입력 중에는 이동을 막는다.
     const typing = this.dialogue.isTyping;
@@ -573,6 +611,7 @@ export class StageScene extends Phaser.Scene {
           '접선 성공',
           `접선 코드는 「${result.codeWord}」 였다.\n\nSTAGE 1 CLEAR`,
         );
+        this.#endGame('cleared', { delay: 1200 });
         return;
       }
 
@@ -585,11 +624,15 @@ export class StageScene extends Phaser.Scene {
           `틀렸다. 동료의 신뢰를 완전히 잃었다.\n그는 당신을 밀고하고 사라졌다.\n\n경계 레벨이 올라갔다. (${this.state.alertLevel})`,
         );
       } else {
+        const maxTrust = this.state.allies.find((a) => a.id === this.currentAllyId)?.maxTrust ?? 3;
         this.dialogue.show(
           '접선 실패',
-          `틀렸다. 동료가 의심스러운 눈으로 당신을 본다.\n남은 신뢰: ${'●'.repeat(result.trust)}${'○'.repeat(3 - result.trust)}`,
+          `틀렸다. 동료가 의심스러운 눈으로 당신을 본다.\n남은 신뢰: ${'●'.repeat(result.trust)}${'○'.repeat(maxTrust - result.trust)}`,
         );
       }
+
+      // 마지막 동료까지 밀고했다면 서버가 판을 끝냈다 — 밀고 대사를 읽을 틈을 주고 덮는다.
+      if (this.state.gameOver) this.#endGame(this.state.gameOverReason, { delay: 1600 });
     } catch (err) {
       this.dialogue.show('오류', err.message);
     } finally {

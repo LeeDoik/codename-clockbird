@@ -54,6 +54,8 @@ export function createSession({ codeWord, category, allies, associations, duplic
     alertLevel: 0,
     cleared: false,
     gameOver: false,
+    // 결과 화면이 제목을 고르는 근거. gameOver 가 true 일 때만 의미가 있다.
+    gameOverReason: null,
     createdAt: Date.now(),
   });
 
@@ -67,13 +69,19 @@ export function getSession(id) {
 /**
  * 클라이언트로 내보내도 안전한 형태로 변환.
  * codeWord / category / reason 은 제외한다 (reason 은 코드 단어를 암시할 수 있음).
+ *
+ * 단 판이 끝난 뒤에는 codeWord 를 함께 내려보낸다 — 결과 화면의 "접선 코드는 「…」였다"
+ * 에 필요하다. 비유출 원칙은 진행 중인 판에만 적용된다 (끝난 판의 정답은 숨길 이유가 없다).
  */
 export function toClientView(session) {
+  const ended = session.cleared || session.gameOver;
   return {
     sessionId: session.id,
     alertLevel: session.alertLevel,
     cleared: session.cleared,
     gameOver: session.gameOver,
+    gameOverReason: session.gameOverReason,
+    codeWord: ended ? session.codeWord : null,
     allies: session.allies.map((a) => ({
       id: a.id,
       name: a.name,
@@ -167,6 +175,35 @@ export function rescueAlly(session, allyId) {
 /** 마을 NPC 대사 분기와 대화 프롬프트에 쓰이는 현재 체포 인원 */
 export function arrestedCount(session) {
   return session.allies.filter((a) => a.arrested).length;
+}
+
+/** 밀고해 버린 동료 수. 한 명이라도 있으면 순찰에게 걸리는 즉시 구속이다. */
+export function informedCount(session) {
+  return session.allies.filter((a) => a.informed).length;
+}
+
+/**
+ * 더 이상 이길 수 없는 판인가.
+ *
+ * 접선 코드는 동료 앞에서만 건넬 수 있으므로(클라이언트 currentAllyId), 접선 가능한
+ * 동료가 0명이면 정답을 알아도 제출할 방법이 없다. 감옥의 동료는 구출로 되살릴 수
+ * 있으니 아직 활로다 — 체포는 세지 않고 밀고만 센다.
+ */
+export function isUnwinnable(session) {
+  return !session.allies.some((a) => !a.informed);
+}
+
+/**
+ * 판을 끝낸다. 이미 끝난 판은 덮어쓰지 않는다 — 먼저 도달한 결말이 이긴다
+ * (검문 적발과 밀고가 같은 프레임에 겹칠 수 있다).
+ *
+ * @param {'allInformed'|'caught'|'informerCaught'} reason
+ */
+export function setGameOver(session, reason) {
+  if (session.cleared || session.gameOver) return false;
+  session.gameOver = true;
+  session.gameOverReason = reason;
+  return true;
 }
 
 /** 대화 이력에 한 턴 추가 */

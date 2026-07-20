@@ -13,6 +13,8 @@ import {
   rescueAlly,
   arrestedCount,
   pushDialogue,
+  isUnwinnable,
+  setGameOver,
 } from '../session.js';
 
 const router = express.Router();
@@ -146,6 +148,11 @@ router.post('/guess', async (req, res, next) => {
     }
 
     const { informed, trust } = loseTrust(session, allyId);
+
+    // 마지막 동료까지 밀고했다면 코드를 건넬 상대가 없다 — 정답을 알아도 제출할 수 없으므로
+    // 여기서 판을 끝낸다. 이 판정이 없으면 빈 맵을 무한히 배회하는 소프트락이 된다.
+    if (isUnwinnable(session)) setGameOver(session, 'allInformed');
+
     res.json({
       correct: false,
       informed,

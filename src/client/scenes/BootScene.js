@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 // import 되지 않은 assets/ 는 프로덕션 빌드의 dist 에 복사되지 않아 404 가 난다).
 import tilesUrl from '../assets/tiles/tiles.png';
 import charsUrl from '../assets/chars.png';
+import { fetchStageStart } from '../net.js';
 
 /**
  * 로딩 씬.
@@ -31,7 +32,7 @@ export class BootScene extends Phaser.Scene {
     // 스테이지 시작을 지금 쏘고 그 대기를 오프닝이 가린다. 프로미스는 {state} 또는 {error}
     // 로만 resolve 하게 감싼다 — 오프닝이 끝날 때까지 소비되지 않아도 unhandledrejection
     // 경고가 뜨지 않도록(그래서 IntroScene 이 30여 초 뒤에 한가롭게 await 해도 안전하다).
-    const startPromise = this.#fetchStart();
+    const startPromise = fetchStageStart();
     this.registry.set('startPromise', startPromise);
 
     if (noIntro) {
@@ -39,18 +40,6 @@ export class BootScene extends Phaser.Scene {
       return;
     }
     this.scene.start('Intro');
-  }
-
-  #fetchStart() {
-    return fetch('/api/stage/start', { method: 'POST' })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? `HTTP ${res.status}`);
-        }
-        return { state: await res.json() };
-      })
-      .catch((err) => ({ error: err.message }));
   }
 
   /** 개발용(?nointro) — 오프닝을 건너뛰고 기존 로딩 화면을 거쳐 곧장 스테이지로 간다. */
