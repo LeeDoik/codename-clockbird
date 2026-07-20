@@ -77,6 +77,79 @@
       #dialogue-code { background: var(--brass); color: var(--ink); }
       header { padding: 12px; opacity: 0.55; font-size: 0.85rem; letter-spacing: 0.05em; }
 
+      /* 미니게임 패널 — 감옥 퍼즐과 검문 타이밍이 공유하는 껍데기. */
+      #minigame {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 9, 7, 0.78);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      #minigame.visible { display: flex; }
+      #minigame-card {
+        border: 2px solid var(--brass);
+        background: rgba(26, 23, 18, 0.97);
+        border-radius: 4px;
+        padding: 22px 28px;
+        min-width: 400px;
+        max-width: 90%;
+        text-align: center;
+      }
+      #minigame-title { color: var(--brass); font-weight: 700; letter-spacing: 0.06em; }
+      #minigame-subtitle { margin-top: 6px; opacity: 0.7; font-size: 0.85rem; white-space: pre-wrap; }
+      /* 제한 시간 — 남은 시간이 줄어드는 띠. width 를 JS 가 매 프레임 갱신한다. */
+      #minigame-timer {
+        margin-top: 14px;
+        height: 4px;
+        background: #0f0d0a;
+        border-radius: 2px;
+        overflow: hidden;
+        display: none;
+      }
+      #minigame-timer.visible { display: block; }
+      #minigame-timer-fill { height: 100%; width: 100%; background: var(--brass); }
+      #minigame-content { margin-top: 18px; }
+      #minigame-hint { margin-top: 14px; opacity: 0.5; font-size: 0.8rem; min-height: 1.2em; }
+      /* 성공/실패 판정 문구 — 결과를 읽을 틈을 주고 패널이 닫힌다. */
+      #minigame-verdict { margin-top: 10px; font-weight: 700; min-height: 1.4em; }
+      #minigame-verdict.ok { color: #6fae8e; }
+      #minigame-verdict.fail { color: #c25b4a; }
+
+      /* 미니게임 부품 — 퍼즐과 타이밍 게임이 함께 쓴다. */
+      .mg-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+      .mg-row + .mg-row { margin-top: 12px; }
+      .mg-btn {
+        min-width: 52px;
+        padding: 10px 12px;
+        background: #0f0d0a;
+        border: 1px solid #5c4f2e;
+        border-radius: 3px;
+        color: var(--paper);
+        font-family: inherit;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      .mg-btn:hover:not(:disabled) { border-color: var(--brass); }
+      .mg-btn:disabled { cursor: default; }
+      .mg-btn.sel { border-color: var(--brass); background: #2a2416; color: var(--brass); }
+      .mg-btn.done { opacity: 0.3; }
+      .mg-btn.bad { border-color: #c25b4a; color: #c25b4a; }
+      .mg-legend { opacity: 0.75; font-size: 0.85rem; letter-spacing: 0.08em; margin-bottom: 14px; }
+      .mg-legend b { color: var(--brass); }
+
+      /* 타이밍 바 — 커서가 좌우로 왕복하고, 목표 구간 안에서 멈춰야 한다. */
+      .mg-track {
+        position: relative;
+        height: 34px;
+        background: #0f0d0a;
+        border: 1px solid #5c4f2e;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .mg-zone { position: absolute; top: 0; bottom: 0; background: rgba(111, 174, 142, 0.28); }
+      .mg-cursor { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--brass); }
+
       /* 결과 화면 — 씬 전환이 아니라 정지된 월드 위에 덮는 오버레이. */
       #result {
         position: absolute;
@@ -130,6 +203,16 @@
           <button id="dialogue-code">접선 코드 전달</button>
         </div>
         <div id="dialogue-hint">[Enter] 대화 · [Esc] 닫기</div>
+      </div>
+      <div id="minigame">
+        <div id="minigame-card">
+          <div id="minigame-title"></div>
+          <div id="minigame-subtitle"></div>
+          <div id="minigame-timer"><div id="minigame-timer-fill"></div></div>
+          <div id="minigame-content"></div>
+          <div id="minigame-hint"></div>
+          <div id="minigame-verdict"></div>
+        </div>
       </div>
       <div id="result">
         <div id="result-card">

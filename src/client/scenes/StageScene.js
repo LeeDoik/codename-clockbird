@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
+import { MinigamePanel } from '../ui/MinigamePanel.js';
+import { runLockPuzzle } from '../minigames/lockPuzzle.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
 
@@ -48,6 +50,9 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
     this.result = new ResultOverlay();
     this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
+    this.minigame = new MinigamePanel();
+    // 이전 판이 미니게임 도중에 끝났다면 그 판을 접는다 (타이머가 유령으로 남는다).
+    this.minigame.abort?.();
 
     this.#buildMap();
 
@@ -315,6 +320,13 @@ export class StageScene extends Phaser.Scene {
   update() {
     if (this.ended) return;
 
+    // 미니게임 중에는 월드를 멈춘다. 패널이 키를 capture 단계에서 가로채므로 Phaser 는
+    // 새 입력을 못 받지만, 패널이 열리기 직전에 눌려 있던 키는 그대로 눌린 상태로 남는다.
+    if (this.minigame.isOpen) {
+      this.player.body.setVelocity(0, 0);
+      return;
+    }
+
     // 대화창 입력 중에는 이동을 막는다.
     const typing = this.dialogue.isTyping;
     const body = this.player.body;
@@ -488,7 +500,32 @@ export class StageScene extends Phaser.Scene {
     if (this.rescuing) return;
     this.rescuing = true;
     this.proximityHint = false;
-    this.dialogue.show(`${ally.name} (${ally.role})`, '창살 자물쇠를 조용히 비튼다...');
+    this.dialogue.hide();
+
+    // 잠금장치 퍼즐을 먼저 통과해야 한다. 실패해도 즉시 게임오버가 아니라 경계만
+    // 올린다 — 감옥 앞에서 판이 끝나 버리면 "전원 체포 판의 유일한 활로"라는 구출의
+    // 역할이 사라진다.
+    let picked;
+    try {
+      picked = await runLockPuzzle(this.minigame);
+    } finally {
+      this.rescuing = false;
+    }
+    if (this.ended) return; // 퍼즐을 푸는 사이 판이 끝났다면 결과를 버린다
+
+    if (!picked) {
+      await this.#raiseAlarm('lockpick');
+      this.dialogue.show(
+        `${ally.name} (${ally.role})`,
+        '자물쇠가 잠겨 버렸다. 쇳소리가 복도를 타고 번진다.\n\n' +
+          `경계 레벨이 올라갔다. (${this.state.alertLevel})\n다시 시도할 수는 있다.`,
+      );
+      this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
+      return;
+    }
+
+    this.rescuing = true;
+    this.dialogue.show(`${ally.name} (${ally.role})`, '자물쇠가 풀렸다. 창살을 밀어 젖힌다...');
 
     let result;
     try {
@@ -520,6 +557,24 @@ export class StageScene extends Phaser.Scene {
         `[F] 로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
+  }
+
+  /** 클라이언트에서 판정이 끝난 사건의 대가를 서버에 청구한다 (경계 레벨 상승). */
+  async #raiseAlarm(reason) {
+    try {
+      const res = await fetch('/api/stage/alarm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.state.sessionId, reason }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error ?? `HTTP ${res.status}`);
+      this.state = result.state;
+      this.#updateHud();
+    } catch (err) {
+      // 경계 상승은 게임을 막지 않는 부수 효과다 — 실패해도 진행을 멈추지 않는다.
+      console.warn('[alarm]', err.message);
+    }
   }
 
   /** 자유 대화 — 서버가 SSE 로 흘려보내는 응답을 델타 단위로 붙인다 */

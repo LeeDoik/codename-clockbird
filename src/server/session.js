@@ -177,6 +177,18 @@ export function arrestedCount(session) {
   return session.allies.filter((a) => a.arrested).length;
 }
 
+/**
+ * 소란이 새어 나갔다 — 경계 레벨을 올린다.
+ *
+ * 경계 레벨은 순찰의 속도·시야와 검문 심사의 엄격도를 함께 끌어올리므로, 올릴 권한은
+ * 서버만 갖는다. 클라이언트에서 판정이 끝나는 사건(미니게임 실패)도 이 통로로만 대가를
+ * 치른다.
+ */
+export function raiseAlert(session, amount = 1) {
+  session.alertLevel += amount;
+  return session.alertLevel;
+}
+
 /** 밀고해 버린 동료 수. 한 명이라도 있으면 순찰에게 걸리는 즉시 구속이다. */
 export function informedCount(session) {
   return session.allies.filter((a) => a.informed).length;

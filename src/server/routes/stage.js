@@ -15,6 +15,7 @@ import {
   pushDialogue,
   isUnwinnable,
   setGameOver,
+  raiseAlert,
 } from '../session.js';
 
 const router = express.Router();
@@ -120,6 +121,30 @@ router.post('/rescue', (req, res) => {
   );
 
   res.json({ ...result, state: toClientView(session) });
+});
+
+/**
+ * POST /api/stage/alarm  { sessionId, reason }
+ * 소란 발생 — 경계 레벨만 올린다.
+ *
+ * 미니게임처럼 판정이 클라이언트에서 끝나는 사건이 대가를 치르는 통로다. 판정은
+ * 브라우저가 내리지만 그 대가(경계 레벨)의 소유권은 서버가 갖는다. reason 을
+ * 화이트리스트로 묶어 임의의 사유로 경계를 올리지 못하게 한다.
+ */
+const ALARM_REASONS = new Set(['lockpick']);
+
+router.post('/alarm', (req, res) => {
+  const { sessionId, reason } = req.body ?? {};
+  const session = getSession(sessionId);
+
+  if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
+  if (session.cleared || session.gameOver) {
+    return res.status(409).json({ error: '이미 종료된 세션입니다.' });
+  }
+  if (!ALARM_REASONS.has(reason)) return res.status(400).json({ error: '알 수 없는 사유입니다.' });
+
+  const alertLevel = raiseAlert(session);
+  res.json({ alertLevel, state: toClientView(session) });
 });
 
 /**

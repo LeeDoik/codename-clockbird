@@ -12,3 +12,6 @@ npm-debug.log*
 # 공유 링크용 (share.bat 이 자동 다운로드)
 cloudflared.exe
 *.preview8x.png
+
+# Claude Code 로컬 설정
+.claude/settings.local.json
