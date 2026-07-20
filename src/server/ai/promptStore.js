@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
  * 프로덕션(제출 빌드)에서는 1회 읽고 캐시한다 (파일 IO 는 LLM 지연 대비 무시할 수준).
  */
 
-const TEMPLATES = ['wordgen-system', 'dialogue-system'];
+const TEMPLATES = ['wordgen-system', 'dialogue-system', 'checkpoint-question', 'checkpoint-judge'];
 const isProd = process.env.NODE_ENV === 'production';
 const cache = new Map();
 

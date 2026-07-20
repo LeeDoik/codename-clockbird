@@ -22,7 +22,7 @@ export class BootScene extends Phaser.Scene {
     // 타일 스프라이트시트 (32×32 프레임). map.json 자체는 StageScene 에서 직접 import 한다.
     // 텍스처는 게임 전역이라 여기서 한 번 로드하면 StageScene 에서 바로 쓸 수 있다.
     this.load.spritesheet('tiles', tilesUrl, { frameWidth: 32, frameHeight: 32 });
-    // 캐릭터 7프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민
+    // 캐릭터 8프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민 / 7 순찰 로봇
     this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });
   }
 

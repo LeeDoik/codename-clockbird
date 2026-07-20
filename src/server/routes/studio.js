@@ -32,6 +32,8 @@ const promptUrl = (name) => new URL(`../../data/prompts/${name}.txt`, import.met
 const RECOMMENDED_VARS = {
   'wordgen-system': ['name', 'role', 'persona'],
   'dialogue-system': ['name', 'role', 'persona', 'word', 'alertLevel', 'arrestedCount'],
+  'checkpoint-question': ['alertLevel', 'arrestedCount'],
+  'checkpoint-judge': ['alertLevel', 'arrestedCount', 'strictness'],
 };
 
 function missingVars(name, text) {

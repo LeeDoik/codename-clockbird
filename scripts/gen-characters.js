@@ -7,10 +7,10 @@
  * 32×32 픽셀 캐릭터를 코드로 직접 그린다. 톱다운·크림/골드 주인공·청록/녹/가죽 동료.
  *
  * 출력:
- *   src/client/assets/chars.png         — 7프레임 가로 스트립 (게임용, frameWidth 32)
+ *   src/client/assets/chars.png         — 8프레임 가로 스트립 (게임용, frameWidth 32)
  *   src/client/assets/chars.preview8x.png — 8배 확대 미리보기 (육안 검수용)
  *
- * 프레임 순서: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민
+ * 프레임 순서: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민 / 7 순찰 로봇
  * (동료 순서는 personas.json 순서와 일치: watchmaker,maid,engineer,smuggler,musician)
  */
 import fs from 'node:fs';
@@ -86,6 +86,41 @@ function drawCharacter(buf, s) {
 
   // 액세서리 / 강조색
   drawAccent(buf, s, cx);
+}
+
+/**
+ * 순찰 로봇 — 사람 실루엣과 한눈에 구분되어야 한다.
+ *
+ * 각진 몸통(사람은 전부 둥근 어깨), 팔 대신 옆구리 유압관, 다리 대신 궤도 받침.
+ * 아이밴드는 시야 콘과 같은 적색이라 "저 빨간 게 나를 본다"가 색 하나로 읽힌다.
+ */
+function drawRobot(buf, s) {
+  const cx = 16;
+
+  // 궤도 받침 — 발이 아니라 바퀴다. 사람과 실루엣이 갈리는 첫 단서.
+  rect(buf, cx - 7, 26, cx + 7, 29, s.tread);
+  rect(buf, cx - 7, 30, cx + 7, 30, s.bodyDark);
+
+  // 옆구리 유압관
+  rect(buf, cx - 10, 16, cx - 8, 25, s.bodyDark);
+  rect(buf, cx + 8, 16, cx + 10, 25, s.bodyDark);
+
+  // 몸통 — 모서리를 깎지 않는다 (사람은 어깨를 둥글렸다)
+  rect(buf, cx - 7, 14, cx + 7, 25, s.body);
+  // 가슴 계기판
+  rect(buf, cx - 3, 18, cx + 3, 21, s.bodyDark);
+  px(buf, cx, 19, s.accent); px(buf, cx, 20, s.accent);
+
+  // 머리 — 각진 상자
+  rect(buf, cx - 6, 5, cx + 6, 13, s.body);
+  // 아이밴드 (시야 콘과 같은 적색)
+  rect(buf, cx - 6, 8, cx + 6, 10, s.eye);
+  // 밴드 안의 렌즈 — 어느 쪽을 보는지 읽히게 가운데를 밝게
+  px(buf, cx - 1, 9, s.eyeHot); px(buf, cx, 9, s.eyeHot); px(buf, cx + 1, 9, s.eyeHot);
+
+  // 머리 위 신호등
+  rect(buf, cx - 1, 2, cx + 1, 4, s.bodyDark);
+  px(buf, cx, 2, s.accent);
 }
 
 function drawHead(buf, s, cx) {
@@ -172,6 +207,11 @@ const SPECS = [
     skin: hex('#d8b48c'), coat: hex('#6b6055'), coatDark: hex('#524a41'),
     hat: 'cap', hatColor: hex('#4a4038'), accent: null, boots: hex('#3a2e22'),
   },
+  { // 7 순찰 로봇 — 강청 몸통 + 적색 아이밴드 (시야 콘과 같은 색)
+    robot: true,
+    body: hex('#2f4f6f'), bodyDark: hex('#1e3448'), tread: hex('#2a231a'),
+    eye: hex('#8a2f28'), eyeHot: hex('#e8635a'), accent: hex('#c9a227'),
+  },
 ];
 
 // ── PNG 인코딩 (RGBA, colorType 6) ───────────────────────────────
@@ -206,7 +246,12 @@ function crc32(buf) {
 }
 
 // ── 렌더 & 합성 ──────────────────────────────────────────────────
-const frames = SPECS.map((s) => { const b = newFrame(); drawCharacter(b, s); outline(b); return b; });
+const frames = SPECS.map((s) => {
+  const b = newFrame();
+  (s.robot ? drawRobot : drawCharacter)(b, s);
+  outline(b);
+  return b;
+});
 const N = frames.length;
 
 // 가로 스트립 (N*32 × 32)

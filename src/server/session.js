@@ -56,6 +56,10 @@ export function createSession({ codeWord, category, allies, associations, duplic
     gameOver: false,
     // 결과 화면이 제목을 고르는 근거. gameOver 가 true 일 때만 의미가 있다.
     gameOverReason: null,
+    // 진행 중인 불심검문 { stage, startedAt, question?, choices? }. 없으면 null.
+    checkpoint: null,
+    // 이 시각까지는 다시 검문당하지 않는다 (통과 직후 재검문 방지).
+    checkpointCooldownUntil: 0,
     createdAt: Date.now(),
   });
 
@@ -72,6 +76,10 @@ export function getSession(id) {
  *
  * 단 판이 끝난 뒤에는 codeWord 를 함께 내려보낸다 — 결과 화면의 "접선 코드는 「…」였다"
  * 에 필요하다. 비유출 원칙은 진행 중인 판에만 적용된다 (끝난 판의 정답은 숨길 이유가 없다).
+ *
+ * 진행 중에는 codeWord 를 null 로 채우지 않고 필드 자체를 뺀다. "값이 비었다" 보다
+ * "그런 필드가 없다" 가 검증하기 쉽고, smoke 테스트도 응답 본문에 codeWord 라는
+ * 글자가 있는지로 유출을 잡는다.
  */
 export function toClientView(session) {
   const ended = session.cleared || session.gameOver;
@@ -81,7 +89,7 @@ export function toClientView(session) {
     cleared: session.cleared,
     gameOver: session.gameOver,
     gameOverReason: session.gameOverReason,
-    codeWord: ended ? session.codeWord : null,
+    ...(ended && { codeWord: session.codeWord }),
     allies: session.allies.map((a) => ({
       id: a.id,
       name: a.name,
@@ -175,6 +183,17 @@ export function rescueAlly(session, allyId) {
 /** 마을 NPC 대사 분기와 대화 프롬프트에 쓰이는 현재 체포 인원 */
 export function arrestedCount(session) {
   return session.allies.filter((a) => a.arrested).length;
+}
+
+/**
+ * 검문 중인가.
+ *
+ * 검문 중에는 접선·구출·코드 입력·대화가 전부 막힌다. 로봇 앞에 세워진 채로 동료와
+ * 잡담하거나 자물쇠를 딸 수는 없다 — 게임 규칙이기도 하고, 대화 SSE 스트림이 검문
+ * 패널에 끼어드는 사고를 막는 장치이기도 하다.
+ */
+export function inCheckpoint(session) {
+  return session.checkpoint !== null;
 }
 
 /**

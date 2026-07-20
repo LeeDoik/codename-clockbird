@@ -138,6 +138,22 @@
       .mg-legend { opacity: 0.75; font-size: 0.85rem; letter-spacing: 0.08em; margin-bottom: 14px; }
       .mg-legend b { color: var(--brass); }
 
+      /* 심문 답변 — 선택지는 세로로 쌓고, 그 아래 자유 입력을 둔다. */
+      .mg-col { display: flex; flex-direction: column; gap: 8px; }
+      .mg-col .mg-btn { text-align: left; }
+      .mg-free { display: flex; gap: 8px; margin-top: 12px; }
+      .mg-free input {
+        flex: 1;
+        background: #0f0d0a;
+        border: 1px solid #5c4f2e;
+        color: var(--paper);
+        padding: 8px 10px;
+        border-radius: 3px;
+        font-family: inherit;
+        font-size: 0.95rem;
+      }
+      .mg-free .mg-btn { background: var(--brass); color: var(--ink); border-color: var(--brass); font-weight: 700; }
+
       /* 타이밍 바 — 커서가 좌우로 왕복하고, 목표 구간 안에서 멈춰야 한다. */
       .mg-track {
         position: relative;

@@ -3,6 +3,9 @@ import { DialogueBox } from '../ui/DialogueBox.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { runLockPuzzle } from '../minigames/lockPuzzle.js';
+import { runTimingLock } from '../minigames/timingLock.js';
+import { runInterrogation } from '../minigames/interrogation.js';
+import { Patrol, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
 
@@ -42,6 +45,10 @@ export class StageScene extends Phaser.Scene {
     // 판이 끝났는가. update() 를 멈추는 스위치이자 결과 화면 중복 호출 가드.
     this.ended = false;
     this.startedAt = Date.now();
+    // 순찰 로봇들. ?nopatrol 이면 비워 둔다.
+    this.patrols = [];
+    // 검문 진행 중 — 감지·입력·중복 호출을 한꺼번에 막는 스위치.
+    this.checkpointActive = false;
   }
 
   create() {
@@ -116,8 +123,39 @@ export class StageScene extends Phaser.Scene {
       color: '#6b6152',
     });
 
+    this.#spawnPatrols();
+
     this.#updateHud();
     this.#showBriefing();
+  }
+
+  /**
+   * 순찰 배치.
+   *
+   * 중앙 복도 1기는 상주하고, 하부 홀 증원은 경계 1 이상에서만 붙는다. 조용히 푸는
+   * 판에서는 검증된 기존 동선이 그대로 남고, 구출(+1)·밀고(+1)가 순찰을 깨운다.
+   */
+  #spawnPatrols() {
+    // 시연 직전 비상용 킬스위치 (?nointro 관례를 그대로 따른다).
+    if (new URLSearchParams(window.location.search).has('nopatrol')) return;
+
+    this.patrols.push(new Patrol(this, PATROL_ROUTES.corridor));
+    if (this.state.alertLevel >= REINFORCE_AT) {
+      this.patrols.push(new Patrol(this, PATROL_ROUTES.lowerHall));
+      this.reinforced = true;
+    }
+    // 스폰 직후 유예 — 시작하자마자 검문에 걸리면 플레이어는 뭘 한 것도 없이 당한다.
+    for (const p of this.patrols) p.resume({ graceMs: 3000 });
+  }
+
+  /** 경계가 처음 오르는 순간 하부 홀에 증원이 붙는다. */
+  #maybeReinforce() {
+    if (this.reinforced || !this.patrols.length) return;
+    if (this.state.alertLevel < REINFORCE_AT) return;
+    this.reinforced = true;
+    const p = new Patrol(this, PATROL_ROUTES.lowerHall);
+    p.resume({ graceMs: 2000 });
+    this.patrols.push(p);
   }
 
   /** 진입 쪽지 — 이미 붙잡힌 동료 수와 남은 동료 수를 알린다. */
@@ -241,10 +279,13 @@ export class StageScene extends Phaser.Scene {
   }
 
   #updateHud() {
+    // 상태가 바뀔 때마다 반드시 지나가는 길목이라, 증원 판정도 여기서 함께 본다.
+    this.#maybeReinforce();
+
     const active = this.state.allies.filter((a) => !a.arrested && !a.informed);
     const trust = active.map((a) => `${a.name}:${'●'.repeat(a.trust)}${'○'.repeat(a.maxTrust - a.trust)}`);
     const lines = [
-      `경계 레벨 ${this.state.alertLevel}   |   접선 가능 ${active.length}/5`,
+      `경계 레벨 ${this.state.alertLevel}   |   접선 가능 ${active.length}/${this.state.allies.length}`,
       trust.join('  '),
     ];
     if (this.answerShown && this.debugAnswer) {
@@ -298,6 +339,7 @@ export class StageScene extends Phaser.Scene {
     this.ended = true;
     // 조기 return 만으로 멈추면 마지막 프레임의 속도가 남아 플레이어가 계속 미끄러진다.
     this.player.body.setVelocity(0, 0);
+    for (const p of this.patrols) p.halt();
 
     const show = () => {
       this.dialogue.hide();
@@ -317,13 +359,19 @@ export class StageScene extends Phaser.Scene {
     else show();
   }
 
-  update() {
+  update(time, delta) {
     if (this.ended) return;
 
     // 미니게임 중에는 월드를 멈춘다. 패널이 키를 capture 단계에서 가로채므로 Phaser 는
     // 새 입력을 못 받지만, 패널이 열리기 직전에 눌려 있던 키는 그대로 눌린 상태로 남는다.
     if (this.minigame.isOpen) {
       this.player.body.setVelocity(0, 0);
+      return;
+    }
+
+    if (this.#updatePatrols(delta)) {
+      this.player.body.setVelocity(0, 0);
+      this.#startCheckpoint();
       return;
     }
 
@@ -374,6 +422,103 @@ export class StageScene extends Phaser.Scene {
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keyClues)) {
       this.#toggleClues();
     }
+  }
+
+  /**
+   * 순찰을 전진시키고 감지 여부를 돌려준다.
+   *
+   * 대화창이 열려 있는 동안에는 감지하지 않는다 — SSE 로 대사가 흘러나오는 중에
+   * 검문이 끼어들면 대화창을 강탈해 응답이 허공으로 사라진다.
+   */
+  #updatePatrols(delta) {
+    const canDetect = !this.checkpointActive && !this.dialogue.isOpen;
+    let seen = false;
+    for (const p of this.patrols) {
+      if (p.update(delta, this.state.alertLevel, canDetect ? this.player : null)) seen = true;
+    }
+    return seen;
+  }
+
+  /**
+   * 발각 → 검문.
+   *
+   * 1단은 지연 0 인 타이밍 게임이라 대부분의 조우가 여기서 끝난다. 놓쳤을 때만
+   * LLM 심문이 마지막 기회로 열린다 (계획서 §5.1 의 AI 활용 지점 4번).
+   */
+  async #startCheckpoint() {
+    if (this.checkpointActive) return;
+    this.checkpointActive = true;
+    for (const p of this.patrols) p.halt();
+    this.dialogue.hide();
+
+    try {
+      const started = await this.#post('checkpoint/start');
+      this.state = started.state;
+      this.#updateHud();
+
+      // 밀고당한 몸으로 순찰과 마주치면 물어볼 것도 없다.
+      if (started.outcome === 'informerCaught') {
+        this.#endGame('informerCaught');
+        return;
+      }
+
+      const passed = await runTimingLock(this.minigame, this.state.alertLevel);
+      if (this.ended) return;
+
+      if (passed) {
+        const r = await this.#post('checkpoint/qte', { result: 'pass' });
+        this.state = r.state;
+        this.#updateHud();
+        return;
+      }
+
+      const outcome = await runInterrogation(this.minigame, {
+        // 질문 생성(LLM 2~4초)이 여기서 돈다 — 패널의 "신원 조회 중…" 이 그 대기를 덮는다.
+        fetchQuestion: async () => {
+          const r = await this.#post('checkpoint/qte', { result: 'fail' });
+          this.state = r.state;
+          this.#updateHud();
+          return r;
+        },
+        submitAnswer: async (answer, source) => {
+          const r = await this.#post('checkpoint/answer', { answer, source });
+          this.state = r.state;
+          this.#updateHud();
+          return r;
+        },
+      });
+
+      if (this.ended) return;
+      if (outcome === 'caught') {
+        this.dialogue.show(
+          '검문 적발',
+          '진술이 받아들여지지 않았다. 기록이 남았다.\n\n' +
+            `경계 레벨이 올라갔다. (${this.state.alertLevel})\n` +
+            '이제 동료 하나라도 등을 돌리면, 다음 순찰이 마지막이 된다.',
+        );
+        this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
+      }
+    } catch (err) {
+      // 검문이 네트워크 사고로 게임을 멈추게 두지 않는다. 패널을 접고 그냥 보내 준다.
+      this.minigame.close();
+      console.warn('[checkpoint]', err.message);
+    } finally {
+      this.checkpointActive = false;
+      // 통과 직후 같은 자리에서 다시 잡히면 빠져나갈 방법이 없다 (서버 쿨다운 10초가 이중 안전망).
+      for (const p of this.patrols) p.resume();
+    }
+  }
+
+  /** 상태를 갱신하는 POST 한 번. 실패는 예외로 올린다. */
+  async #post(path, body = {}) {
+    const res = await fetch(`/api/stage/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: this.state.sessionId, ...body }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data;
   }
 
   #checkProximity() {

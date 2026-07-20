@@ -16,7 +16,10 @@ import {
   isUnwinnable,
   setGameOver,
   raiseAlert,
+  informedCount,
+  inCheckpoint,
 } from '../session.js';
+import { generateInterrogation, judgeCheckpointAnswer } from '../ai/checkpoint.js';
 
 const router = express.Router();
 
@@ -91,6 +94,8 @@ router.post('/contact', (req, res) => {
     return res.status(409).json({ error: '이미 종료된 세션입니다.' });
   }
 
+  if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
+
   const result = contactAlly(session, allyId);
   if (!result) return res.status(409).json({ error: '접선할 수 없는 동료입니다.' });
 
@@ -113,6 +118,8 @@ router.post('/rescue', (req, res) => {
     return res.status(409).json({ error: '이미 종료된 세션입니다.' });
   }
 
+  if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
+
   const result = rescueAlly(session, allyId);
   if (!result) return res.status(409).json({ error: '구출할 수 없는 동료입니다.' });
 
@@ -121,6 +128,146 @@ router.post('/rescue', (req, res) => {
   );
 
   res.json({ ...result, state: toClientView(session) });
+});
+
+/**
+ * 검문 통과 직후 재검문 금지 시간. 클라이언트의 순찰 유예(4초)에 대한 이중 안전망이다
+ * — 통과하자마자 같은 자리에서 다시 잡히면 빠져나갈 방법이 없다.
+ */
+const CHECKPOINT_COOLDOWN_MS = 10_000;
+/** 열어 둔 채 잊힌 검문은 파기한다 (탭을 놔두고 자리를 뜬 경우). */
+const CHECKPOINT_STALE_MS = 120_000;
+/** 자유 입력 답변 길이 상한 — 프롬프트를 통째로 밀어 넣는 시도를 입구에서 자른다. */
+const MAX_ANSWER_LEN = 120;
+
+/** 검문 라우트 공통 전처리: 세션 조회 + 종료 여부 확인. */
+function checkpointSession(req, res) {
+  const session = getSession(req.body?.sessionId);
+  if (!session) {
+    res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
+    return null;
+  }
+  if (session.cleared || session.gameOver) {
+    res.status(409).json({ error: '이미 종료된 세션입니다.' });
+    return null;
+  }
+  return session;
+}
+
+/**
+ * POST /api/stage/checkpoint/start  { sessionId }
+ * 순찰 로봇에게 발각됐다.
+ *
+ * 밀고자가 한 명이라도 있으면 검문 없이 즉시 구속이다 (계획서 §4.2). 로봇은 이미
+ * 인상착의를 받아 든 상태라 물어볼 것이 없다 — "명령 수행형" 세계관에도 맞는다.
+ */
+router.post('/checkpoint/start', (req, res) => {
+  const session = checkpointSession(req, res);
+  if (!session) return;
+
+  if (informedCount(session) > 0) {
+    setGameOver(session, 'informerCaught');
+    return res.json({ outcome: 'informerCaught', state: toClientView(session) });
+  }
+  if (session.checkpointCooldownUntil > Date.now()) {
+    return res.status(409).json({ error: '방금 검문을 통과했습니다.' });
+  }
+
+  // 앞단은 지연 0 인 타이밍 게임이다. LLM 은 이걸 놓쳤을 때만 부른다.
+  session.checkpoint = { stage: 'qte', startedAt: Date.now() };
+  res.json({ outcome: 'qte', state: toClientView(session) });
+});
+
+/**
+ * POST /api/stage/checkpoint/qte  { sessionId, result: 'pass'|'fail' }
+ * 타이밍 게임 결과 보고. 통과면 대가 없이 끝나고, 실패면 LLM 심문이 열린다.
+ */
+router.post('/checkpoint/qte', async (req, res, next) => {
+  try {
+    const session = checkpointSession(req, res);
+    if (!session) return;
+    if (session.checkpoint?.stage !== 'qte') {
+      return res.status(409).json({ error: '진행 중인 검문이 없습니다.' });
+    }
+
+    if (req.body?.result === 'pass') {
+      session.checkpoint = null;
+      session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
+      return res.json({ outcome: 'pass', state: toClientView(session) });
+    }
+
+    const interrogation = await generateInterrogation({
+      alertLevel: session.alertLevel,
+      arrestedCount: arrestedCount(session),
+    });
+    session.checkpoint = {
+      stage: 'question',
+      startedAt: Date.now(),
+      question: interrogation.question,
+      choices: interrogation.choices,
+    };
+
+    res.json({
+      outcome: 'question',
+      question: interrogation.question,
+      choices: interrogation.choices,
+      state: toClientView(session),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/stage/checkpoint/answer  { sessionId, answer, source }
+ * 심문 답변 심사. 적발되어도 게임오버가 아니라 경계 +1 후 풀려난다 — 발각은 반복되는
+ * 사건이라, 한 번 걸렸다고 판이 끝나면 반복 플레이 자체가 성립하지 않는다.
+ * (밀고자가 있는 판이라면 애초에 /checkpoint/start 에서 즉시 구속으로 끝난다.)
+ */
+router.post('/checkpoint/answer', async (req, res, next) => {
+  try {
+    const session = checkpointSession(req, res);
+    if (!session) return;
+
+    const cp = session.checkpoint;
+    if (cp?.stage !== 'question') return res.status(409).json({ error: '진행 중인 심문이 없습니다.' });
+    if (Date.now() - cp.startedAt > CHECKPOINT_STALE_MS) {
+      session.checkpoint = null;
+      return res.status(409).json({ error: '검문이 만료되었습니다.' });
+    }
+
+    const raw = typeof req.body?.answer === 'string' ? req.body.answer.trim() : '';
+    if (!raw) return res.status(400).json({ error: '빈 답변입니다.' });
+    const answer = raw.slice(0, MAX_ANSWER_LEN);
+    // 선택지에서 골랐다고 주장하지만 실제 선택지에 없으면 자유 입력으로 강등한다
+    // — 심사 프롬프트가 "제시된 선택지"라는 이유로 관대해지는 걸 막는다.
+    const source = req.body?.source === 'choice' && cp.choices.includes(answer) ? 'choice' : 'free';
+
+    const verdict = await judgeCheckpointAnswer({
+      question: cp.question,
+      answer,
+      answerSource: source,
+      alertLevel: session.alertLevel,
+      arrestedCount: arrestedCount(session),
+    });
+
+    session.checkpoint = null;
+    session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
+
+    if (verdict.verdict === 'caught') raiseAlert(session);
+
+    console.log(
+      `[checkpoint] 세션 ${session.id.slice(0, 8)} — ${source} "${answer}" → ${verdict.verdict} (${verdict.reason})`,
+    );
+
+    res.json({
+      outcome: verdict.verdict,
+      npcReply: verdict.npcReply,
+      state: toClientView(session),
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 /**
@@ -160,6 +307,7 @@ router.post('/guess', async (req, res, next) => {
     if (session.cleared || session.gameOver) {
       return res.status(409).json({ error: '이미 종료된 세션입니다.' });
     }
+    if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
 
     const verdict = await judgeGuess({ codeWord: session.codeWord, guess });
 
@@ -204,6 +352,7 @@ router.post('/talk', async (req, res) => {
   if (ally.arrested || ally.informed) {
     return res.status(409).json({ error: '대화할 수 없는 동료입니다.' });
   }
+  if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
   if (typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: '빈 메시지입니다.' });
   }
