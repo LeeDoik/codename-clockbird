@@ -39,7 +39,7 @@ export function createSession({ codeWord, category, allies, associations, duplic
   sessions.set(id, {
     id,
     codeWord, // ← 서버 전용
-    category, // ← 서버 전용
+    category, // 코드 단어의 분류 — toClientView 가 글자 수와 함께 힌트로 공개한다
     allies: allyState,
     // 접선책 — 코드를 건넬 유일한 창구. 단어를 내지 않으므로 체포·중복 판정과 무관하다.
     broker,
@@ -67,7 +67,9 @@ export function getSession(id) {
 
 /**
  * 클라이언트로 내보내도 안전한 형태로 변환.
- * codeWord / category / reason 은 제외한다 (reason 은 코드 단어를 암시할 수 있음).
+ * codeWord / reason 은 제외한다 (reason 은 코드 단어를 암시할 수 있음).
+ * 단, 코드의 글자 수·카테고리는 힌트로 의도적으로 공개한다 — 추리 범위를
+ * 좁히는 난이도 레버다 (스펙: docs/superpowers/specs/2026-07-21-code-hint-design.md).
  *
  * 단 판이 끝난 뒤에는 codeWord 를 함께 내려보낸다 — 결과 화면의 "접선 코드는 「…」였다"
  * 에 필요하다. 비유출 원칙은 진행 중인 판에만 적용된다 (끝난 판의 정답은 숨길 이유가 없다).
@@ -81,6 +83,8 @@ export function toClientView(session) {
   return {
     sessionId: session.id,
     alertLevel: session.alertLevel,
+    // 코드 단어 자체는 여전히 서버 전용 — 글자 수·분류만 공개한다 (한글 음절은 BMP 라 .length 로 정확).
+    hint: { length: session.codeWord.length, category: session.category },
     // allies 와 같은 화이트리스트 원칙 — broker 에 나중에 어떤 필드가 붙어도 자동으로 새지 않는다.
     broker: session.broker && {
       id: session.broker.id,

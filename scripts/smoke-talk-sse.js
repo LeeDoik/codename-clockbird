@@ -7,6 +7,8 @@
  * poc:talk 은 dialogue.js 만 검증한다. 라우트·SSE 프레이밍·세션 이력·
  * 코드 단어 비유출은 서버를 통해야만 확인되므로 이 스크립트가 따로 있다.
  */
+import { readFile } from 'node:fs/promises';
+
 const BASE = 'http://localhost:3000';
 
 async function readSSE(res, onPayload) {
@@ -51,6 +53,20 @@ if (JSON.stringify(state).includes('codeWord')) {
   process.exit(1);
 }
 console.log('start 응답에 codeWord 없음 — OK');
+
+// 글자 수·카테고리 힌트 — 의도적 공개다 (스펙: 2026-07-21 코드 힌트 설계)
+const pool = JSON.parse(
+  await readFile(new URL('../src/data/codewords.json', import.meta.url), 'utf8'),
+);
+if (!Number.isInteger(state.hint?.length) || state.hint.length < 2) {
+  console.error(`\n[!] start 응답 hint.length 가 이상하다 — ${state.hint?.length}`);
+  process.exit(1);
+}
+if (!(state.hint.category in pool.categories)) {
+  console.error(`\n[!] hint.category 가 분류 목록에 없다 — ${state.hint.category}`);
+  process.exit(1);
+}
+console.log(`힌트 공개: ${state.hint.length}글자 · ${state.hint.category} — OK`);
 
 if (!state.broker?.id) {
   console.error('\n[!] start 응답에 접선책(broker)이 없다');
