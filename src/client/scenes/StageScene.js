@@ -174,13 +174,16 @@ export class StageScene extends Phaser.Scene {
     this.patrols.push(p);
   }
 
-  /** 진입 쪽지 — 이미 붙잡힌 동료 수와 남은 동료 수를 알린다. */
+  /** 진입 쪽지 — 코드 힌트(글자 수·카테고리)와 붙잡힌/남은 동료 수를 알린다. */
   #showBriefing() {
     const total = this.state.allies.length;
     const arrested = this.state.allies.filter((a) => a.arrested).length;
     const remain = total - arrested;
 
     const lines = ['품 안에 조직이 남긴 쪽지가 잡힌다.\n'];
+    if (this.state.hint) {
+      lines.push(`코드는 ${this.state.hint.length}글자 — ${this.state.hint.category} 쪽 단어다.\n`);
+    }
     if (arrested === 0) {
       lines.push(`동료 ${total}명 전원이 아직 무사하다.`);
     } else if (remain === 0) {
@@ -236,8 +239,11 @@ export class StageScene extends Phaser.Scene {
   }
 
   #refreshClues() {
+    // 힌트는 단서 유무와 무관한 고정 머리줄 — 빈 수첩에서도 보인다.
+    const hint = this.state.hint;
+    const head = hint ? `접선 코드: ${'○'.repeat(hint.length)} (${hint.category})\n\n` : '';
     if (this.clues.size === 0) {
-      this.clueText.setText('아직 수집한 단서가 없다.\n\n동료 근처에서 [F] 로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.');
+      this.clueText.setText(`${head}아직 수집한 단서가 없다.\n\n동료 근처에서 [F] 로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.`);
       return;
     }
     const lines = [];
@@ -245,7 +251,7 @@ export class StageScene extends Phaser.Scene {
       lines.push(`· ${name} (${role})\n     「${word}」${rescued ? '   ← 둘이 겹쳐 낸 단어' : ''}`);
     }
     lines.push(`\n수집한 단서 ${this.clues.size}개 — 이 단어들로 접선 코드를 추리하라.`);
-    this.clueText.setText(lines.join('\n'));
+    this.clueText.setText(head + lines.join('\n'));
   }
 
   /**
