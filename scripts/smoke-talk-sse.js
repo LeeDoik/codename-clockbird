@@ -63,7 +63,7 @@ if (!Number.isInteger(state.hint?.length) || state.hint.length < 1) {
   console.error(`\n[!] start 응답 hint.length 가 이상하다 — ${state.hint?.length}`);
   process.exit(1);
 }
-if (!(state.hint.category in pool.categories)) {
+if (!Object.hasOwn(pool.categories, state.hint.category)) {
   console.error(`\n[!] hint.category 가 분류 목록에 없다 — ${state.hint.category}`);
   process.exit(1);
 }
