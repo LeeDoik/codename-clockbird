@@ -17,7 +17,8 @@
     "poc:talk": "node scripts/poc-dialogue.js",
     "poc:checkpoint": "node scripts/poc-checkpoint.js",
     "exp:diff": "node scripts/exp-dup-rate.js",
-    "smoke": "node scripts/smoke-talk-sse.js"
+    "smoke": "node scripts/smoke-talk-sse.js",
+    "smoke:tutorial": "node scripts/smoke-tutorial.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import stageRouter from './routes/stage.js';
 import studioRouter from './routes/studio.js';
+import tutorialRouter from './routes/tutorial.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/stage', stageRouter);
 app.use('/api/studio', studioRouter);
+app.use('/api/tutorial', tutorialRouter);
 
 // 프롬프트 스튜디오 (팀원용 프롬프트 튜닝 UI) — 개발 모드 전용.
 if (!isProd) {
