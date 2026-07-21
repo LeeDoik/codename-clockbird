@@ -19,7 +19,7 @@ const SWEEP_MS_MIN = 620;
 /** 이 안에 멈추지 못하면 실패 */
 const TIME_LIMIT_MS = 6000;
 /** 경계 레벨 상한 — Patrol 과 같은 값을 쓴다 */
-const MAX_LEVEL = 4;
+const MAX_LEVEL = 3;
 
 /**
  * @param {import('../ui/MinigamePanel.js').MinigamePanel} panel

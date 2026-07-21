@@ -15,8 +15,7 @@ import { fetchStageStart } from '../net.js';
 const OUTCOMES = {
   cleared: ['잠입 성공', '접선에 성공했다. 동료들이 흩어지기 시작한다.'],
   caught: ['검문 적발', '순찰 로봇의 심문을 통과하지 못했다.'],
-  informerCaught: ['즉시 구속', '이미 밀고당한 몸이었다. 변명할 틈도 없었다.'],
-  allInformed: ['접선망 전멸', '코드를 건넬 동료가 한 명도 남지 않았다.'],
+  spotted: ['현장 검거', '경계가 극에 달한 거리였다. 로봇은 묻지 않고 팔을 뻗었다.'],
 };
 
 let instance = null;
@@ -53,7 +52,7 @@ export class ResultOverlay {
    * @param {(state: object) => void} opts.onRestart  새 판 상태를 받아 씬을 재시작
    */
   show({ outcome, codeWord, stats, onRestart }) {
-    const [title, line] = OUTCOMES[outcome] ?? OUTCOMES.allInformed;
+    const [title, line] = OUTCOMES[outcome] ?? OUTCOMES.caught;
     this.onRestart = onRestart;
 
     this.titleEl.textContent = title;

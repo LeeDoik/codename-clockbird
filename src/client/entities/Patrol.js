@@ -16,8 +16,8 @@ const SPEED_PER_LEVEL = 15;
 const RADIUS_BASE = 70;
 const RADIUS_PER_LEVEL = 12;
 const CONE_HALF_ANGLE = Phaser.Math.DegToRad(35);
-/** 경계 레벨이 아무리 올라도 이 이상 빨라지지 않는다 (min(alert, MAX_LEVEL)) */
-const MAX_LEVEL = 4;
+/** 경계 레벨이 아무리 올라도 이 이상 빨라지지 않는다 (min(alert, MAX_LEVEL)). 레벨 3 은 발각 즉사 단계다. */
+const MAX_LEVEL = 3;
 /** 웨이포인트 도착 판정 반경 (px) */
 const ARRIVE_EPS = 5;
 /** 시야 판정에 쓰는 광선 샘플 간격 (px). 타일 32px 보다 촘촘해야 벽을 안 뚫는다. */
@@ -30,17 +30,17 @@ const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 }
 /**
  * 순찰 경로.
  *  - corridor: 중앙 복도(행 7~10)를 도는 상주 1기. 경계 0 에서도 항상 있다.
- *  - lowerHall: 하부 홀(행 12~16) 증원. 경계 1 이상에서만 배치된다 —
- *    구출(+1)·밀고(+1)가 순찰을 깨우는 구조라, 조용히 푸는 판에서는
- *    검증된 기존 동선이 그대로 보존된다.
+ *  - lowerHall: 하부 홀(행 12~16) 증원. 경계 2(증원 단계) 이상에서만 배치된다 —
+ *    코드 오답·구출·자물쇠 소동이 쌓여야 순찰이 깨어나는 구조라, 조용히 푸는
+ *    판에서는 검증된 기존 동선이 그대로 보존된다.
  */
 export const PATROL_ROUTES = {
   corridor: [at(3, 8), at(24, 8), at(24, 10), at(3, 10)],
   lowerHall: [at(3, 13), at(24, 13), at(24, 16), at(3, 16)],
 };
 
-/** 하부 홀 증원이 붙는 경계 레벨 */
-export const REINFORCE_AT = 1;
+/** 하부 홀 증원이 붙는 경계 레벨 (스토리보드: 레벨 2 = 증원) */
+export const REINFORCE_AT = 2;
 
 const clampLevel = (alertLevel) => Math.min(alertLevel, MAX_LEVEL);
 

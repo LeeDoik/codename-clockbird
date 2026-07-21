@@ -90,7 +90,6 @@ export class StageScene extends Phaser.Scene {
       const frame = ALLY_FRAME[ally.id] ?? i + 1;
       const node = this.add.sprite(pos.x, pos.y, 'chars', frame);
       if (ally.arrested) node.setTint(0x9a9088);
-      else if (ally.informed) node.setTint(0xb87a3a).setAlpha(0.4);
 
       const label = this.add
         .text(pos.x, pos.y - 24, ally.arrested ? `${ally.name} (체포)` : ally.name, {
@@ -151,8 +150,8 @@ export class StageScene extends Phaser.Scene {
   /**
    * 순찰 배치.
    *
-   * 중앙 복도 1기는 상주하고, 하부 홀 증원은 경계 1 이상에서만 붙는다. 조용히 푸는
-   * 판에서는 검증된 기존 동선이 그대로 남고, 구출(+1)·밀고(+1)가 순찰을 깨운다.
+   * 중앙 복도 1기는 상주하고, 하부 홀 증원은 경계 2(증원 단계)부터 붙는다.
+   * 코드 오답·구출·자물쇠 소동이 쌓이면 순찰이 깨어난다.
    */
   #spawnPatrols() {
     // 시연 직전 비상용 킬스위치 (?nointro 관례를 그대로 따른다).
@@ -167,7 +166,7 @@ export class StageScene extends Phaser.Scene {
     for (const p of this.patrols) p.resume({ graceMs: 3000 });
   }
 
-  /** 경계가 처음 오르는 순간 하부 홀에 증원이 붙는다. */
+  /** 경계가 증원 단계(2)에 이르는 순간 하부 홀에 증원이 붙는다. */
   #maybeReinforce() {
     if (this.reinforced || !this.patrols.length) return;
     if (this.state.alertLevel < REINFORCE_AT) return;
@@ -196,13 +195,13 @@ export class StageScene extends Phaser.Scene {
         `동료 ${total}명 중 ${arrested}명은 같은 암호를 떠올려 정체가 드러나 이미 붙잡혀 갔다.\n(감옥에 갇힌 얼굴을 확인하라.)`,
       );
     }
-    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [F] 접선해 단서를 모으고, 접선 코드를 추리하라.`);
+    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [F] 접선해 단서를 모으고, 겹치는 단어(코드)를 추리해 시계 수리공에게 건네라.`);
     if (arrested > 0) {
       lines.push(
         `\n감옥(좌측 상단) 창살 앞에서 [R] — 붙잡힌 동료를 빼낼 수 있다.\n소란은 새어 나가 경계 레벨이 오르지만, 그가 떠올린 단어는\n둘이 겹쳐서 잡혀갈 만큼 확실한 단서다.`,
       );
     }
-    lines.push('\n[E] 대화 · [F] 접선 코드 · [R] 구출 · [C] 단서 수첩');
+    lines.push('\n[E] 대화 · [F] 접선 · [R] 구출 · [C] 단서 수첩');
 
     this.dialogue.show('접선 지령', lines.join('\n'));
     this.dialogue.setHint('[Space] / [Esc] 로 쪽지를 접는다');
@@ -301,11 +300,9 @@ export class StageScene extends Phaser.Scene {
     // 상태가 바뀔 때마다 반드시 지나가는 길목이라, 증원 판정도 여기서 함께 본다.
     this.#maybeReinforce();
 
-    const active = this.state.allies.filter((a) => !a.arrested && !a.informed);
-    const trust = active.map((a) => `${a.name}:${'●'.repeat(a.trust)}${'○'.repeat(a.maxTrust - a.trust)}`);
+    const active = this.state.allies.filter((a) => !a.arrested);
     const lines = [
-      `경계 레벨 ${this.state.alertLevel}   |   접선 가능 ${active.length}/${this.state.allies.length}`,
-      trust.join('  '),
+      `경계 레벨 ${this.state.alertLevel} / 3   |   접선 가능 ${active.length}/${this.state.allies.length}`,
     ];
     if (this.answerShown && this.debugAnswer) {
       lines.push(`[디버그] 접선 코드: 「${this.debugAnswer.codeWord}」 (${this.debugAnswer.category})`);
@@ -351,7 +348,7 @@ export class StageScene extends Phaser.Scene {
    * 클리어는 기존 "STAGE 1 CLEAR" 대사를 읽을 틈을 준 뒤 덮고, 게임오버는 즉시 덮는다
    * — 진 이유는 이미 대사로 나왔고, 늘어질수록 다시 하기 싫어진다.
    *
-   * @param {'cleared'|'caught'|'informerCaught'|'allInformed'} outcome
+   * @param {'cleared'|'caught'|'spotted'} outcome
    */
   #endGame(outcome, { delay = 0 } = {}) {
     if (this.ended) return;
@@ -485,9 +482,9 @@ export class StageScene extends Phaser.Scene {
       this.state = started.state;
       this.#updateHud();
 
-      // 밀고당한 몸으로 순찰과 마주치면 물어볼 것도 없다.
-      if (started.outcome === 'informerCaught') {
-        this.#endGame('informerCaught');
+      // 경계가 극에 달한 거리 — 로봇은 묻지 않는다.
+      if (started.outcome === 'spotted') {
+        this.#endGame('spotted');
         return;
       }
 
@@ -522,8 +519,8 @@ export class StageScene extends Phaser.Scene {
         this.dialogue.show(
           '검문 적발',
           '진술이 받아들여지지 않았다. 기록이 남았다.\n\n' +
-            `경계 레벨이 올라갔다. (${this.state.alertLevel})\n` +
-            '이제 동료 하나라도 등을 돌리면, 다음 순찰이 마지막이 된다.',
+            `경계 레벨이 올라갔다. (${this.state.alertLevel}/3)\n` +
+            '경계가 극에 달하면 다음 발각은 검문도 없이 끝난다.',
         );
         this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       }
@@ -558,7 +555,6 @@ export class StageScene extends Phaser.Scene {
     let nearestJailed = Infinity;
 
     for (const { ally, node } of this.allyNodes) {
-      if (ally.informed) continue; // 밀고자는 접선도 구출도 대상이 아니다
       const dist = Phaser.Math.Distance.Between(
         this.player.x, this.player.y, node.x, node.y,
       );
@@ -685,7 +681,7 @@ export class StageScene extends Phaser.Scene {
       return;
     }
 
-    const jailed = this.state.allies.filter((a) => a.arrested && !a.informed).length;
+    const jailed = this.state.allies.filter((a) => a.arrested).length;
     this.proximityHint = false;
     this.dialogue.show(
       '구출',
@@ -697,7 +693,7 @@ export class StageScene extends Phaser.Scene {
   }
 
   /**
-   * R — 구출 실행. 대가(경계 레벨·신뢰도) 계산은 전부 서버가 하고 여기선 결과만 반영한다.
+   * R — 구출 실행. 대가(경계 레벨) 계산은 전부 서버가 하고 여기선 결과만 반영한다.
    */
   async #rescue(ally) {
     if (this.rescuing) return;
@@ -751,12 +747,10 @@ export class StageScene extends Phaser.Scene {
     this.#updateHud();
 
     const freed = this.state.allies.find((a) => a.id === ally.id);
-    const trust = `${'●'.repeat(freed.trust)}${'○'.repeat(freed.maxTrust - freed.trust)}`;
     this.dialogue.show(
       `${ally.name} (${ally.role})`,
-      `${ally.name}이(가) 창살 밖으로 빠져나와 제자리로 돌아갔다.\n\n` +
-        `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n` +
-        `심문에 시달린 그는 겁에 질려 있다. 남은 신뢰: ${trust}\n\n` +
+      `${freed.name}이(가) 창살 밖으로 빠져나와 제자리로 돌아갔다.\n\n` +
+        `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n\n` +
         `[F] 로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
@@ -888,7 +882,7 @@ export class StageScene extends Phaser.Scene {
 
   /**
    * this.state 를 노드에 반영한다 — 체포된 동료는 감옥으로 옮기고, 구출된 동료는 제자리로
-   * 돌려보내고, 밀고된 동료는 흐리게.
+   * 돌려보낸다.
    */
   #syncAllyNodes() {
     for (const entry of this.allyNodes) {
@@ -913,9 +907,6 @@ export class StageScene extends Phaser.Scene {
         entry.label.setText(updated.name);
         this.tweens.add({ targets: entry.node, x, y, duration: 350, ease: 'Cubic.easeOut' });
         this.tweens.add({ targets: entry.label, x, y: y - 24, duration: 350, ease: 'Cubic.easeOut' });
-      } else if (updated.informed) {
-        entry.node.setTint(0xb87a3a).setAlpha(0.4);
-        entry.label.setAlpha(0.4);
       }
     }
   }
