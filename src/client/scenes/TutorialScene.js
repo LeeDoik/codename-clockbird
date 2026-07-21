@@ -132,13 +132,15 @@ export class TutorialScene extends Phaser.Scene {
   }
 
   update() {
-    if (this.ended || !this.state) return;
+    if (this.ended) return;
 
     const typing = this.dialogue.isTyping;
     if (typing) this.player.body.setVelocity(0, 0);
     else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
 
-    this.#checkProximity();
+    // 세션이 아직(또는 끝내) 열리지 않았어도 이동과 창 닫기는 살려 둔다 — 시작에 실패했을 때
+    // 오류 창만 뜬 채 아무 키도 안 먹으면 새로고침 말고는 빠져나갈 방법이 없다.
+    if (this.state) this.#checkProximity();
 
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keySpace)) this.dialogue.hide();
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) this.dialogue.hide();
