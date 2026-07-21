@@ -18,7 +18,7 @@ const MAX_TRUST = 3;
  */
 const RESCUED_TRUST = 1;
 
-export function createSession({ codeWord, category, allies, associations, duplicateGroups, arrestedIds = [] }) {
+export function createSession({ codeWord, category, allies, associations, duplicateGroups, arrestedIds = [], broker = null }) {
   const id = randomUUID();
 
   const allyState = allies.map((ally) => {
@@ -48,6 +48,8 @@ export function createSession({ codeWord, category, allies, associations, duplic
     codeWord, // ← 서버 전용
     category, // ← 서버 전용
     allies: allyState,
+    // 접선책 — 코드를 건넬 유일한 창구. 단어를 내지 않으므로 체포·중복 판정과 무관하다.
+    broker,
     // 같은 단어를 낸 동료 묶음 [{ npcIds, reason }]. 체포는 플레이어가 접선으로 중복을
     // 확인했을 때 비로소 발동하므로, 여기 숨겨두고 contactAlly 에서 판정한다.
     duplicateGroups: duplicateGroups ?? [],
@@ -86,6 +88,7 @@ export function toClientView(session) {
   return {
     sessionId: session.id,
     alertLevel: session.alertLevel,
+    broker: session.broker,
     cleared: session.cleared,
     gameOver: session.gameOver,
     gameOverReason: session.gameOverReason,

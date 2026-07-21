@@ -52,6 +52,12 @@ if (JSON.stringify(state).includes('codeWord')) {
 }
 console.log('start 응답에 codeWord 없음 — OK');
 
+if (!state.broker?.id) {
+  console.error('\n[!] start 응답에 접선책(broker)이 없다');
+  process.exit(1);
+}
+console.log(`접선책: ${state.broker.name} (${state.broker.role}) — OK`);
+
 console.log('\n접선 시도...');
 const contactRes = await post('/api/stage/contact', { sessionId: state.sessionId, allyId: target.id });
 if (!contactRes.ok) {

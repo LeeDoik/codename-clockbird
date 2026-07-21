@@ -27,7 +27,7 @@ const load = async (p) => JSON.parse(await readFile(new URL(p, import.meta.url),
 
 const loadData = () =>
   Promise.all([load('../../data/codewords.json'), load('../../data/personas.json')]).then(
-    ([pool, personas]) => ({ pool, allies: personas.allies }),
+    ([pool, personas]) => ({ pool, allies: personas.allies, broker: personas.broker }),
   );
 
 // 프로덕션에서는 1회 읽고 캐시, 개발 모드에서는 매 스테이지 시작마다 다시 읽는다
@@ -53,7 +53,7 @@ function pickRandomCodeWord(pool) {
  */
 router.post('/start', async (req, res, next) => {
   try {
-    const { pool, allies } = await getData();
+    const { pool, allies, broker } = await getData();
     const picked = pickRandomCodeWord(pool);
 
     const gen = await generateAssociations({ codeWord: picked.word, allies });
@@ -66,6 +66,7 @@ router.post('/start', async (req, res, next) => {
       associations: gen.associations,
       duplicateGroups: dup.groups,
       arrestedIds: dup.arrestedIds,
+      broker,
     });
 
     // 서버 콘솔에만 정답을 남긴다 (개발용). 같은 단어를 낸 동료는 시작 시점에 이미 붙잡혀 있다.

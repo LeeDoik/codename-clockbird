@@ -39,6 +39,7 @@
       { "col": 3, "row": 14 },
       { "col": 23, "row": 14 }
     ],
-    "citizen": { "col": 10, "row": 11 }
+    "citizen": { "col": 10, "row": 11 },
+    "broker": { "col": 15, "row": 5 }
   }
 }
