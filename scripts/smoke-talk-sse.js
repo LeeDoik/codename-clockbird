@@ -129,4 +129,26 @@ if (JSON.stringify(g1body).includes('"trust"') || JSON.stringify(g1body).include
 }
 console.log('오답 → 경계 1 — OK');
 
+// 오답을 반복해 경계 3(상한)까지 올린다
+for (const n of [2, 3]) {
+  const g = await post('/api/stage/guess', {
+    sessionId: state.sessionId, brokerId: state.broker.id, guess: `전혀상관없는말${n}`,
+  });
+  const body = await g.json();
+  if (body.alertLevel !== n) {
+    console.error(`[!] 오답 ${n}회째 경계가 ${body.alertLevel} — ${n} 이어야 한다`);
+    process.exit(1);
+  }
+}
+console.log('오답 누적 → 경계 3 — OK');
+
+// 경계 3에서 발각되면 검문 없이 즉시 구속
+const cp = await post('/api/stage/checkpoint/start', { sessionId: state.sessionId });
+const cpBody = await cp.json();
+if (cpBody.outcome !== 'spotted' || !cpBody.state?.gameOver) {
+  console.error(`[!] 경계 3 발각이 즉사가 아니다 — outcome: ${cpBody.outcome}, gameOver: ${cpBody.state?.gameOver}`);
+  process.exit(1);
+}
+console.log('경계 3 발각 → 즉시 구속(spotted) — OK');
+
 console.log('\nSSE 경로 정상.\n');

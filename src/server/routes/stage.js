@@ -154,14 +154,24 @@ function checkpointSession(req, res) {
   return session;
 }
 
+/** 발각 즉사 경계 레벨 — 이 수위부터는 검문 없이 즉시 구속이다 (스토리보드 레벨 3). */
+const INSTANT_ARREST_ALERT = 3;
+
 /**
  * POST /api/stage/checkpoint/start  { sessionId }
  * 순찰 로봇에게 발각됐다.
+ *
+ * 경계가 극에 달한 거리(레벨 3)에서는 검문이 열리지 않는다 — 로봇은 이미 수배 인상착의를
+ * 받아 든 상태라 물어볼 것이 없다. "명령 수행형" 세계관에도 맞는다.
  */
 router.post('/checkpoint/start', (req, res) => {
   const session = checkpointSession(req, res);
   if (!session) return;
 
+  if (session.alertLevel >= INSTANT_ARREST_ALERT) {
+    setGameOver(session, 'spotted');
+    return res.json({ outcome: 'spotted', state: toClientView(session) });
+  }
   if (session.checkpointCooldownUntil > Date.now()) {
     return res.status(409).json({ error: '방금 검문을 통과했습니다.' });
   }

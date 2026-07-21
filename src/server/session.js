@@ -192,7 +192,7 @@ export function raiseAlert(session, amount = 1) {
 
 /**
  * 판을 끝낸다. 이미 끝난 판은 덮어쓰지 않는다 — 먼저 도달한 결말이 이긴다
- * (검문 적발과 밀고가 같은 프레임에 겹칠 수 있다).
+ * (레벨 3 즉사와 클리어가 같은 프레임에 겹칠 수 있다).
  *
  * @param {'caught'|'spotted'} reason
  */
