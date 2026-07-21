@@ -138,22 +138,29 @@ export class TutorialScene extends Phaser.Scene {
     if (this.ended) return;
 
     const typing = this.dialogue.isTyping;
-    // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운
-    // 다른 대사 위에 그대로 이어붙는다 (setBusy 가 입력칸을 blur 시켜 typing 이 풀리기 때문).
-    const waiting = typing || this.dialogue.busy;
     if (typing) this.player.body.setVelocity(0, 0);
     else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
 
-    // 세션이 아직(또는 끝내) 열리지 않았어도 이동과 창 닫기는 살려 둔다 — 시작에 실패했을 때
-    // 오류 창만 뜬 채 아무 키도 안 먹으면 새로고침 말고는 빠져나갈 방법이 없다.
-    if (this.state) this.#checkProximity();
+    // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운
+    // 다른 대사 위에 그대로 이어붙는다 (setBusy 가 입력칸을 blur 시켜 typing 이 풀리기 때문).
+    const waiting = typing || this.dialogue.busy;
 
-    if (!waiting && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+    // 키 상태는 대기 중에도 매 프레임 소비한다 — 단락 평가로 건너뛰면 눌린 채 남은 플래그가
+    // 응답이 도착하는 프레임에 뒤늦게 발동한다.
+    const pressedTalk = Phaser.Input.Keyboard.JustDown(this.keyE);
+    const pressedCode = Phaser.Input.Keyboard.JustDown(this.keyF);
+    const pressedSpace = Phaser.Input.Keyboard.JustDown(this.keySpace);
+    const pressedEsc = Phaser.Input.Keyboard.JustDown(this.keyEsc);
+
+    // 근접 안내도 대기 중에는 띄우지 않는다 — 지나가다 뜬 안내 위에 스트림이 이어붙는다.
+    if (this.state && !waiting) this.#checkProximity();
+
+    if (!waiting && pressedTalk) {
       if (this.nearbyAlly) this.#talk(this.nearbyAlly);
       else if (this.nearbyOfficer) this.#talkOfficer();
     }
     // F — 코드 입력은 간부 앞에서만 열린다 (스테이지 1의 접선책과 같은 규칙).
-    if (!waiting && Phaser.Input.Keyboard.JustDown(this.keyF)) {
+    if (!waiting && pressedCode) {
       if (this.nearbyOfficer) this.#offerCode();
       else {
         this.proximityHint = false;
@@ -161,9 +168,8 @@ export class TutorialScene extends Phaser.Scene {
         this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       }
     }
-
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keySpace)) this.dialogue.hide();
-    if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) this.dialogue.hide();
+    if (!typing && pressedSpace) this.dialogue.hide();
+    if (pressedEsc) this.dialogue.hide();
   }
 
   #checkProximity() {
