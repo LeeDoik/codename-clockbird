@@ -1,12 +1,15 @@
 import express from 'express';
 import { readFile } from 'node:fs/promises';
 import { judgeGuess } from '../ai/judge.js';
+import { streamTutorialReply } from '../ai/dialogue.js';
 import {
   createTutorialSession,
   getTutorialSession,
   toTutorialView,
   currentSet,
+  getTutorialAlly,
   failGuess,
+  pushTutorialDialogue,
 } from '../tutorialSession.js';
 
 const router = express.Router();
@@ -98,6 +101,63 @@ router.post('/guess', async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+});
+
+/** 자유 입력 길이 상한 — 프롬프트를 통째로 밀어 넣는 시도를 입구에서 자른다. */
+const MAX_MESSAGE_LEN = 200;
+
+/**
+ * POST /api/tutorial/talk  { sessionId, allyId, message }
+ * 튜토리얼 동료 자유 대화. 응답을 SSE 로 스트리밍한다.
+ *
+ * 이 엔드포인트도 접선 코드를 프롬프트에 넣지 않는다. 여기에 더해 reason(강화 힌트)까지
+ * 신뢰도 0 전에는 넣지 않는다 (dialogue.js streamTutorialReply 주석 참조).
+ */
+router.post('/talk', async (req, res) => {
+  const { sessionId, allyId, message } = req.body ?? {};
+  const session = getTutorialSession(sessionId);
+  const ally = session && getTutorialAlly(session, allyId);
+
+  if (!session || !ally) {
+    return res.status(404).json({ error: '세션 또는 동료를 찾을 수 없습니다.' });
+  }
+  if (typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({ error: '빈 메시지입니다.' });
+  }
+
+  const hint = currentSet(session).hints[ally.id];
+  const text = message.trim().slice(0, MAX_MESSAGE_LEN);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+
+  try {
+    const reply = await streamTutorialReply({
+      ally,
+      word: hint.word,
+      // 신뢰도가 남아 있으면 이유를 넘기지 않는다 — 모델이 모르는 상태를 유지한다.
+      reason: ally.trust === 0 ? hint.reason : null,
+      history: ally.history,
+      userMessage: text,
+      onText: (delta) => send({ type: 'text', text: delta }),
+    });
+
+    // 이력에도 잘라낸 쪽을 남긴다 — 모델이 본 것과 이력이 어긋나면 다음 턴이 오염된다.
+    pushTutorialDialogue(session, allyId, 'user', text);
+    pushTutorialDialogue(session, allyId, 'assistant', reply);
+
+    send({ type: 'done' });
+  } catch (err) {
+    console.error('[tutorial/talk]', err);
+    // 헤더가 이미 나갔으므로 상태 코드를 바꿀 수 없다. 에러도 스트림으로 알린다.
+    send({ type: 'error', error: err.message ?? '대화 생성 실패' });
+  } finally {
+    res.end();
   }
 });
 

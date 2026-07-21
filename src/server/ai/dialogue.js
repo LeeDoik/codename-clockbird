@@ -80,3 +80,53 @@ export async function streamAllyReply({
     .map((b) => b.text)
     .join('');
 }
+
+/**
+ * 튜토리얼 동료의 응답을 스트리밍으로 생성.
+ *
+ * streamAllyReply 와 다른 점은 딱 하나 — 여기서는 "왜 그 단어를 떠올렸는가"(reason)가
+ * 게임 규칙으로 잠겨 있다. 신뢰도가 남아 있는 동안 reason 을 프롬프트에 넣지 않아
+ * 모델이 그 이유를 아예 모르게 한다. 넣어 두고 "말하지 마라"로 막으면 몇 마디만에 새고,
+ * 그러면 신뢰도 규칙 자체가 무의미해진다 — 모르는 것은 유출될 수 없다.
+ *
+ * @param {string|null} params.reason 신뢰도 0 에서만 넘긴다. null 이면 프롬프트가 잠긴다.
+ * @returns {Promise<string>} 완성된 응답 전문
+ */
+export async function streamTutorialReply({
+  ally,
+  word,
+  reason,
+  history,
+  userMessage,
+  onText,
+  promptOverride,
+}) {
+  const system = await renderPrompt(
+    'tutorial-dialogue',
+    {
+      name: ally.name,
+      role: ally.role,
+      persona: ally.persona,
+      word,
+      reasonBlock: reason
+        ? `상대가 왜 그 단어를 떠올렸는지 물으면, 딱 이만큼만 말해도 된다: "${reason}"`
+        : '왜 그 단어를 떠올렸는지는 절대 설명하지 마라. 너도 그 이유는 말할 수 없는 처지다 — 물으면 얼버무려라.',
+    },
+    promptOverride,
+  );
+
+  const stream = anthropic.messages.stream({
+    model: MODEL_CHAT,
+    max_tokens: 200,
+    system,
+    messages: [...trimHistory(history), { role: 'user', content: userMessage }],
+  });
+
+  stream.on('text', onText);
+
+  const final = await stream.finalMessage();
+  return final.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+}
