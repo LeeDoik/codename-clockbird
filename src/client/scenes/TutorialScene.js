@@ -36,6 +36,8 @@ export class TutorialScene extends Phaser.Scene {
     // 지나가며 뜬 안내인가 — 이것만 사거리를 벗어날 때 자동으로 접는다.
     this.proximityHint = false;
     this.ended = false;
+    // /start 가 실패했다 — [Space] 로 다시 시도할 수 있게 열어 둔다.
+    this.startFailed = false;
   }
 
   create() {
@@ -78,8 +80,13 @@ export class TutorialScene extends Phaser.Scene {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       this.state = data;
+      this.startFailed = false;
     } catch (err) {
-      this.dialogue.show('오류', `튜토리얼을 시작할 수 없습니다.\n${err.message}`);
+      this.startFailed = true;
+      this.dialogue.show(
+        '오류',
+        `튜토리얼을 시작할 수 없습니다.\n${err.message}\n\n[Space] 로 다시 시도한다.`,
+      );
       return;
     }
 
@@ -155,18 +162,24 @@ export class TutorialScene extends Phaser.Scene {
     // 근접 안내도 대기 중에는 띄우지 않는다 — 지나가다 뜬 안내 위에 스트림이 이어붙는다.
     if (this.state && !waiting) this.#checkProximity();
 
-    if (!waiting && pressedTalk) {
+    if (!waiting && !this.startFailed && pressedTalk) {
       if (this.nearbyAlly) this.#talk(this.nearbyAlly);
       else if (this.nearbyOfficer) this.#talkOfficer();
     }
     // F — 코드 입력은 간부 앞에서만 열린다 (스테이지 1의 접선책과 같은 규칙).
-    if (!waiting && pressedCode) {
+    if (!waiting && !this.startFailed && pressedCode) {
       if (this.nearbyOfficer) this.#offerCode();
       else {
         this.proximityHint = false;
         this.dialogue.show('접선 코드', '코드는 간부에게만 건넨다.\n간부 앞으로 가서 [F].');
         this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       }
+    }
+    // 시작에 실패했다면 [Space] 는 창을 닫는 대신 재시도다 — 여기서 막히면 스테이지 1 까지 못 간다.
+    if (this.startFailed && (pressedSpace || pressedEsc)) {
+      this.startFailed = false;
+      this.scene.restart();
+      return;
     }
     if (!typing && pressedSpace) this.dialogue.hide();
     if (pressedEsc) this.dialogue.hide();
