@@ -12,7 +12,7 @@ import mapData from '../assets/map.json';
 /**
  * Stage 1.
  *
- * 데이터 흐름(연상 단어 → 접선 → 코드 입력 → 서버 판정 → 신뢰도/클리어)은 그대로 두고,
+ * 데이터 흐름(연상 단어 → 접선 → 코드 입력 → 서버 판정 → 경계/클리어)은 그대로 두고,
  * 배경을 타일맵으로 교체했다. solid 타일에는 정적 충돌 바디가 붙어 플레이어를 막는다.
  * 시야·순찰 NPC 는 W3 에서 얹는다.
  */
@@ -52,6 +52,9 @@ export class StageScene extends Phaser.Scene {
     this.startedAt = Date.now();
     // 순찰 로봇들. ?nopatrol 이면 비워 둔다.
     this.patrols = [];
+    // 증원 여부. scene.restart 는 인스턴스를 재사용하므로 여기서 되돌리지 않으면
+    // 첫 판에서 증원이 붙은 순간부터 다음 판들의 하부 홀 증원이 영영 사라진다.
+    this.reinforced = false;
     // 검문 진행 중 — 감지·입력·중복 호출을 한꺼번에 막는 스위치.
     this.checkpointActive = false;
   }
@@ -869,9 +872,11 @@ export class StageScene extends Phaser.Scene {
 
       this.#syncAllyNodes();
 
+      const maxed = this.state.alertLevel >= 3;
       this.dialogue.show(
         '접선 실패',
-        `틀렸다. 수리공이 말없이 고개를 젓는다.\n거리에 소문이 샌다 — 경계 레벨 ${this.state.alertLevel}.`,
+        `틀렸다. 수리공이 말없이 고개를 젓는다.\n거리에 소문이 샌다 — 경계 레벨 ${this.state.alertLevel}/3.` +
+          (maxed ? '\n\n거리가 끓고 있다. 이제 발각되면 검문도 없이 끝난다.' : ''),
       );
     } catch (err) {
       this.dialogue.show('오류', err.message);

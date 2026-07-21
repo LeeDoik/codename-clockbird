@@ -81,7 +81,13 @@ export function toClientView(session) {
   return {
     sessionId: session.id,
     alertLevel: session.alertLevel,
-    broker: session.broker,
+    // allies 와 같은 화이트리스트 원칙 — broker 에 나중에 어떤 필드가 붙어도 자동으로 새지 않는다.
+    broker: session.broker && {
+      id: session.broker.id,
+      name: session.broker.name,
+      role: session.broker.role,
+      spawn: session.broker.spawn,
+    },
     cleared: session.cleared,
     gameOver: session.gameOver,
     gameOverReason: session.gameOverReason,
