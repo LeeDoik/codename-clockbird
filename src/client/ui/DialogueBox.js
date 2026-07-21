@@ -33,6 +33,13 @@ export class DialogueBox {
     this.onCode = null;
     /** 입력창 Enter 가 무엇을 하는지: 'chat'(대화) | 'code'(코드 전달) */
     this.inputMode = 'chat';
+    /**
+     * 응답을 기다리는 사이 플레이어가 창을 닫았는가.
+     *
+     * 닫아 놓고 기다렸는데 응답이 도착하면서 창이 도로 열리면, 플레이어 입장에서는
+     * 닫은 것이 무시된 것으로 보인다. 그 표식을 여기 남기고 reply() 가 참고한다.
+     */
+    this.dismissed = false;
 
     this.sendBtn.addEventListener('click', () => this.#fire(this.onSend));
     this.codeBtn.addEventListener('click', () => this.#fire(this.onCode));
@@ -61,6 +68,7 @@ export class DialogueBox {
     this.onSend = null;
     this.onCode = null;
     this.inputMode = 'chat';
+    this.dismissed = false;
     this.busy = false;
     this.field.value = '';
     this.field.disabled = false;
@@ -85,14 +93,32 @@ export class DialogueBox {
     if (!busy) this.field.focus();
   }
 
+  /** 플레이어의 행동으로 여는 창 — 언제나 뜬다. */
   show(speaker, text) {
+    this.dismissed = false;
     this.speakerEl.textContent = speaker;
     this.textEl.textContent = text;
     this.root.classList.add('visible');
   }
 
+  /**
+   * 요청의 결과로 여는 창 — 기다리는 사이 플레이어가 닫았다면 뜨지 않는다.
+   *
+   * show() 와 갈라놓는 이유: 이건 플레이어가 무언가를 누른 순간이 아니라 응답이
+   * 도착한 순간에 불린다. 그 사이에 [Esc] 로 창을 접었다면 그 의사를 존중해야 한다.
+   *
+   * @returns {boolean} 실제로 띄웠는가
+   */
+  reply(speaker, text, hint = '') {
+    if (this.dismissed) return false;
+    this.show(speaker, text);
+    this.setHint(hint);
+    return true;
+  }
+
   /** 스트리밍 시작 — 화자만 세우고 본문을 비운다 */
   beginStream(speaker) {
+    this.dismissed = false;
     this.speakerEl.textContent = speaker;
     this.textEl.textContent = '';
     this.root.classList.add('visible');
@@ -123,6 +149,8 @@ export class DialogueBox {
   }
 
   hide() {
+    // 응답을 기다리는 중에 닫았다면, 그 응답이 도착해도 창을 도로 열지 않는다.
+    if (this.busy) this.dismissed = true;
     this.root.classList.remove('visible');
     this.hideInput();
   }

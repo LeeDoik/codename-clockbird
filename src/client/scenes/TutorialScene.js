@@ -288,7 +288,7 @@ export class TutorialScene extends Phaser.Scene {
     } catch (err) {
       // 자유 대화는 "있으면 좋은 것"이다 — 실패하면 고정 첫 대사로 되돌려 진행을 막지 않는다.
       console.warn('[tutorial/talk]', err.message);
-      this.dialogue.show(`${ally.name} (${ally.role})`, `"${ally.line}"\n\n(…그 이상은 말이 없다.)`);
+      this.dialogue.reply(`${ally.name} (${ally.role})`, `"${ally.line}"\n\n(…그 이상은 말이 없다.)`);
     } finally {
       this.dialogue.setBusy(false);
     }
@@ -314,7 +314,7 @@ export class TutorialScene extends Phaser.Scene {
     } catch (err) {
       // 판정이 실패한 것뿐이다 — 서버도 신뢰도를 깎지 않았으니 오답으로 취급하지 않는다.
       console.warn('[tutorial/guess]', err.message);
-      this.dialogue.show(
+      this.dialogue.reply(
         `${this.state.officer.name} (${this.state.officer.role})`,
         '"…뭐라고? 다시 말해 보게."',
       );
@@ -336,14 +336,14 @@ export class TutorialScene extends Phaser.Scene {
     }
 
     const opened = this.state.allies.every((a) => a.opened);
-    this.dialogue.show(
+    this.dialogue.reply(
       `${this.state.officer.name} (${this.state.officer.role})`,
       '"틀렸다."\n\n동료들의 표정이 굳는다. 신뢰가 한 칸씩 깎였다.' +
         (opened
           ? '\n\n다시 물어보면, 이번엔 왜 그 단어를 떠올렸는지까지 말해 줄 것이다.'
           : '\n\n동료들에게 다시 물어보고 오너라.'),
+      '[Space] / [Esc] 로 닫는다',
     );
-    this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
 
   /** 누적 3회 실패 — 간부 앞으로 불려 가 코드를 갈아 치운다. */
@@ -353,6 +353,7 @@ export class TutorialScene extends Phaser.Scene {
     // 간부 바로 아래 칸으로 옮긴다 — "불려 갔다"는 연출이자, 다음 [F] 가 바로 닿는 자리다.
     this.player.body.reset(os.col * TILE + TILE / 2, (os.row + 1) * TILE + TILE / 2);
     this.proximityHint = false;
+    // 창을 닫아 뒀더라도 이건 띄운다 — 갑자기 순간이동당한 이유를 설명하는 유일한 대사다.
     this.dialogue.show(
       `${this.state.officer.name} (${this.state.officer.role})`,
       `"${officerLine}"`,
@@ -365,6 +366,7 @@ export class TutorialScene extends Phaser.Scene {
     this.player.body.setVelocity(0, 0);
     this.dialogue.hideInput();
     this.dialogue.setHint('');
+    // 창을 닫아 뒀더라도 이건 띄운다 — 코드를 밝히는 대사이고, 곧 씬이 넘어간다.
     this.dialogue.show(
       `${this.state.officer.name} (${this.state.officer.role})`,
       `접선 코드는 「${codeWord}」 였다.\n\n` +

@@ -385,22 +385,35 @@ export class StageScene extends Phaser.Scene {
       applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
     }
 
-    this.#checkProximity();
+    // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운
+    // 다른 대사 위에 그대로 이어붙는다 (setBusy 가 입력칸을 blur 시켜 typing 이 풀리기 때문).
+    const waiting = typing || this.dialogue.busy;
 
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+    // 키 상태는 대기 중에도 매 프레임 소비한다 — 단락 평가로 건너뛰면 눌린 채 남은 플래그가
+    // 응답이 도착하는 프레임에 뒤늦게 발동한다.
+    const pressedTalk = Phaser.Input.Keyboard.JustDown(this.keyE);
+    const pressedContact = Phaser.Input.Keyboard.JustDown(this.keyF);
+    const pressedRescue = Phaser.Input.Keyboard.JustDown(this.keyR);
+    const pressedSpace = Phaser.Input.Keyboard.JustDown(this.keySpace);
+    const pressedClues = Phaser.Input.Keyboard.JustDown(this.keyClues);
+
+    // 근접 안내도 대기 중에는 띄우지 않는다 — 지나가다 뜬 안내 위에 스트림이 이어붙는다.
+    if (!waiting) this.#checkProximity();
+
+    if (!waiting && pressedTalk) {
       if (this.nearbyAlly) this.#talk(this.nearbyAlly);
       else if (this.nearbyBroker) this.#talkBroker();
     }
     // F — 동료 앞이면 접선(단어 확인), 접선책 앞이면 코드 전달
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyF)) {
+    if (!waiting && pressedContact) {
       if (this.nearbyAlly) this.#contactAlly(this.nearbyAlly);
       else if (this.nearbyBroker) this.#offerCodeToBroker();
     }
     // R — 감옥의 동료 구출. 대상이 없어도 눌리게 둔다 (어디로 가야 하는지 알려주기 위해).
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyR)) {
+    if (!waiting && pressedRescue) {
       this.#tryRescue();
     }
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+    if (!typing && pressedSpace) {
       this.dialogue.hide();
     }
     // Esc 로도 대화창을 닫는다. 입력칸 포커스 중일 때는 DialogueBox 가 직접 처리하므로
@@ -413,7 +426,7 @@ export class StageScene extends Phaser.Scene {
       this.#toggleAnswer();
     }
     // C — 단서 수첩 열람
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyClues)) {
+    if (!typing && pressedClues) {
       this.#toggleClues();
     }
   }
@@ -576,6 +589,7 @@ export class StageScene extends Phaser.Scene {
   async #contactAlly(ally) {
     if (this.contacting) return;
     this.contacting = true;
+    this.dialogue.setBusy(true);
     this.dialogue.show(`${ally.name} (${ally.role})`, '조심스럽게 접선을 시도한다...');
 
     let contact;
@@ -588,21 +602,22 @@ export class StageScene extends Phaser.Scene {
       contact = await res.json();
       if (!res.ok) throw new Error(contact.error ?? `HTTP ${res.status}`);
     } catch (err) {
-      this.dialogue.show('오류', err.message);
+      this.dialogue.reply('오류', err.message);
       return;
     } finally {
       this.contacting = false;
+      this.dialogue.setBusy(false);
     }
 
     this.state = contact.state;
     this.#recordClue(ally, contact.word);
     this.#syncAllyNodes();
 
-    this.dialogue.show(
+    this.dialogue.reply(
       `${ally.name} (${ally.role})`,
       `"...「${contact.word}」."\n\n그가 흘린 단서다. [C] 단서 수첩에 기록됐다.\n코드를 확신하게 되면 시계 수리공에게 가라.`,
+      '[Space] / [Esc] 로 닫는다',
     );
-    this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
 
   /** E — 접선책 고정 대사. 자유 대화(LLM)는 붙이지 않는다 — 그는 말을 아끼는 인물이다. */
@@ -691,6 +706,7 @@ export class StageScene extends Phaser.Scene {
     }
 
     this.rescuing = true;
+    this.dialogue.setBusy(true);
     this.dialogue.show(`${ally.name} (${ally.role})`, '자물쇠가 풀렸다. 창살을 밀어 젖힌다...');
 
     let result;
@@ -703,10 +719,11 @@ export class StageScene extends Phaser.Scene {
       result = await res.json();
       if (!res.ok) throw new Error(result.error ?? `HTTP ${res.status}`);
     } catch (err) {
-      this.dialogue.show('오류', err.message);
+      this.dialogue.reply('오류', err.message);
       return;
     } finally {
       this.rescuing = false;
+      this.dialogue.setBusy(false);
     }
 
     this.state = result.state;
@@ -714,13 +731,13 @@ export class StageScene extends Phaser.Scene {
     this.#updateHud();
 
     const freed = this.state.allies.find((a) => a.id === ally.id);
-    this.dialogue.show(
+    this.dialogue.reply(
       `${ally.name} (${ally.role})`,
       `${freed.name}이(가) 창살 밖으로 빠져나와 제자리로 돌아갔다.\n\n` +
         `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n\n` +
         `[F] 로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
+      '[Space] / [Esc] 로 닫는다',
     );
-    this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
 
   /** 클라이언트에서 판정이 끝난 사건의 대가를 서버에 청구한다 (경계 레벨 상승). */
@@ -771,7 +788,7 @@ export class StageScene extends Phaser.Scene {
         else if (payload.type === 'error') throw new Error(payload.error);
       });
     } catch (err) {
-      this.dialogue.show('오류', err.message);
+      this.dialogue.reply('오류', err.message);
     } finally {
       this.dialogue.setBusy(false);
     }
@@ -800,6 +817,7 @@ export class StageScene extends Phaser.Scene {
       if (result.correct) {
         this.dialogue.hideInput();
         this.dialogue.setHint('');
+        // 창을 닫아 뒀더라도 이건 띄운다 — 코드를 밝히는 대사이고, 곧 결과 화면이 덮는다.
         this.dialogue.show(
           '접선 성공',
           `접선 코드는 「${result.codeWord}」 였다.\n\nSTAGE 1 CLEAR`,
@@ -811,13 +829,13 @@ export class StageScene extends Phaser.Scene {
       this.#syncAllyNodes();
 
       const maxed = this.state.alertLevel >= 3;
-      this.dialogue.show(
+      this.dialogue.reply(
         '접선 실패',
         `틀렸다. 수리공이 말없이 고개를 젓는다.\n거리에 소문이 샌다 — 경계 레벨 ${this.state.alertLevel}/3.` +
           (maxed ? '\n\n거리가 끓고 있다. 이제 발각되면 검문도 없이 끝난다.' : ''),
       );
     } catch (err) {
-      this.dialogue.show('오류', err.message);
+      this.dialogue.reply('오류', err.message);
     } finally {
       this.dialogue.setBusy(false);
     }
