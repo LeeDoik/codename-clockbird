@@ -54,7 +54,12 @@ export function toTutorialView(session) {
   const set = currentSet(session);
   return {
     sessionId: session.id,
-    officer: session.officer,
+    // allies 와 같은 화이트리스트 원칙 — officer 에 나중에 어떤 필드가 붙어도 자동으로 새지 않는다.
+    officer: {
+      id: session.officer.id,
+      name: session.officer.name,
+      role: session.officer.role,
+    },
     cleared: session.cleared,
     allies: session.allies.map((a) => {
       const hint = set.hints[a.id];
