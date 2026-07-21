@@ -138,6 +138,9 @@ export class TutorialScene extends Phaser.Scene {
     if (this.ended) return;
 
     const typing = this.dialogue.isTyping;
+    // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운
+    // 다른 대사 위에 그대로 이어붙는다 (setBusy 가 입력칸을 blur 시켜 typing 이 풀리기 때문).
+    const waiting = typing || this.dialogue.busy;
     if (typing) this.player.body.setVelocity(0, 0);
     else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
 
@@ -145,12 +148,12 @@ export class TutorialScene extends Phaser.Scene {
     // 오류 창만 뜬 채 아무 키도 안 먹으면 새로고침 말고는 빠져나갈 방법이 없다.
     if (this.state) this.#checkProximity();
 
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+    if (!waiting && Phaser.Input.Keyboard.JustDown(this.keyE)) {
       if (this.nearbyAlly) this.#talk(this.nearbyAlly);
       else if (this.nearbyOfficer) this.#talkOfficer();
     }
     // F — 코드 입력은 간부 앞에서만 열린다 (스테이지 1의 접선책과 같은 규칙).
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyF)) {
+    if (!waiting && Phaser.Input.Keyboard.JustDown(this.keyF)) {
       if (this.nearbyOfficer) this.#offerCode();
       else {
         this.proximityHint = false;
