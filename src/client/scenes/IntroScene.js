@@ -316,8 +316,22 @@ export class IntroScene extends Phaser.Scene {
     });
   }
 
-  /** 오프닝이 끝났다 — 스테이지 상태가 준비됐으면 넘어가고, 아직이면 잠깐 대기한다. */
+  /**
+   * 오프닝이 끝났다 — 튜토리얼(본부)로 넘어간다.
+   *
+   * 스테이지 1 의 LLM 대기는 이제 튜토리얼이 흡수하므로 여기서 기다리지 않는다.
+   * ?notutorial 로 건너뛸 때만 예전처럼 직접 기다린다.
+   */
   #goStage() {
+    if (new URLSearchParams(window.location.search).has('notutorial')) {
+      this.#waitAndStartStage();
+      return;
+    }
+    this.scene.start('Tutorial');
+  }
+
+  /** 스테이지 상태가 준비됐으면 넘어가고, 아직이면 잠깐 대기한다. */
+  #waitAndStartStage() {
     const waiting = this.add
       .text(W / 2, H / 2, '동료들의 암호를 수신하는 중…', {
         fontFamily: 'Malgun Gothic, sans-serif',
