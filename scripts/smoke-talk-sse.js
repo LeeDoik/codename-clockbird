@@ -142,6 +142,17 @@ for (const n of [2, 3]) {
 }
 console.log('오답 누적 → 경계 3 — OK');
 
+// 상한 3 — 레벨 3에서 오답을 더 내도 4가 되지 않는다
+const g4 = await post('/api/stage/guess', {
+  sessionId: state.sessionId, brokerId: state.broker.id, guess: '전혀상관없는말4',
+});
+const g4body = await g4.json();
+if (g4body.alertLevel !== 3) {
+  console.error(`[!] 경계가 상한을 넘었다 — ${g4body.alertLevel}`);
+  process.exit(1);
+}
+console.log('경계 상한 3 클램프 — OK');
+
 // 경계 3에서 발각되면 검문 없이 즉시 구속
 const cp = await post('/api/stage/checkpoint/start', { sessionId: state.sessionId });
 const cpBody = await cp.json();

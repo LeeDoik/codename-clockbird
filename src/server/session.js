@@ -10,6 +10,9 @@ import { randomUUID } from 'node:crypto';
  */
 const sessions = new Map();
 
+/** 경계 레벨 상한. 3 은 발각 즉사 단계다 — 그 위는 존재하지 않는다 (stage.js INSTANT_ARREST_ALERT 와 같은 값). */
+const MAX_ALERT = 3;
+
 export function createSession({ codeWord, category, allies, associations, duplicateGroups, arrestedIds = [], broker = null }) {
   const id = randomUUID();
 
@@ -157,7 +160,7 @@ export function rescueAlly(session, allyId) {
 
   ally.arrested = false;
   ally.rescued = true;
-  session.alertLevel += 1;
+  raiseAlert(session);
 
   return { allyId: ally.id, name: ally.name, alertLevel: session.alertLevel };
 }
@@ -186,7 +189,7 @@ export function inCheckpoint(session) {
  * 치른다.
  */
 export function raiseAlert(session, amount = 1) {
-  session.alertLevel += amount;
+  session.alertLevel = Math.min(MAX_ALERT, session.alertLevel + amount);
   return session.alertLevel;
 }
 
