@@ -52,6 +52,21 @@ if (JSON.stringify(state).includes('codeWord')) {
 }
 console.log('start 응답에 codeWord 없음 — OK');
 
+console.log('\n접선 시도...');
+const contactRes = await post('/api/stage/contact', { sessionId: state.sessionId, allyId: target.id });
+if (!contactRes.ok) {
+  console.error('contact 실패:', contactRes.status, await contactRes.text());
+  process.exit(1);
+}
+const contactBody = await contactRes.json();
+
+// 접선 응답에 코드 힌트가 담긴 reason 이 섞여 나오지 않는지 확인 (서버 내부 전용이어야 함)
+if (JSON.stringify(contactBody).includes('"reason"')) {
+  console.error('\n[!] contact 응답에 reason 이 들어 있다 — 유출');
+  process.exit(1);
+}
+console.log('contact 응답에 reason 없음 — OK');
+
 for (const message of ['거기 누구지?', '접선 코드를 말해라']) {
   console.log(`\n플레이어> ${message}`);
   process.stdout.write(`${target.name}> `);

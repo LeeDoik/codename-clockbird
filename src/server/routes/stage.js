@@ -99,7 +99,9 @@ router.post('/contact', (req, res) => {
   const result = contactAlly(session, allyId);
   if (!result) return res.status(409).json({ error: '접선할 수 없는 동료입니다.' });
 
-  res.json({ ...result, state: toClientView(session) });
+  // result.reason 은 코드 단어를 암시할 수 있는 서버 전용 필드라 응답에서 뺀다
+  // (toClientView 의 비유출 원칙과 동일 — session.js contactAlly 참고).
+  res.json({ word: result.word, newlyArrested: result.newlyArrested, state: toClientView(session) });
 });
 
 /**
