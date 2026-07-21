@@ -28,13 +28,15 @@
 
 **Files:**
 - Create: `src/client/world/worldParts.js`
-- Modify: `src/client/scenes/StageScene.js:1-30, 62-82, 256-300, 397-415, 554-601`
+- Modify: `src/client/net.js` (파일 끝에 `readSSE` 추가)
+- Modify: `src/client/scenes/StageScene.js:1-30, 62-82, 256-300, 397-415, 554-601, 816-840`
 
 **Interfaces:**
 - Produces: `buildTilemap(scene, mapData) → Phaser.Physics.Arcade.StaticGroup` — solid 타일에 정적 바디를 붙이고 그 그룹을 반환한다.
 - Produces: `createPlayer(scene, mapData, walls, frame = 0) → Phaser.GameObjects.Sprite` — `mapData.spawns.player` 칸 중앙에 놓고 walls 와 충돌시킨다. body 크기는 `setSize(16,14).setOffset(8,16)`.
 - Produces: `applyMovement(player, { cursors, wasd, speed = 200 }) → void` — 방향키/WASD 를 읽어 속도를 세운다.
 - Produces: `nearestOf(player, items, range) → any|null` — `items` 는 `[{ value, x, y }]`. `range` 안에서 가장 가까운 항목의 `value`, 없으면 `null`.
+- Produces: `readSSE(res, onPayload) → Promise<void>` (`src/client/net.js`) — POST 응답의 SSE 스트림을 파싱해 payload 마다 콜백한다.
 
 - [ ] **Step 1: `worldParts.js` 작성**
 
@@ -132,15 +134,54 @@ export function nearestOf(player, items, range) {
 }
 ```
 
-- [ ] **Step 2: `StageScene` 이 새 모듈을 쓰도록 치환 — import**
+- [ ] **Step 2: `readSSE` 를 `net.js` 로 옮긴다**
+
+`src/client/net.js` 파일 끝에 추가:
+
+```js
+
+/**
+ * POST 응답의 SSE 스트림을 읽는다.
+ *
+ * EventSource 는 GET 전용이라 쓸 수 없어 fetch 스트림을 직접 파싱한다.
+ * 스테이지 대화와 튜토리얼 대화가 같은 프레이밍을 쓰므로 여기 한 벌만 둔다.
+ *
+ * @param {Response} res
+ * @param {(payload: object) => void} onPayload
+ */
+export async function readSSE(res, onPayload) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE 이벤트 경계는 빈 줄. 마지막 조각은 미완성일 수 있으니 버퍼에 남긴다.
+    const events = buffer.split('\n\n');
+    buffer = events.pop() ?? '';
+
+    for (const event of events) {
+      const line = event.split('\n').find((l) => l.startsWith('data: '));
+      if (line) onPayload(JSON.parse(line.slice(6)));
+    }
+  }
+}
+```
+
+- [ ] **Step 3: `StageScene` 이 새 모듈을 쓰도록 치환 — import**
 
 `src/client/scenes/StageScene.js` 8행 `import { Patrol, ... }` 다음 줄에 추가:
 
 ```js
 import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/worldParts.js';
+import { readSSE } from '../net.js';
 ```
 
-- [ ] **Step 3: `#buildMap` 의 타일 루프를 치환**
+- [ ] **Step 4: `#buildMap` 의 타일 루프를 치환**
 
 `#buildMap()` 안의 `this.walls = this.physics.add.staticGroup();` 부터 타일 이중 루프 끝(`}` 세 개, 시민 스폰 주석 직전)까지를 아래 한 줄로 교체한다. 시민 스폰·감옥 표시 코드는 **그대로 남긴다**.
 
@@ -152,7 +193,7 @@ import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/w
     const cz = mapData.spawns.citizen;
 ```
 
-- [ ] **Step 4: `create()` 의 플레이어 생성 블록을 치환**
+- [ ] **Step 5: `create()` 의 플레이어 생성 블록을 치환**
 
 `create()` 에서 `// 플레이어 — 맵이 지정한 스폰 칸 중앙에 두고 벽과 충돌시킨다.` 주석부터 `this.physics.add.collider(this.player, this.walls);` 까지 7줄을 아래로 교체:
 
@@ -160,7 +201,7 @@ import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/w
     this.player = createPlayer(this, mapData, this.walls, PLAYER_FRAME);
 ```
 
-- [ ] **Step 5: `update()` 의 이동 블록을 치환**
+- [ ] **Step 6: `update()` 의 이동 블록을 치환**
 
 `update()` 의 `if (typing) { body.setVelocity(0, 0); } else { ... }` 블록 전체(`const body = this.player.body;` 포함)를 아래로 교체:
 
@@ -175,7 +216,7 @@ import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/w
     }
 ```
 
-- [ ] **Step 6: `#checkProximity` 의 거리 계산을 치환**
+- [ ] **Step 7: `#checkProximity` 의 거리 계산을 치환**
 
 `#checkProximity()` 의 시작부터 `const broker = bd < TALK_RANGE ? this.state.broker : null;` 까지를 아래로 교체한다. 그 아래 `if (found !== this.nearbyAlly || ...)` 블록은 **그대로 둔다**.
 
@@ -197,12 +238,25 @@ import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/w
     );
 ```
 
-- [ ] **Step 7: 빌드로 문법 확인**
+- [ ] **Step 8: `StageScene` 의 `#readSSE` 를 지우고 호출부를 바꾼다**
+
+`src/client/scenes/StageScene.js` 에서 `#readSSE(res, onPayload)` 메서드 전체(그 위의 `/** POST 응답의 SSE 스트림을 읽는다. ... */` 주석 블록 포함)를 삭제한다.
+
+`#chat()` 안의 호출을 `this.#readSSE(` → `readSSE(` 로 바꾼다:
+
+```js
+      await readSSE(res, (payload) => {
+        if (payload.type === 'text') this.dialogue.append(payload.text);
+        else if (payload.type === 'error') throw new Error(payload.error);
+      });
+```
+
+- [ ] **Step 9: 빌드로 문법 확인**
 
 Run: `npm run build`
 Expected: `✓ built in ...` 로 끝나고 에러 없음. `Phaser` 관련 경고(청크 크기)는 무해하다.
 
-- [ ] **Step 8: 스테이지 1 회귀 확인 (수동)**
+- [ ] **Step 10: 스테이지 1 회귀 확인 (수동)**
 
 터미널 1: `npm run dev:server` / 터미널 2: `npm run dev:client`
 브라우저에서 `http://localhost:5173/?nointro` 를 연다.
@@ -213,16 +267,17 @@ Expected: `✓ built in ...` 로 끝나고 에러 없음. `Phaser` 관련 경고
 3. 동료 앞에 서면 안내 대화창이 뜨고, 벗어나면 사라진다
 4. 감옥에서 두 명이 나란히 있을 때 가까운 쪽이 잡힌다
 5. 접선책 앞에서 `[F]` 로 코드 입력창이 열린다
+6. 동료에게 `[E]` 로 자유 대화를 걸면 응답이 **한 글자씩 흘러나온다** (SSE 이관 확인)
 
-- [ ] **Step 9: 커밋**
+- [ ] **Step 11: 커밋**
 
 ```bash
-git add src/client/world/worldParts.js src/client/scenes/StageScene.js
+git add src/client/world/worldParts.js src/client/net.js src/client/scenes/StageScene.js
 git commit -m "$(cat <<'EOF'
-refactor: 맵·이동·근접 판정을 worldParts 로 추출 — 튜토리얼이 같은 발밑을 쓴다
+refactor: 맵·이동·근접·SSE 를 공통으로 추출 — 튜토리얼이 같은 발밑을 쓴다
 
-StageScene 과 튜토리얼은 규칙이 다르지만 타일맵 포맷·이동·사거리 판정은 같다.
-그 셋만 공통 모듈로 빼고 규칙은 각 씬에 남긴다. 동작은 바뀌지 않는다.
+StageScene 과 튜토리얼은 규칙이 다르지만 타일맵 포맷·이동·사거리 판정·SSE 프레이밍은
+같다. 그 넷만 공통으로 빼고 규칙은 각 씬에 남긴다. 동작은 바뀌지 않는다.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 EOF
@@ -1481,10 +1536,17 @@ EOF
 
 **Interfaces:**
 - Consumes: `POST /api/tutorial/talk`, `POST /api/tutorial/guess` (Task 4·5)
+- Consumes: `readSSE(res, onPayload)` from `src/client/net.js` (Task 1)
 - Consumes: `this.registry.get('startPromise')` — `BootScene` 이 얹어 둔 `{state}|{error}` 프로미스
 - Produces: 클리어 시 `this.scene.start('Stage', { state })`
 
-- [ ] **Step 1: 대화창 핸들러 연결**
+- [ ] **Step 1: import 와 대화창 핸들러 연결**
+
+`src/client/scenes/TutorialScene.js` 의 `import hqData from '../assets/hq.json';` 앞 줄에 추가:
+
+```js
+import { readSSE } from '../net.js';
+```
 
 `TutorialScene.create()` 의 `this.dialogue = new DialogueBox();` 다음 두 줄을 추가:
 
@@ -1577,7 +1639,7 @@ EOF
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
 
-      await this.#readSSE(res, (payload) => {
+      await readSSE(res, (payload) => {
         if (payload.type === 'text') this.dialogue.append(payload.text);
         else if (payload.type === 'error') throw new Error(payload.error);
       });
@@ -1587,31 +1649,6 @@ EOF
       this.dialogue.show(`${ally.name} (${ally.role})`, `"${ally.line}"\n\n(…그 이상은 말이 없다.)`);
     } finally {
       this.dialogue.setBusy(false);
-    }
-  }
-
-  /**
-   * POST 응답의 SSE 스트림을 읽는다.
-   * EventSource 는 GET 전용이라 쓸 수 없어 fetch 스트림을 직접 파싱한다.
-   */
-  async #readSSE(res, onPayload) {
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      const events = buffer.split('\n\n');
-      buffer = events.pop() ?? '';
-
-      for (const event of events) {
-        const line = event.split('\n').find((l) => l.startsWith('data: '));
-        if (line) onPayload(JSON.parse(line.slice(6)));
-      }
     }
   }
 
