@@ -95,4 +95,38 @@ for (const message of ['거기 누구지?', '접선 코드를 말해라']) {
   console.log(`\n  (델타 ${deltas}개 수신 — 스트리밍 ${deltas > 1 ? 'OK' : '의심: 한 번에 옴'})`);
 }
 
+console.log('\n규칙 정합 체크...');
+
+// 신뢰도·밀고 필드는 응답에서 사라져야 한다
+if (JSON.stringify(state).includes('"trust"') || JSON.stringify(state).includes('"informed"')) {
+  console.error('[!] start 응답에 신뢰도/밀고 필드가 남아 있다');
+  process.exit(1);
+}
+console.log('상태 응답에 trust/informed 없음 — OK');
+
+// 코드는 접선책에게만 — 동료 id 로 건네면 400
+const oldWay = await post('/api/stage/guess', {
+  sessionId: state.sessionId, brokerId: target.id, guess: '아무말',
+});
+if (oldWay.status !== 400) {
+  console.error(`[!] 동료 대상 코드 입력이 ${oldWay.status} — 400 이어야 한다`);
+  process.exit(1);
+}
+console.log('동료 대상 코드 입력 거부(400) — OK');
+
+// 오답 → 경계 +1 (신뢰도 하락이 아니라)
+const g1 = await post('/api/stage/guess', {
+  sessionId: state.sessionId, brokerId: state.broker.id, guess: '전혀상관없는말',
+});
+const g1body = await g1.json();
+if (g1body.correct !== false || g1body.alertLevel !== 1) {
+  console.error('[!] 오답이 경계 +1 이 아니다:', JSON.stringify(g1body).slice(0, 200));
+  process.exit(1);
+}
+if (JSON.stringify(g1body).includes('"trust"') || JSON.stringify(g1body).includes('"informed"')) {
+  console.error('[!] guess 응답에 신뢰도/밀고 필드가 남아 있다');
+  process.exit(1);
+}
+console.log('오답 → 경계 1 — OK');
+
 console.log('\nSSE 경로 정상.\n');

@@ -7,16 +7,13 @@ import {
   createSession,
   getSession,
   toClientView,
-  loseTrust,
   getAlly,
   contactAlly,
   rescueAlly,
   arrestedCount,
   pushDialogue,
-  isUnwinnable,
   setGameOver,
   raiseAlert,
-  informedCount,
   inCheckpoint,
 } from '../session.js';
 import { generateInterrogation, judgeCheckpointAnswer } from '../ai/checkpoint.js';
@@ -160,18 +157,11 @@ function checkpointSession(req, res) {
 /**
  * POST /api/stage/checkpoint/start  { sessionId }
  * 순찰 로봇에게 발각됐다.
- *
- * 밀고자가 한 명이라도 있으면 검문 없이 즉시 구속이다 (계획서 §4.2). 로봇은 이미
- * 인상착의를 받아 든 상태라 물어볼 것이 없다 — "명령 수행형" 세계관에도 맞는다.
  */
 router.post('/checkpoint/start', (req, res) => {
   const session = checkpointSession(req, res);
   if (!session) return;
 
-  if (informedCount(session) > 0) {
-    setGameOver(session, 'informerCaught');
-    return res.json({ outcome: 'informerCaught', state: toClientView(session) });
-  }
   if (session.checkpointCooldownUntil > Date.now()) {
     return res.status(409).json({ error: '방금 검문을 통과했습니다.' });
   }
@@ -225,7 +215,6 @@ router.post('/checkpoint/qte', async (req, res, next) => {
  * POST /api/stage/checkpoint/answer  { sessionId, answer, source }
  * 심문 답변 심사. 적발되어도 게임오버가 아니라 경계 +1 후 풀려난다 — 발각은 반복되는
  * 사건이라, 한 번 걸렸다고 판이 끝나면 반복 플레이 자체가 성립하지 않는다.
- * (밀고자가 있는 판이라면 애초에 /checkpoint/start 에서 즉시 구속으로 끝난다.)
  */
 router.post('/checkpoint/answer', async (req, res, next) => {
   try {
@@ -298,12 +287,16 @@ router.post('/alarm', (req, res) => {
 });
 
 /**
- * POST /api/stage/guess  { sessionId, allyId, guess }
+ * POST /api/stage/guess  { sessionId, brokerId, guess }
  * 접선 코드 입력. 정답 판정은 서버에서만 이뤄진다.
+ *
+ * 코드는 접선책에게만 건넬 수 있다 (스토리보드 확정). 클라이언트도 접선책 앞에서만
+ * 입력창을 열지만, API 직접 호출로 우회하지 못하게 서버에서도 막는다 — /alarm 의
+ * 화이트리스트와 같은 원칙이다.
  */
 router.post('/guess', async (req, res, next) => {
   try {
-    const { sessionId, allyId, guess } = req.body ?? {};
+    const { sessionId, brokerId, guess } = req.body ?? {};
     const session = getSession(sessionId);
 
     if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
@@ -311,6 +304,9 @@ router.post('/guess', async (req, res, next) => {
       return res.status(409).json({ error: '이미 종료된 세션입니다.' });
     }
     if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
+    if (brokerId !== session.broker?.id) {
+      return res.status(400).json({ error: '접선책에게만 코드를 건넬 수 있습니다.' });
+    }
 
     const verdict = await judgeGuess({ codeWord: session.codeWord, guess });
 
@@ -323,16 +319,12 @@ router.post('/guess', async (req, res, next) => {
       });
     }
 
-    const { informed, trust } = loseTrust(session, allyId);
-
-    // 마지막 동료까지 밀고했다면 코드를 건넬 상대가 없다 — 정답을 알아도 제출할 수 없으므로
-    // 여기서 판을 끝낸다. 이 판정이 없으면 빈 맵을 무한히 배회하는 소프트락이 된다.
-    if (isUnwinnable(session)) setGameOver(session, 'allInformed');
+    // 오답 — 틀린 코드를 내밀었다는 소문이 새어 나간다. 신뢰도 대신 경계가 오른다.
+    const alertLevel = raiseAlert(session);
 
     res.json({
       correct: false,
-      informed,
-      trust,
+      alertLevel,
       state: toClientView(session),
     });
   } catch (err) {
@@ -352,7 +344,7 @@ router.post('/talk', async (req, res) => {
   const ally = session && getAlly(session, allyId);
 
   if (!session || !ally) return res.status(404).json({ error: '세션 또는 동료를 찾을 수 없습니다.' });
-  if (ally.arrested || ally.informed) {
+  if (ally.arrested) {
     return res.status(409).json({ error: '대화할 수 없는 동료입니다.' });
   }
   if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
