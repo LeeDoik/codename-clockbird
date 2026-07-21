@@ -6,6 +6,8 @@ import { runLockPuzzle } from '../minigames/lockPuzzle.js';
 import { runTimingLock } from '../minigames/timingLock.js';
 import { runInterrogation } from '../minigames/interrogation.js';
 import { Patrol, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
+import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/worldParts.js';
+import { readSSE } from '../net.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
 
@@ -71,14 +73,7 @@ export class StageScene extends Phaser.Scene {
 
     this.#buildMap();
 
-    // 플레이어 — 맵이 지정한 스폰 칸 중앙에 두고 벽과 충돌시킨다.
-    const ps = mapData.spawns.player;
-    this.player = this.add.sprite(ps.col * TILE + TILE / 2, ps.row * TILE + TILE / 2, 'chars', PLAYER_FRAME);
-    this.physics.add.existing(this.player);
-    this.player.body.setCollideWorldBounds(true);
-    // 충돌 판정은 발밑 위주로 좁혀 스프라이트 여백이 벽에 걸리지 않게 한다.
-    this.player.body.setSize(16, 14).setOffset(8, 16);
-    this.physics.add.collider(this.player, this.walls);
+    this.player = createPlayer(this, mapData, this.walls, PLAYER_FRAME);
 
     // 동료 NPC — 위치는 맵의 스폰 포인트를 순서대로 따른다 (없으면 서버 spawn 으로 폴백).
     // 체포된 동료는 감옥 구역에 배치한다.
@@ -259,20 +254,7 @@ export class StageScene extends Phaser.Scene {
    * 정적 그룹의 create 는 보이는 스프라이트와 정적 바디를 한 번에 만든다.
    */
   #buildMap() {
-    this.walls = this.physics.add.staticGroup();
-    const { layout, tiles, rows, cols } = mapData;
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const f = layout[r][c];
-        if (f < 0) continue; // 빈칸
-        if (tiles[f].solid) {
-          this.walls.create(c * TILE + TILE / 2, r * TILE + TILE / 2, 'tiles', f);
-        } else {
-          this.add.image(c * TILE, r * TILE, 'tiles', f).setOrigin(0, 0);
-        }
-      }
-    }
+    this.walls = buildTilemap(this, mapData);
 
     // 시민 스폰 — 마을 NPC 분기 대사는 W3 TODO. 지금은 맵이 지정한 위치에 표시만 한다.
     const cz = mapData.spawns.citizen;
@@ -396,20 +378,11 @@ export class StageScene extends Phaser.Scene {
 
     // 대화창 입력 중에는 이동을 막는다.
     const typing = this.dialogue.isTyping;
-    const body = this.player.body;
 
     if (typing) {
-      body.setVelocity(0, 0);
+      this.player.body.setVelocity(0, 0);
     } else {
-      const left = this.cursors.left.isDown || this.wasd.A.isDown;
-      const right = this.cursors.right.isDown || this.wasd.D.isDown;
-      const up = this.cursors.up.isDown || this.wasd.W.isDown;
-      const down = this.cursors.down.isDown || this.wasd.S.isDown;
-
-      body.setVelocity(
-        (right ? SPEED : 0) - (left ? SPEED : 0),
-        (down ? SPEED : 0) - (up ? SPEED : 0),
-      );
+      applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
     }
 
     this.#checkProximity();
@@ -552,29 +525,20 @@ export class StageScene extends Phaser.Scene {
   }
 
   #checkProximity() {
-    let found = null;
-    let jailed = null;
-    let nearestFree = Infinity;
-    let nearestJailed = Infinity;
-
+    // 체포된 동료(구출 대상)와 자유로운 동료(접선 대상)는 다른 키를 쓰므로 따로 집는다.
+    const free = [];
+    const jailedItems = [];
     for (const { ally, node } of this.allyNodes) {
-      const dist = Phaser.Math.Distance.Between(
-        this.player.x, this.player.y, node.x, node.y,
-      );
-      if (dist >= TALK_RANGE) continue;
-      // 감옥 슬롯 간격(44px)이 접선 거리(48px)보다 좁아 두 명이 동시에 사거리에 들어온다.
-      // 그래서 첫 번째가 아니라 가장 가까운 쪽을 집는다 — 옆 칸 동료가 잘못 잡히지 않게.
-      if (ally.arrested) {
-        if (dist < nearestJailed) { nearestJailed = dist; jailed = ally; }
-      } else if (dist < nearestFree) {
-        nearestFree = dist; found = ally;
-      }
+      (ally.arrested ? jailedItems : free).push({ value: ally, x: node.x, y: node.y });
     }
 
-    const bd = Phaser.Math.Distance.Between(
-      this.player.x, this.player.y, this.brokerNode.x, this.brokerNode.y,
+    const found = nearestOf(this.player, free, TALK_RANGE);
+    const jailed = nearestOf(this.player, jailedItems, TALK_RANGE);
+    const broker = nearestOf(
+      this.player,
+      [{ value: this.state.broker, x: this.brokerNode.x, y: this.brokerNode.y }],
+      TALK_RANGE,
     );
-    const broker = bd < TALK_RANGE ? this.state.broker : null;
 
     if (found !== this.nearbyAlly || jailed !== this.nearbyJailed || broker !== this.nearbyBroker) {
       this.nearbyAlly = found;
@@ -802,7 +766,7 @@ export class StageScene extends Phaser.Scene {
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
 
-      await this.#readSSE(res, (payload) => {
+      await readSSE(res, (payload) => {
         if (payload.type === 'text') this.dialogue.append(payload.text);
         else if (payload.type === 'error') throw new Error(payload.error);
       });
@@ -810,32 +774,6 @@ export class StageScene extends Phaser.Scene {
       this.dialogue.show('오류', err.message);
     } finally {
       this.dialogue.setBusy(false);
-    }
-  }
-
-  /**
-   * POST 응답의 SSE 스트림을 읽는다.
-   * EventSource 는 GET 전용이라 쓸 수 없어 fetch 스트림을 직접 파싱한다.
-   */
-  async #readSSE(res, onPayload) {
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // SSE 이벤트 경계는 빈 줄. 마지막 조각은 미완성일 수 있으니 버퍼에 남긴다.
-      const events = buffer.split('\n\n');
-      buffer = events.pop() ?? '';
-
-      for (const event of events) {
-        const line = event.split('\n').find((l) => l.startsWith('data: '));
-        if (line) onPayload(JSON.parse(line.slice(6)));
-      }
     }
   }
 

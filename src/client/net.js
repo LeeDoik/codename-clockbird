@@ -25,3 +25,34 @@ export function fetchStageStart() {
     })
     .catch((err) => ({ error: err.message }));
 }
+
+/**
+ * POST 응답의 SSE 스트림을 읽는다.
+ *
+ * EventSource 는 GET 전용이라 쓸 수 없어 fetch 스트림을 직접 파싱한다.
+ * 스테이지 대화와 튜토리얼 대화가 같은 프레이밍을 쓰므로 여기 한 벌만 둔다.
+ *
+ * @param {Response} res
+ * @param {(payload: object) => void} onPayload
+ */
+export async function readSSE(res, onPayload) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE 이벤트 경계는 빈 줄. 마지막 조각은 미완성일 수 있으니 버퍼에 남긴다.
+    const events = buffer.split('\n\n');
+    buffer = events.pop() ?? '';
+
+    for (const event of events) {
+      const line = event.split('\n').find((l) => l.startsWith('data: '));
+      if (line) onPayload(JSON.parse(line.slice(6)));
+    }
+  }
+}
