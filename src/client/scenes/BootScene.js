@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import tilesUrl from '../assets/tiles/tiles.png';
 import charsUrl from '../assets/chars.png';
 import { fetchStageStart } from '../net.js';
+import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
 /**
  * 로딩 씬.
@@ -35,11 +36,12 @@ export class BootScene extends Phaser.Scene {
     const startPromise = fetchStageStart();
     this.registry.set('startPromise', startPromise);
 
-    if (noIntro) {
-      this.#legacyBoot(startPromise);
-      return;
-    }
-    this.scene.start('Intro');
+    // 웹폰트가 준비되기 전에 씬 텍스트를 그리면 폴백 고딕으로 래스터돼 굳는다.
+    // 2초 안에 안 오면 그대로 진행 — CDN 이 막혀도 게임은 열려야 한다.
+    waitForFonts(2000).then(() => {
+      if (noIntro) this.#legacyBoot(startPromise);
+      else this.scene.start('Intro');
+    });
   }
 
   /** 개발용(?nointro) — 오프닝을 건너뛰고 기존 로딩 화면을 거쳐 곧장 스테이지로 간다. */
@@ -48,7 +50,7 @@ export class BootScene extends Phaser.Scene {
 
     this.add
       .text(width / 2, height / 2 - 36, '저택에 잠입하는 중...', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '38px',
         color: '#c9a227',
       })
@@ -56,7 +58,7 @@ export class BootScene extends Phaser.Scene {
 
     const sub = this.add
       .text(width / 2, height / 2 + 26, '동료들의 암호를 수신하고 있습니다', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '24px',
         color: '#8a7f6a',
       })
@@ -78,9 +80,9 @@ export class BootScene extends Phaser.Scene {
         height / 2 + 110,
         `스테이지 시작 실패\n${message}\n\n.env 에 ANTHROPIC_API_KEY 를 넣었는지 확인하세요.`,
         {
-          fontFamily: 'Malgun Gothic, sans-serif',
+          fontFamily: FONTS.body,
           fontSize: '24px',
-          color: '#c25b4a',
+          color: CSS.wax,
           align: 'center',
         },
       )

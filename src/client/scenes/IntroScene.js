@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CSS, FONTS } from '../ui/theme.js';
 
 /**
  * 오프닝 시네마틱 — "HEART OF STEEL" 스토리보드 10컷을 재생하고 첫 접선(튜토리얼)로 넘긴다.
@@ -18,9 +19,9 @@ import Phaser from 'phaser';
 
 const W = 1920;
 const H = 1080;
-const BRASS = '#c9a227';
-const PAPER = '#e8dcc0';
-const FAINT = '#8a7f6a';
+const BRASS = CSS.brass;
+const PAPER = CSS.paper;
+const FAINT = CSS.paperDim;
 
 /**
  * 스토리보드 컷. dur = 표시 시간(ms), 스토리보드의 초 구간에서 그대로 옮겼다.
@@ -78,7 +79,7 @@ export class IntroScene extends Phaser.Scene {
     this.add.rectangle(W / 2, H - 108, W, 248, 0x000000, 0.55).setDepth(10);
     this.narration = this.add
       .text(W / 2, H - 108, '', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '34px',
         color: PAPER,
         align: 'center',
@@ -90,7 +91,7 @@ export class IntroScene extends Phaser.Scene {
 
     this.add
       .text(W - 28, 24, '[Space/Esc/클릭] 건너뛰기', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '22px',
         color: FAINT,
       })
@@ -177,7 +178,7 @@ export class IntroScene extends Phaser.Scene {
 
     const title = this.add
       .text(W / 2, H / 2 - 50, 'HEART OF STEEL', {
-        fontFamily: 'Georgia, "Malgun Gothic", serif',
+        fontFamily: FONTS.head,
         fontSize: '100px',
         color: BRASS,
         fontStyle: 'bold',
@@ -187,7 +188,7 @@ export class IntroScene extends Phaser.Scene {
       .setAlpha(0);
     const ko = this.add
       .text(W / 2, H / 2 + 42, '철혈(鐵血)', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '34px',
         color: FAINT,
       })
@@ -204,7 +205,7 @@ export class IntroScene extends Phaser.Scene {
   #renderSubtitle(text) {
     const sub = this.add
       .text(W / 2, H / 2 + 144, text, {
-        fontFamily: 'Georgia, "Malgun Gothic", serif',
+        fontFamily: FONTS.head,
         fontSize: '32px',
         color: BRASS,
         align: 'center',
@@ -234,7 +235,7 @@ export class IntroScene extends Phaser.Scene {
 
     const line = this.add
       .text(hasPortrait ? 770 : W / 2, H / 2 - 20, text, {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '38px',
         color: PAPER,
         align: hasPortrait ? 'left' : 'center',
@@ -248,7 +249,7 @@ export class IntroScene extends Phaser.Scene {
 
     this.add
       .text(W / 2, H - 76, '— 접선책', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '24px',
         color: FAINT,
       })
@@ -334,7 +335,7 @@ export class IntroScene extends Phaser.Scene {
   #waitAndStartStage() {
     const waiting = this.add
       .text(W / 2, H / 2, '동료들의 암호를 수신하는 중…', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '28px',
         color: FAINT,
       })
@@ -367,7 +368,7 @@ export class IntroScene extends Phaser.Scene {
         H / 2,
         `스테이지 시작 실패\n${message}\n\n.env 에 ANTHROPIC_API_KEY 를 넣었는지 확인하세요.`,
         {
-          fontFamily: 'Malgun Gothic, sans-serif',
+          fontFamily: FONTS.body,
           fontSize: '26px',
           color: '#c25b4a',
           align: 'center',
