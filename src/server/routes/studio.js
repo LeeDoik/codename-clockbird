@@ -92,6 +92,90 @@ router.put('/personas', async (req, res, next) => {
   }
 });
 
+/**
+ * codewords.json 직렬화 — 분류당 한 줄(원본 손글씨 포맷 유지).
+ * JSON.stringify(…, null, 2) 는 단어 하나당 한 줄로 펼쳐 git diff 를 읽기 어렵게 만든다.
+ */
+function formatCodewords(file) {
+  const lines = Object.entries(file).map(([key, value]) => {
+    if (key !== 'categories') return `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`;
+    const cats = Object.entries(value)
+      .map(([name, words]) => `    ${JSON.stringify(name)}: [${words.map((w) => JSON.stringify(w)).join(', ')}]`)
+      .join(',\n');
+    return `  "categories": {\n${cats}\n  }`;
+  });
+  return `{\n${lines.join(',\n')}\n}\n`;
+}
+
+/**
+ * PUT /api/studio/codewords  { categories: { 분류명: [단어, ...] } }
+ * 접선 코드 단어 풀 전체 교체 — 분류 추가·삭제·이름 변경 모두 허용.
+ * 진행 중인 세션은 이미 뽑힌 코드를 세션에 복사해 두므로 영향받지 않는다.
+ * categories 밖 필드(_comment 등)는 보존한다.
+ */
+router.put('/codewords', async (req, res, next) => {
+  try {
+    const categories = req.body?.categories;
+    if (!categories || typeof categories !== 'object' || Array.isArray(categories)) {
+      return res.status(400).json({ error: 'categories 객체가 필요합니다.' });
+    }
+
+    const names = Object.keys(categories);
+    if (names.length === 0) return res.status(400).json({ error: '분류가 최소 1개 필요합니다.' });
+    if (names.length > 20) return res.status(400).json({ error: '분류는 최대 20개입니다.' });
+
+    const cleaned = {};
+    const seen = new Map(); // 단어 → 분류. 풀 전체에서 같은 단어가 두 번 나오면 거절한다.
+    for (const rawName of names) {
+      const name = String(rawName).trim();
+      if (!name) return res.status(400).json({ error: '빈 분류 이름이 있습니다.' });
+      if (name.length > 20) {
+        return res.status(400).json({ error: `분류 이름이 너무 깁니다: ${name} (20자 제한)` });
+      }
+      if (Object.hasOwn(cleaned, name)) {
+        return res.status(400).json({ error: `분류 이름이 중복됩니다: ${name}` });
+      }
+
+      const rawWords = categories[rawName];
+      if (!Array.isArray(rawWords) || rawWords.length === 0) {
+        return res.status(400).json({ error: `「${name}」 분류에 단어가 없습니다.` });
+      }
+      const words = [];
+      for (const raw of rawWords) {
+        const word = typeof raw === 'string' ? raw.trim() : '';
+        if (!word) return res.status(400).json({ error: `「${name}」 분류에 빈 단어가 있습니다.` });
+        // 화이트리스트 — 이모지·기호는 글자 수 힌트(.length)를 실제 보이는 글자 수와
+        // 어긋나게 만들므로(예: ⚙️ = 2) 공백과 함께 통째로 막는다.
+        if (!/^[가-힣a-zA-Z0-9]+$/.test(word)) {
+          return res.status(400).json({ error: `「${word}」 — 한글·영문·숫자만 쓸 수 있습니다 (공백·특수문자 불가).` });
+        }
+        if (word.length > 12) {
+          return res.status(400).json({ error: `「${word}」 — 단어가 너무 깁니다 (12자 제한).` });
+        }
+        if (seen.has(word)) {
+          const where = seen.get(word);
+          return res.status(400).json({
+            error: `「${word}」 가 중복됩니다 (${where === name ? `「${name}」 안에서 두 번` : `「${where}」 과 「${name}」 양쪽`}).`,
+          });
+        }
+        seen.set(word, name);
+        words.push(word);
+      }
+      cleaned[name] = words;
+    }
+    if (seen.size > 500) {
+      return res.status(400).json({ error: `단어가 너무 많습니다 (총 ${seen.size}개, 500개 제한).` });
+    }
+
+    const file = JSON.parse(await readFile(CODEWORDS_URL, 'utf8'));
+    file.categories = cleaned;
+    await writeFile(CODEWORDS_URL, formatCodewords(file), 'utf8');
+    res.json({ ok: true, categories: cleaned, total: seen.size });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** PUT /api/studio/prompts/:name  { text } — 화이트리스트 밖 이름은 loadTemplate 이 던진다 */
 router.put('/prompts/:name', async (req, res, next) => {
   try {

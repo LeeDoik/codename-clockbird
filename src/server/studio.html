@@ -163,6 +163,24 @@
             <span class="status" id="dialogue-status"></span>
           </div>
         </section>
+
+        <section>
+          <h2>접선 코드 단어 풀 <span class="dirty" id="pool-dirty" hidden>● 저장 안 됨</span></h2>
+          <div class="legend">
+            스테이지 시작 때 이 풀에서 무작위로 접선 코드가 뽑힙니다. 분류·단어 모두 추가·삭제·수정 가능.<br />
+            분류 이름과 글자 수는 플레이어에게 <b>힌트로 공개</b>되니, 분류 이름이 정답을 좁혀주는 정도도 난이도 레버입니다.
+          </div>
+          <div class="tabs" id="cat-tabs"></div>
+          <label>분류 이름</label>
+          <input type="text" id="c-name" />
+          <label>단어 목록 (쉼표 또는 줄바꿈으로 구분)</label>
+          <textarea id="c-words" rows="4" spellcheck="false"></textarea>
+          <div class="row">
+            <button class="primary" id="save-pool">단어 풀 저장</button>
+            <button id="del-cat">이 분류 삭제</button>
+            <span class="status" id="pool-status"></span>
+          </div>
+        </section>
       </div>
 
       <!-- ══════════ 오른쪽: 미리보기 ══════════ -->
@@ -210,6 +228,8 @@
               <b style="color:var(--paper)">안전한 레버 (자유롭게)</b><br />
               · 페르소나의 성격·말투·배경 묘사<br />
               · 자유 대화 프롬프트의 톤, 힌트를 풀어주는 정도<br />
+              · 접선 코드 단어 풀 — 추상적·다의적 단어일수록 어려운 판이 됩니다.
+              새 단어는 [5인 전원 생성]으로 중복률을 한 번 확인해 보세요.<br />
               <b style="color:var(--paper)">위험한 레버 (측정 필수)</b><br />
               · 연상 단어 프롬프트의 규칙 — 특히 "더 직접적/뻔한 단어" 방향<br />
               &nbsp;&nbsp;→ 수정 후 [5인 전원 생성]을 코드 단어 2~3개로 돌려 체포 인원을 확인.<br />
@@ -225,7 +245,8 @@
 
     <script>
       const $ = (id) => document.getElementById(id);
-      const state = { allies: [], prompts: {}, selected: 0, saved: null };
+      // pool 은 [{ name, text }] — text 는 textarea 원문 그대로 두고 저장·dirty 판정 때만 파싱한다.
+      const state = { allies: [], prompts: {}, pool: [], selected: 0, selectedCat: 0, saved: null };
 
       const api = async (path, opts = {}) => {
         const res = await fetch('/api/studio' + path, {
@@ -246,8 +267,11 @@
       // ── 편집 상태 ──────────────────────────────────────────────
       const currentAlly = () => state.allies[state.selected];
 
+      const parseWords = (text) => text.split(/[\n,]/).map((w) => w.trim()).filter(Boolean);
+      const normalizedPool = () => state.pool.map((c) => ({ name: c.name.trim(), words: parseWords(c.text) }));
+
       function snapshot() {
-        state.saved = JSON.stringify({ allies: state.allies, prompts: state.prompts });
+        state.saved = JSON.stringify({ allies: state.allies, prompts: state.prompts, pool: normalizedPool() });
         refreshDirty();
       }
       function collectPersonaFields() {
@@ -263,6 +287,7 @@
           JSON.stringify(now.allies.map(({ id, name, role, persona }) => ({ id, name, role, persona })));
         $('wordgen-dirty').hidden = state.prompts['wordgen-system'] === now.prompts['wordgen-system'];
         $('dialogue-dirty').hidden = state.prompts['dialogue-system'] === now.prompts['dialogue-system'];
+        $('pool-dirty').hidden = JSON.stringify(normalizedPool()) === JSON.stringify(now.pool);
       }
 
       function renderTabs() {
@@ -294,6 +319,97 @@
       }
       $('t-wordgen').addEventListener('input', () => { state.prompts['wordgen-system'] = $('t-wordgen').value; refreshDirty(); });
       $('t-dialogue').addEventListener('input', () => { state.prompts['dialogue-system'] = $('t-dialogue').value; refreshDirty(); });
+
+      // ── 접선 코드 단어 풀 편집 ─────────────────────────────────
+      const currentCat = () => state.pool[state.selectedCat];
+
+      function collectCatFields() {
+        const c = currentCat();
+        c.name = $('c-name').value;
+        c.text = $('c-words').value;
+      }
+      function renderCatTabs() {
+        const tabs = $('cat-tabs');
+        tabs.innerHTML = '';
+        state.pool.forEach((c, i) => {
+          const b = document.createElement('button');
+          b.textContent = `${c.name.trim() || '(이름 없음)'} (${parseWords(c.text).length})`;
+          b.className = i === state.selectedCat ? 'active' : '';
+          b.onclick = () => {
+            collectCatFields();
+            state.selectedCat = i;
+            renderCatTabs();
+            renderCatFields();
+            refreshDirty();
+          };
+          tabs.appendChild(b);
+        });
+        const add = document.createElement('button');
+        add.textContent = '＋ 분류 추가';
+        add.onclick = () => {
+          collectCatFields();
+          state.pool.push({ name: '새 분류', text: '' });
+          state.selectedCat = state.pool.length - 1;
+          renderCatTabs();
+          renderCatFields();
+          refreshDirty();
+          $('c-name').focus();
+        };
+        tabs.appendChild(add);
+      }
+      function renderCatFields() {
+        const c = currentCat();
+        $('c-name').value = c.name;
+        $('c-words').value = c.text;
+      }
+      function renderDatalist(categories) {
+        const dl = $('codewords');
+        dl.innerHTML = '';
+        for (const words of Object.values(categories)) {
+          for (const w of words) {
+            const o = document.createElement('option');
+            o.value = w;
+            dl.appendChild(o);
+          }
+        }
+      }
+
+      $('c-name').addEventListener('input', () => { collectCatFields(); renderCatTabs(); refreshDirty(); });
+      $('c-words').addEventListener('input', () => { collectCatFields(); renderCatTabs(); refreshDirty(); });
+
+      $('del-cat').onclick = () => {
+        if (state.pool.length <= 1) return setStatus('pool-status', '분류가 최소 1개 필요합니다.', 'err');
+        collectCatFields();
+        const name = currentCat().name.trim() || '(이름 없음)';
+        if (!confirm(`「${name}」 분류를 지울까요? [단어 풀 저장]을 누르기 전까지 파일에는 반영되지 않습니다.`)) return;
+        state.pool.splice(state.selectedCat, 1);
+        state.selectedCat = Math.min(state.selectedCat, state.pool.length - 1);
+        renderCatTabs();
+        renderCatFields();
+        refreshDirty();
+      };
+
+      $('save-pool').onclick = async () => {
+        collectCatFields();
+        const categories = {};
+        for (const { name, words } of normalizedPool()) {
+          if (Object.hasOwn(categories, name)) {
+            return setStatus('pool-status', `분류 이름이 중복됩니다: ${name}`, 'err');
+          }
+          categories[name] = words;
+        }
+        try {
+          const r = await api('/codewords', { method: 'PUT', body: JSON.stringify({ categories }) });
+          // 서버가 trim 해서 확정한 결과로 되맞춘다 — 파일과 화면이 글자 단위로 같아진다.
+          state.pool = Object.entries(r.categories).map(([name, words]) => ({ name, text: words.join(', ') }));
+          state.selectedCat = Math.min(state.selectedCat, state.pool.length - 1);
+          snapshot();
+          renderCatTabs();
+          renderCatFields();
+          renderDatalist(r.categories);
+          setStatus('pool-status', `저장됨 — 총 ${r.total}개 단어, 다음 판부터 반영됩니다.`, 'ok');
+        } catch (e) { setStatus('pool-status', e.message, 'err'); }
+      };
 
       // ── 저장 ──────────────────────────────────────────────────
       $('save-personas').onclick = async () => {
@@ -399,19 +515,15 @@
           const data = await api('/data');
           state.allies = data.allies;
           state.prompts = data.prompts;
+          state.pool = Object.entries(data.categories).map(([name, words]) => ({ name, text: words.join(', ') }));
           $('t-wordgen').value = data.prompts['wordgen-system'];
           $('t-dialogue').value = data.prompts['dialogue-system'];
-          const dl = $('codewords');
-          for (const words of Object.values(data.categories)) {
-            for (const w of words) {
-              const o = document.createElement('option');
-              o.value = w;
-              dl.appendChild(o);
-            }
-          }
+          renderDatalist(data.categories);
           snapshot();
           renderTabs();
           renderPersonaFields();
+          renderCatTabs();
+          renderCatFields();
         } catch (e) {
           document.body.innerHTML = `<header><h1>⚙ 태엽새 프롬프트 스튜디오</h1></header><main><section><b style="color:var(--danger)">로드 실패:</b> ${e.message}<br/><span class="legend">서버(npm run dev 또는 npm run dev:server)가 떠 있는지 확인하세요.</span></section></main>`;
         }
