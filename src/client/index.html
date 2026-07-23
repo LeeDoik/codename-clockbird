@@ -6,9 +6,12 @@
     <title>코드네임: 태엽새</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- 비차단 로드 — CDN 이 응답을 끌면 첫 페인트까지 멈춘다. 폰트 대기는 BootScene 의 waitForFonts(2초) 몫. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Hahmlet:wght@600;700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
     <style>
       /* 디자인 토큰 — src/client/ui/theme.js 와 짝이다 (색을 바꾸면 두 곳 함께). */
@@ -169,11 +172,11 @@
         text-align: center;
       }
       #minigame-title {
-  font-family: var(--font-head);
-  color: var(--brass);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
+        font-family: var(--font-head);
+        color: var(--brass);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+      }
       #minigame-subtitle { margin-top: 6px; opacity: 0.7; font-size: 0.85rem; white-space: pre-wrap; }
       /* 제한 시간 — 눈금 새긴 황동 게이지. width 를 JS 가 매 프레임 갱신한다. */
       #minigame-timer {

@@ -25,7 +25,7 @@ export const CSS = {
   paperDim: '#8a7f6a',
   patina: '#5e8b7e',
   wax: '#a03325',
-  faint: '#6b6152',
+  faint: '#6b6152', // 캔버스 전용 — :root 에 짝 없음
 };
 
 export const FONTS = {

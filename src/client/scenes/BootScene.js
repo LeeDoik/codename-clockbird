@@ -52,7 +52,7 @@ export class BootScene extends Phaser.Scene {
       .text(width / 2, height / 2 - 36, '저택에 잠입하는 중...', {
         fontFamily: FONTS.body,
         fontSize: '38px',
-        color: '#c9a227',
+        color: CSS.brass,
       })
       .setOrigin(0.5);
 
@@ -60,7 +60,7 @@ export class BootScene extends Phaser.Scene {
       .text(width / 2, height / 2 + 26, '동료들의 암호를 수신하고 있습니다', {
         fontFamily: FONTS.body,
         fontSize: '24px',
-        color: '#8a7f6a',
+        color: CSS.paperDim,
       })
       .setOrigin(0.5);
 

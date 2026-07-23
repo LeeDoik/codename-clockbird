@@ -292,7 +292,7 @@ export class StageScene extends Phaser.Scene {
       .text(160, 20, '감옥', {
         fontFamily: FONTS.body,
         fontSize: '11px',
-        color: '#6b4a4a',
+        color: '#6b4a4a', // 감옥 구역 표시색(0x6b4a4a)과 짝 — 테마 토큰 아님
       })
       .setOrigin(0.5);
   }
