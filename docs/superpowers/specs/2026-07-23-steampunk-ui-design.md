@@ -69,8 +69,8 @@
 ## 4. Phaser 캔버스 — `src/client/ui/theme.js` (신규)
 
 - `COLORS` (0x 숫자·CSS 문자열), `FONTS = { head, body }` (폴백 스택 포함) export.
-- 텍스트 스타일 프리셋: `hudStyle()`·`bodyStyle()`·`titleStyle()` 등 — 4개 씬 26곳의
-  `fontFamily: 'Malgun Gothic…'` 인라인 스타일을 프리셋 호출로 교체.
+- 4개 씬 26곳의 `fontFamily: 'Malgun Gothic…'` 인라인 스타일을 `FONTS`·`CSS` 토큰
+  직접 참조로 교체 (스타일 프리셋 함수는 YAGNI — 감싸 봐야 두 키 뿐이다).
 - `drawOrnateFrame(scene, x, y, w, h)` 헬퍼 — Graphics 로 이중 황동 선 + 모서리 장식.
   `#buildCluePanel` 의 단색 사각형을 이 프레임 + 가죽/종이 배경으로 교체.
 - 캔버스에는 노이즈 질감을 넣지 않는다 — 프레임·색·폰트로만 통일감을 낸다.
