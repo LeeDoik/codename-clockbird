@@ -54,48 +54,93 @@
       /* 픽셀 아트 확대가 흐릿해지지 않게 — CSS 업스케일 단계의 보간을 끈다 */
       #game-canvas canvas { display: block; image-rendering: pixelated; }
 
+      /* ── 스팀펑크 공용 부품 ─────────────────────────────── */
+      /* 황동 프레임 패널: 가죽 바탕 + 바깥 어두운/안쪽 밝은 이중 선 + 모서리 리벳 4개 */
+      .sp-panel {
+        background:
+          radial-gradient(circle at 10px 10px, var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
+          radial-gradient(circle at calc(100% - 10px) 10px, var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
+          radial-gradient(circle at 10px calc(100% - 10px), var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
+          radial-gradient(circle at calc(100% - 10px) calc(100% - 10px), var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
+          var(--noise),
+          linear-gradient(160deg, #322419 0%, var(--leather) 55%, #241a12 100%);
+        border: 2px solid var(--brass-lo);
+        border-radius: 6px;
+        box-shadow:
+          inset 0 0 0 1px rgba(232, 193, 90, 0.55),
+          inset 0 0 24px rgba(0, 0, 0, 0.55),
+          0 10px 30px rgba(0, 0, 0, 0.6);
+      }
+      /* 황동 버튼: 금속 세로 그라디언트, hover 광택, active 눌림 */
+      .sp-btn {
+        border: 1px solid var(--brass-lo);
+        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 45%, var(--brass-lo) 100%);
+        color: var(--ink);
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: 1rem;
+        padding: 8px 14px;
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
+        text-shadow: 0 1px 0 rgba(232, 193, 90, 0.5);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 4px rgba(0, 0, 0, 0.5);
+      }
+      .sp-btn:hover:not(:disabled) { filter: brightness(1.12); }
+      .sp-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4); }
+      .sp-btn:disabled { opacity: 0.35; cursor: default; }
+
       /* 대화창은 DOM 오버레이 — 한글 입력과 스트리밍 표시에 유리하다. */
       #dialogue {
         position: absolute;
         left: 16px;
         right: 16px;
         bottom: 16px;
-        background: rgba(26, 23, 18, 0.94);
-        border: 2px solid var(--brass);
-        border-radius: 4px;
         padding: 14px 18px;
         display: none;
       }
       #dialogue.visible { display: block; }
-      #dialogue-speaker { color: var(--brass); font-weight: 700; margin-bottom: 6px; }
+      /* 화자명 — 황동 명판. 음각 느낌의 그림자를 넣는다. */
+      #dialogue-speaker {
+        display: inline-block;
+        font-family: var(--font-head);
+        font-weight: 600;
+        color: var(--ink);
+        background: linear-gradient(180deg, var(--brass-hi), var(--brass) 60%, var(--brass-lo));
+        border: 1px solid var(--brass-lo);
+        border-radius: 3px;
+        padding: 2px 12px;
+        margin-bottom: 8px;
+        letter-spacing: 0.08em;
+        text-shadow: 0 1px 0 rgba(232, 193, 90, 0.5);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+      }
       #dialogue-text { line-height: 1.6; min-height: 3em; white-space: pre-wrap; }
       #dialogue-hint { opacity: 0.5; font-size: 0.8rem; margin-top: 8px; }
       #dialogue-input { display: none; margin-top: 10px; gap: 8px; }
       #dialogue-input.visible { display: flex; }
       #dialogue-input input {
         flex: 1;
-        background: #0f0d0a;
-        border: 1px solid var(--brass);
+        background: rgba(15, 13, 10, 0.9);
+        border: 1px solid var(--brass-lo);
         color: var(--paper);
         padding: 8px 10px;
         border-radius: 3px;
-        font-family: inherit;
+        font-family: var(--font-body);
         font-size: 1rem;
       }
-      #dialogue-input input:disabled { opacity: 0.4; }
-      #dialogue-input button {
-        border: 0;
-        font-weight: 700;
-        padding: 8px 14px;
-        border-radius: 3px;
-        cursor: pointer;
-        font-family: inherit;
-        white-space: nowrap;
+      #dialogue-input input:focus {
+        outline: none;
+        border-color: var(--brass);
+        box-shadow: 0 0 6px rgba(201, 162, 39, 0.35);
       }
-      #dialogue-input button:disabled { opacity: 0.35; cursor: default; }
-      #dialogue-send { background: #4a7a6b; color: var(--paper); }
-      /* 코드 오답은 소문이 새어 경계를 올린다 — 색으로 무게를 준다. */
-      #dialogue-code { background: var(--brass); color: var(--ink); }
+      #dialogue-input input:disabled { opacity: 0.4; }
+      /* 자유 대화는 청동(녹청), 코드 전달은 황동 — 오답의 무게가 색으로 갈린다. */
+      #dialogue-send {
+        background: linear-gradient(180deg, #7fae9c 0%, var(--patina) 45%, #3f5f55 100%);
+        border-color: #3f5f55;
+        color: var(--ink);
+      }
       header {
         padding: 12px;
         font-family: var(--font-head);
@@ -118,9 +163,6 @@
       }
       #minigame.visible { display: flex; }
       #minigame-card {
-        border: 2px solid var(--brass);
-        background: rgba(26, 23, 18, 0.97);
-        border-radius: 4px;
         padding: 22px 28px;
         min-width: 400px;
         max-width: 90%;
@@ -207,9 +249,6 @@
       }
       #result.visible { display: flex; }
       #result-card {
-        border: 2px solid var(--brass);
-        background: rgba(26, 23, 18, 0.96);
-        border-radius: 4px;
         padding: 28px 36px;
         text-align: center;
         min-width: 340px;
@@ -220,19 +259,7 @@
       #result-code { margin-top: 12px; font-size: 1.1rem; }
       #result-code b { color: var(--brass); }
       #result-stats { margin-top: 12px; opacity: 0.6; font-size: 0.85rem; }
-      #result-restart {
-        margin-top: 22px;
-        border: 0;
-        background: var(--brass);
-        color: var(--ink);
-        font-family: inherit;
-        font-weight: 700;
-        font-size: 1rem;
-        padding: 10px 26px;
-        border-radius: 3px;
-        cursor: pointer;
-      }
-      #result-restart:disabled { opacity: 0.35; cursor: default; }
+      #result-restart { margin-top: 22px; }
       #result-wait { margin-top: 14px; opacity: 0.55; font-size: 0.85rem; min-height: 1.2em; }
     </style>
   </head>
@@ -240,18 +267,18 @@
     <header>코드네임: 태엽새</header>
     <div id="game-root">
       <div id="game-canvas"></div>
-      <div id="dialogue">
+      <div id="dialogue" class="sp-panel">
         <div id="dialogue-speaker"></div>
         <div id="dialogue-text"></div>
         <div id="dialogue-input">
           <input id="dialogue-field" type="text" placeholder="말을 건넨다..." autocomplete="off" />
-          <button id="dialogue-send">대화</button>
-          <button id="dialogue-code">접선 코드 전달</button>
+          <button id="dialogue-send" class="sp-btn">대화</button>
+          <button id="dialogue-code" class="sp-btn">접선 코드 전달</button>
         </div>
         <div id="dialogue-hint">[Enter] 대화 · [Esc] 닫기</div>
       </div>
       <div id="minigame">
-        <div id="minigame-card">
+        <div id="minigame-card" class="sp-panel">
           <div id="minigame-title"></div>
           <div id="minigame-subtitle"></div>
           <div id="minigame-timer"><div id="minigame-timer-fill"></div></div>
@@ -261,12 +288,12 @@
         </div>
       </div>
       <div id="result">
-        <div id="result-card">
+        <div id="result-card" class="sp-panel">
           <div id="result-title"></div>
           <div id="result-line"></div>
           <div id="result-code"></div>
           <div id="result-stats"></div>
-          <button id="result-restart">다시 잠입한다</button>
+          <button id="result-restart" class="sp-btn">다시 잠입한다</button>
           <div id="result-wait"></div>
         </div>
       </div>
