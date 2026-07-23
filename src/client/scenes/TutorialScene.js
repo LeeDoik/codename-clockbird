@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { buildTilemap, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
 import { readSSE } from '../net.js';
+import { CSS, FONTS } from '../ui/theme.js';
 import hqData from '../assets/hq.json';
 
 /**
@@ -18,9 +19,9 @@ const OFFICER_FRAME = 6;
 const TUTOR_FRAME = { t1: 2, t2: 5, t3: 3 };
 
 const LABEL_STYLE = {
-  fontFamily: 'Malgun Gothic, sans-serif',
+  fontFamily: FONTS.body,
   fontSize: '11px',
-  color: '#8a7f6a',
+  color: CSS.paperDim,
 };
 
 export class TutorialScene extends Phaser.Scene {
@@ -59,14 +60,14 @@ export class TutorialScene extends Phaser.Scene {
 
     this.asUi(
       this.add.text(20, 16, '레지스탕스 본부 — 훈련', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '22px',
-        color: '#8a7f6a',
+        color: CSS.paperDim,
       }),
       this.add.text(20, this.scale.height - 40, '[E] 대화    [F] 접선 코드', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '20px',
-        color: '#6b6152',
+        color: CSS.faint,
       }),
     );
 
@@ -117,7 +118,7 @@ export class TutorialScene extends Phaser.Scene {
       const label = this.add.text(x, y - 24, ally.name, LABEL_STYLE).setOrigin(0.5);
       // 신뢰도는 튜토리얼에만 있는 규칙이라 여기서만 화면에 세운다.
       const trust = this.add
-        .text(x, y - 38, '', { ...LABEL_STYLE, fontSize: '12px', color: '#c9a227' })
+        .text(x, y - 38, '', { ...LABEL_STYLE, fontSize: '12px', color: CSS.brass })
         .setOrigin(0.5);
       this.asWorld(node, label, trust);
 
@@ -385,9 +386,9 @@ export class TutorialScene extends Phaser.Scene {
   #goStage() {
     const waiting = this.add
       .text(this.scale.width / 2, this.scale.height / 2, '거리로 나가는 중…', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '28px',
-        color: '#8a7f6a',
+        color: CSS.paperDim,
       })
       .setOrigin(0.5)
       .setDepth(51);

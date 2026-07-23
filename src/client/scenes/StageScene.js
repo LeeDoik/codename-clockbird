@@ -8,6 +8,7 @@ import { runInterrogation } from '../minigames/interrogation.js';
 import { Patrol, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
 import { buildTilemap, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
 import { readSSE } from '../net.js';
+import { CSS, FONTS, drawOrnateFrame } from '../ui/theme.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
 
@@ -91,9 +92,9 @@ export class StageScene extends Phaser.Scene {
 
       const label = this.add
         .text(pos.x, pos.y - 24, ally.arrested ? `${ally.name} (체포)` : ally.name, {
-          fontFamily: 'Malgun Gothic, sans-serif',
+          fontFamily: FONTS.body,
           fontSize: '11px',
-          color: '#8a7f6a',
+          color: CSS.paperDim,
         })
         .setOrigin(0.5);
 
@@ -108,9 +109,9 @@ export class StageScene extends Phaser.Scene {
     this.brokerNode = this.add.sprite(bpos.x, bpos.y, 'chars', BROKER_FRAME);
     this.add
       .text(bpos.x, bpos.y - 24, this.state.broker.name, {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '11px',
-        color: '#8a7f6a',
+        color: CSS.paperDim,
       })
       .setOrigin(0.5);
 
@@ -130,9 +131,9 @@ export class StageScene extends Phaser.Scene {
     this.keyClues = this.input.keyboard.addKey('C');
 
     this.hud = this.add.text(20, 16, '', {
-      fontFamily: 'Malgun Gothic, sans-serif',
+      fontFamily: FONTS.body,
       fontSize: '22px',
-      color: '#8a7f6a',
+      color: CSS.paperDim,
       // 디버그(백틱) 표시의 이유 문장이 캔버스 밖으로 흘러넘치지 않게 감싼다.
       wordWrap: { width: 1880 },
     });
@@ -141,9 +142,9 @@ export class StageScene extends Phaser.Scene {
     this.asUi(
       this.hud,
       this.add.text(20, this.scale.height - 40, '[E] 대화    [F] 접선    [R] 구출    [C] 단서 수첩', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '20px',
-        color: '#6b6152',
+        color: CSS.faint,
       }),
     );
 
@@ -220,20 +221,20 @@ export class StageScene extends Phaser.Scene {
   #buildCluePanel() {
     const w = 760, h = 560;
     const cx = this.scale.width / 2, cy = this.scale.height / 2;
-    const bg = this.add.rectangle(cx, cy, w, h, 0x17130e, 0.97).setStrokeStyle(3, 0xc9a227);
+    const bg = drawOrnateFrame(this, cx, cy, w, h);
     const title = this.add
       .text(cx, cy - h / 2 + 40, '단서 수첩', {
-        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '30px', color: '#c9a227', fontStyle: 'bold',
+        fontFamily: FONTS.head, fontSize: '30px', color: CSS.brass, fontStyle: 'bold',
       })
       .setOrigin(0.5);
     const rule = this.add.rectangle(cx, cy - h / 2 + 76, w - 72, 2, 0x3a3120);
     this.clueText = this.add.text(cx - w / 2 + 44, cy - h / 2 + 108, '', {
-      fontFamily: 'Malgun Gothic, sans-serif', fontSize: '24px', color: '#e8dcc0',
+      fontFamily: FONTS.body, fontSize: '24px', color: CSS.paper,
       lineSpacing: 14, wordWrap: { width: w - 88 },
     });
     const hint = this.add
       .text(cx, cy + h / 2 - 32, '[C] 닫기', {
-        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '20px', color: '#8a7f6a',
+        fontFamily: FONTS.body, fontSize: '20px', color: CSS.paperDim,
       })
       .setOrigin(0.5);
     this.cluePanel = this.add.container(0, 0, [bg, title, rule, this.clueText, hint]).setDepth(1000).setVisible(false);
@@ -278,9 +279,9 @@ export class StageScene extends Phaser.Scene {
       this.add.sprite(x, y, 'chars', CITIZEN_FRAME);
       this.add
         .text(x, y - 24, '시민', {
-          fontFamily: 'Malgun Gothic, sans-serif',
+          fontFamily: FONTS.body,
           fontSize: '11px',
-          color: '#8a7f6a',
+          color: CSS.paperDim,
         })
         .setOrigin(0.5);
     }
@@ -289,7 +290,7 @@ export class StageScene extends Phaser.Scene {
     this.add.rectangle(160, 60, 300, 70).setStrokeStyle(1, 0x6b4a4a);
     this.add
       .text(160, 20, '감옥', {
-        fontFamily: 'Malgun Gothic, sans-serif',
+        fontFamily: FONTS.body,
         fontSize: '11px',
         color: '#6b4a4a',
       })
@@ -871,7 +872,7 @@ export class StageScene extends Phaser.Scene {
         const x = 80 + this.jailCount++ * 44;
         const y = 60;
         entry.node.setTint(0x9a9088); // 붙잡혀 색이 죽는다
-        entry.label.setText(`${updated.name} (체포)`).setColor('#8a7f6a');
+        entry.label.setText(`${updated.name} (체포)`).setColor(CSS.paperDim);
         // 감옥으로 끌려가는 연출
         this.tweens.add({ targets: entry.node, x, y, duration: 350, ease: 'Cubic.easeIn' });
         this.tweens.add({ targets: entry.label, x, y: y - 24, duration: 350, ease: 'Cubic.easeIn' });

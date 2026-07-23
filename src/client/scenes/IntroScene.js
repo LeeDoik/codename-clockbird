@@ -370,7 +370,7 @@ export class IntroScene extends Phaser.Scene {
         {
           fontFamily: FONTS.body,
           fontSize: '26px',
-          color: '#c25b4a',
+          color: CSS.wax,
           align: 'center',
           lineSpacing: 12,
         },
