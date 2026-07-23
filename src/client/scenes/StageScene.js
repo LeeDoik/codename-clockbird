@@ -6,7 +6,7 @@ import { runLockPuzzle } from '../minigames/lockPuzzle.js';
 import { runTimingLock } from '../minigames/timingLock.js';
 import { runInterrogation } from '../minigames/interrogation.js';
 import { Patrol, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
-import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/worldParts.js';
+import { buildTilemap, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
 import { readSSE } from '../net.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
@@ -114,6 +114,11 @@ export class StageScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    this.#spawnPatrols();
+    // 여기까지가 월드 — 이후의 HUD·수첩·도움말은 UI 카메라 소속이다.
+    // (경계 상승으로 나중에 붙는 증원 순찰은 #maybeReinforce 가 asWorld 로 등록한다.)
+    setupCameras(this, mapData, this.player);
+
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
     this.keyE = this.input.keyboard.addKey('E');
@@ -124,22 +129,23 @@ export class StageScene extends Phaser.Scene {
     this.keyReveal = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKTICK);
     this.keyClues = this.input.keyboard.addKey('C');
 
-    this.hud = this.add.text(12, 10, '', {
+    this.hud = this.add.text(20, 16, '', {
       fontFamily: 'Malgun Gothic, sans-serif',
-      fontSize: '12px',
+      fontSize: '22px',
       color: '#8a7f6a',
       // 디버그(백틱) 표시의 이유 문장이 캔버스 밖으로 흘러넘치지 않게 감싼다.
-      wordWrap: { width: 872 },
+      wordWrap: { width: 1880 },
     });
 
     this.#buildCluePanel();
-    this.add.text(12, this.scale.height - 22, '[E] 대화    [F] 접선    [R] 구출    [C] 단서 수첩', {
-      fontFamily: 'Malgun Gothic, sans-serif',
-      fontSize: '11px',
-      color: '#6b6152',
-    });
-
-    this.#spawnPatrols();
+    this.asUi(
+      this.hud,
+      this.add.text(20, this.scale.height - 40, '[E] 대화    [F] 접선    [R] 구출    [C] 단서 수첩', {
+        fontFamily: 'Malgun Gothic, sans-serif',
+        fontSize: '20px',
+        color: '#6b6152',
+      }),
+    );
 
     this.#updateHud();
     this.#showBriefing();
@@ -170,6 +176,8 @@ export class StageScene extends Phaser.Scene {
     if (this.state.alertLevel < REINFORCE_AT) return;
     this.reinforced = true;
     const p = new Patrol(this, PATROL_ROUTES.lowerHall);
+    // 카메라 분리(setupCameras) 이후에 태어나는 월드 오브젝트라 소속을 직접 밝힌다.
+    this.asWorld(p.sprite, p.cone);
     p.resume({ graceMs: 2000 });
     this.patrols.push(p);
   }
@@ -208,27 +216,28 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.setHint('[Space] / [Esc] 로 쪽지를 접는다');
   }
 
-  /** 단서 수첩 패널 (숨김 상태로 생성). */
+  /** 단서 수첩 패널 (숨김 상태로 생성). UI 카메라 소속 — 1080p 원본 크기로 그린다. */
   #buildCluePanel() {
-    const w = 380, h = 280;
+    const w = 760, h = 560;
     const cx = this.scale.width / 2, cy = this.scale.height / 2;
-    const bg = this.add.rectangle(cx, cy, w, h, 0x17130e, 0.97).setStrokeStyle(2, 0xc9a227);
+    const bg = this.add.rectangle(cx, cy, w, h, 0x17130e, 0.97).setStrokeStyle(3, 0xc9a227);
     const title = this.add
-      .text(cx, cy - h / 2 + 20, '단서 수첩', {
-        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '16px', color: '#c9a227', fontStyle: 'bold',
+      .text(cx, cy - h / 2 + 40, '단서 수첩', {
+        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '30px', color: '#c9a227', fontStyle: 'bold',
       })
       .setOrigin(0.5);
-    const rule = this.add.rectangle(cx, cy - h / 2 + 38, w - 36, 1, 0x3a3120);
-    this.clueText = this.add.text(cx - w / 2 + 22, cy - h / 2 + 54, '', {
-      fontFamily: 'Malgun Gothic, sans-serif', fontSize: '13px', color: '#e8dcc0',
-      lineSpacing: 8, wordWrap: { width: w - 44 },
+    const rule = this.add.rectangle(cx, cy - h / 2 + 76, w - 72, 2, 0x3a3120);
+    this.clueText = this.add.text(cx - w / 2 + 44, cy - h / 2 + 108, '', {
+      fontFamily: 'Malgun Gothic, sans-serif', fontSize: '24px', color: '#e8dcc0',
+      lineSpacing: 14, wordWrap: { width: w - 88 },
     });
     const hint = this.add
-      .text(cx, cy + h / 2 - 16, '[C] 닫기', {
-        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '11px', color: '#8a7f6a',
+      .text(cx, cy + h / 2 - 32, '[C] 닫기', {
+        fontFamily: 'Malgun Gothic, sans-serif', fontSize: '20px', color: '#8a7f6a',
       })
       .setOrigin(0.5);
     this.cluePanel = this.add.container(0, 0, [bg, title, rule, this.clueText, hint]).setDepth(1000).setVisible(false);
+    this.asUi(this.cluePanel);
   }
 
   #toggleClues() {

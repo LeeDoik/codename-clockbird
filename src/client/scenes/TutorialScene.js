@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
-import { buildTilemap, createPlayer, applyMovement, nearestOf } from '../world/worldParts.js';
+import { buildTilemap, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
 import { readSSE } from '../net.js';
 import hqData from '../assets/hq.json';
 
@@ -47,6 +47,8 @@ export class TutorialScene extends Phaser.Scene {
 
     this.walls = buildTilemap(this, hqData);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
+    // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
+    setupCameras(this, hqData, this.player);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -55,16 +57,18 @@ export class TutorialScene extends Phaser.Scene {
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
 
-    this.add.text(12, 10, '레지스탕스 본부 — 훈련', {
-      fontFamily: 'Malgun Gothic, sans-serif',
-      fontSize: '12px',
-      color: '#8a7f6a',
-    });
-    this.add.text(12, this.scale.height - 22, '[E] 대화    [F] 접선 코드', {
-      fontFamily: 'Malgun Gothic, sans-serif',
-      fontSize: '11px',
-      color: '#6b6152',
-    });
+    this.asUi(
+      this.add.text(20, 16, '레지스탕스 본부 — 훈련', {
+        fontFamily: 'Malgun Gothic, sans-serif',
+        fontSize: '22px',
+        color: '#8a7f6a',
+      }),
+      this.add.text(20, this.scale.height - 40, '[E] 대화    [F] 접선 코드', {
+        fontFamily: 'Malgun Gothic, sans-serif',
+        fontSize: '20px',
+        color: '#6b6152',
+      }),
+    );
 
     this.#start();
   }
@@ -99,9 +103,10 @@ export class TutorialScene extends Phaser.Scene {
     const ox = os.col * TILE + TILE / 2;
     const oy = os.row * TILE + TILE / 2;
     this.officerNode = this.add.sprite(ox, oy, 'chars', OFFICER_FRAME);
-    this.add
+    const officerLabel = this.add
       .text(ox, oy - 24, `${this.state.officer.name} (${this.state.officer.role})`, LABEL_STYLE)
       .setOrigin(0.5);
+    this.asWorld(this.officerNode, officerLabel);
 
     this.state.allies.forEach((ally, i) => {
       const sp = hqData.spawns.allies[i];
@@ -114,6 +119,7 @@ export class TutorialScene extends Phaser.Scene {
       const trust = this.add
         .text(x, y - 38, '', { ...LABEL_STYLE, fontSize: '12px', color: '#c9a227' })
         .setOrigin(0.5);
+      this.asWorld(node, label, trust);
 
       this.allyNodes.push({ ally, node, label, trust });
     });
@@ -380,11 +386,12 @@ export class TutorialScene extends Phaser.Scene {
     const waiting = this.add
       .text(this.scale.width / 2, this.scale.height / 2, '거리로 나가는 중…', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '15px',
+        fontSize: '28px',
         color: '#8a7f6a',
       })
       .setOrigin(0.5)
       .setDepth(51);
+    this.asUi(waiting);
 
     // Boot 가 얹어둔 프로미스는 {state} 또는 {error} 로만 resolve 한다 (절대 reject 안 함).
     Promise.resolve(this.registry.get('startPromise')).then((res) => {

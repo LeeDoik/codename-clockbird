@@ -16,8 +16,8 @@ import Phaser from 'phaser';
  * 나중에 public/intro/ 에 그림만 떨구면 코드 수정 없이 붙는다.
  */
 
-const W = 896;
-const H = 576;
+const W = 1920;
+const H = 1080;
 const BRASS = '#c9a227';
 const PAPER = '#e8dcc0';
 const FAINT = '#8a7f6a';
@@ -75,23 +75,23 @@ export class IntroScene extends Phaser.Scene {
     this.cameras.main.fadeIn(600, 0, 0, 0);
 
     // 하단 자막 스크림 — 어떤 그림 위에서도 글자가 읽히도록 항상 깔아둔다.
-    this.add.rectangle(W / 2, H - 56, W, 128, 0x000000, 0.55).setDepth(10);
+    this.add.rectangle(W / 2, H - 108, W, 248, 0x000000, 0.55).setDepth(10);
     this.narration = this.add
-      .text(W / 2, H - 56, '', {
+      .text(W / 2, H - 108, '', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '18px',
+        fontSize: '34px',
         color: PAPER,
         align: 'center',
-        wordWrap: { width: 820 },
-        lineSpacing: 6,
+        wordWrap: { width: 1680 },
+        lineSpacing: 12,
       })
       .setOrigin(0.5)
       .setDepth(11);
 
     this.add
-      .text(W - 14, 12, '[Space/Esc/클릭] 건너뛰기', {
+      .text(W - 28, 24, '[Space/Esc/클릭] 건너뛰기', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '12px',
+        fontSize: '22px',
         color: FAINT,
       })
       .setOrigin(1, 0)
@@ -176,9 +176,9 @@ export class IntroScene extends Phaser.Scene {
     this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
 
     const title = this.add
-      .text(W / 2, H / 2 - 26, 'HEART OF STEEL', {
+      .text(W / 2, H / 2 - 50, 'HEART OF STEEL', {
         fontFamily: 'Georgia, "Malgun Gothic", serif',
-        fontSize: '52px',
+        fontSize: '100px',
         color: BRASS,
         fontStyle: 'bold',
       })
@@ -186,9 +186,9 @@ export class IntroScene extends Phaser.Scene {
       .setDepth(12)
       .setAlpha(0);
     const ko = this.add
-      .text(W / 2, H / 2 + 22, '철혈(鐵血)', {
+      .text(W / 2, H / 2 + 42, '철혈(鐵血)', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '18px',
+        fontSize: '34px',
         color: FAINT,
       })
       .setOrigin(0.5)
@@ -203,13 +203,13 @@ export class IntroScene extends Phaser.Scene {
   /** 10컷 — 타이틀 아래 문구. */
   #renderSubtitle(text) {
     const sub = this.add
-      .text(W / 2, H / 2 + 74, text, {
+      .text(W / 2, H / 2 + 144, text, {
         fontFamily: 'Georgia, "Malgun Gothic", serif',
-        fontSize: '17px',
+        fontSize: '32px',
         color: BRASS,
         align: 'center',
-        wordWrap: { width: 760 },
-        lineSpacing: 6,
+        wordWrap: { width: 1520 },
+        lineSpacing: 12,
       })
       .setOrigin(0.5)
       .setDepth(12)
@@ -225,21 +225,21 @@ export class IntroScene extends Phaser.Scene {
 
     let hasPortrait = false;
     if (this.textures.exists('intro_handler')) {
-      const p = this.add.image(178, H / 2, 'intro_handler').setDepth(12).setAlpha(0);
-      const cover = Math.min(280 / p.width, 360 / p.height);
+      const p = this.add.image(380, H / 2, 'intro_handler').setDepth(12).setAlpha(0);
+      const cover = Math.min(560 / p.width, 720 / p.height);
       p.setScale(cover);
       this.tweens.add({ targets: p, alpha: 1, duration: 600 });
       hasPortrait = true;
     }
 
     const line = this.add
-      .text(hasPortrait ? 360 : W / 2, H / 2 - 10, text, {
+      .text(hasPortrait ? 770 : W / 2, H / 2 - 20, text, {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '19px',
+        fontSize: '38px',
         color: PAPER,
         align: hasPortrait ? 'left' : 'center',
-        wordWrap: { width: hasPortrait ? 460 : 640 },
-        lineSpacing: 10,
+        wordWrap: { width: hasPortrait ? 920 : 1280 },
+        lineSpacing: 20,
       })
       .setOrigin(hasPortrait ? 0 : 0.5, 0.5)
       .setDepth(12)
@@ -247,9 +247,9 @@ export class IntroScene extends Phaser.Scene {
     this.tweens.add({ targets: line, alpha: 1, duration: 700 });
 
     this.add
-      .text(W / 2, H - 40, '— 접선책', {
+      .text(W / 2, H - 76, '— 접선책', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '13px',
+        fontSize: '24px',
         color: FAINT,
       })
       .setOrigin(0.5)
@@ -335,7 +335,7 @@ export class IntroScene extends Phaser.Scene {
     const waiting = this.add
       .text(W / 2, H / 2, '동료들의 암호를 수신하는 중…', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '15px',
+        fontSize: '28px',
         color: FAINT,
       })
       .setOrigin(0.5)
@@ -368,10 +368,10 @@ export class IntroScene extends Phaser.Scene {
         `스테이지 시작 실패\n${message}\n\n.env 에 ANTHROPIC_API_KEY 를 넣었는지 확인하세요.`,
         {
           fontFamily: 'Malgun Gothic, sans-serif',
-          fontSize: '14px',
+          fontSize: '26px',
           color: '#c25b4a',
           align: 'center',
-          lineSpacing: 6,
+          lineSpacing: 12,
         },
       )
       .setOrigin(0.5)

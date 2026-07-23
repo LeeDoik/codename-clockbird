@@ -35,6 +35,46 @@ export function buildTilemap(scene, mapData) {
   return walls;
 }
 
+/** 메인 카메라의 월드 확대 배율. 픽셀 아트가 뭉개지지 않게 반드시 정수를 쓴다. */
+export const WORLD_ZOOM = 2;
+
+/**
+ * 카메라 구성 — 내부 해상도(1920×1080)와 월드(32px 타일)를 분리한다.
+ *
+ * 메인 카메라는 월드를 WORLD_ZOOM 배로 그리고, 맵이 화면(월드 기준 960×540)보다
+ * 크면 플레이어를 따라 스크롤한다 — 맵 크기가 캔버스 크기에 묶여 있던 결합이
+ * 여기서 풀린다 (스토리보드의 9섹터 스테이지 대비). 맵은 최소 30×17 칸이어야
+ * 화면에 빈 띠가 생기지 않는다.
+ *
+ * UI 카메라는 줌·스크롤 없이 화면에 고정된 것(HUD·수첩)을 1080p 원본으로 그린다.
+ *
+ * 호출 시점이 규약이다: 월드(타일·플레이어·NPC·순찰)를 전부 깐 직후, UI 를 만들기
+ * 전에 부른다 — 그 시점까지의 자식은 전부 월드로 분류된다. 이후에 만드는 오브젝트는
+ * scene.asWorld(...) / scene.asUi(...) 로 소속을 밝혀야 한다. 밝히지 않으면 양쪽
+ * 카메라에 이중으로 그려진다 (UI 카메라 쪽에는 줌 없이 좌상단에 작게 나타난다).
+ */
+export function setupCameras(scene, mapData, player) {
+  const TILE = mapData.tileSize;
+  const w = mapData.cols * TILE;
+  const h = mapData.rows * TILE;
+
+  // 물리 경계도 맵 크기로 좁힌다 — 기본값(캔버스 크기)을 그대로 두면
+  // setCollideWorldBounds 가 맵 밖 1920×1080 을 세상 끝으로 안다.
+  scene.physics.world.setBounds(0, 0, w, h);
+
+  const main = scene.cameras.main;
+  main.setZoom(WORLD_ZOOM);
+  main.setBounds(0, 0, w, h);
+  main.startFollow(player, true, 0.15, 0.15);
+
+  const ui = scene.cameras.add(0, 0, scene.scale.width, scene.scale.height);
+  ui.ignore(scene.children.list);
+
+  scene.uiCam = ui;
+  scene.asWorld = (...objs) => ui.ignore(objs);
+  scene.asUi = (...objs) => main.ignore(objs);
+}
+
 /** 플레이어 — 맵이 지정한 스폰 칸 중앙에 두고 벽과 충돌시킨다. */
 export function createPlayer(scene, mapData, walls, frame = 0) {
   const TILE = mapData.tileSize;

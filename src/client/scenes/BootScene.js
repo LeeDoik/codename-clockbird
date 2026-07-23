@@ -47,17 +47,17 @@ export class BootScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     this.add
-      .text(width / 2, height / 2 - 20, '저택에 잠입하는 중...', {
+      .text(width / 2, height / 2 - 36, '저택에 잠입하는 중...', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '20px',
+        fontSize: '38px',
         color: '#c9a227',
       })
       .setOrigin(0.5);
 
     const sub = this.add
-      .text(width / 2, height / 2 + 14, '동료들의 암호를 수신하고 있습니다', {
+      .text(width / 2, height / 2 + 26, '동료들의 암호를 수신하고 있습니다', {
         fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '13px',
+        fontSize: '24px',
         color: '#8a7f6a',
       })
       .setOrigin(0.5);
@@ -75,11 +75,11 @@ export class BootScene extends Phaser.Scene {
     this.add
       .text(
         width / 2,
-        height / 2 + 60,
+        height / 2 + 110,
         `스테이지 시작 실패\n${message}\n\n.env 에 ANTHROPIC_API_KEY 를 넣었는지 확인하세요.`,
         {
           fontFamily: 'Malgun Gothic, sans-serif',
-          fontSize: '13px',
+          fontSize: '24px',
           color: '#c25b4a',
           align: 'center',
         },
