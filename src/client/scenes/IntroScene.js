@@ -316,51 +316,13 @@ export class IntroScene extends Phaser.Scene {
     });
   }
 
-  /** 오프닝이 끝났다 — 스테이지 상태가 준비됐으면 넘어가고, 아직이면 잠깐 대기한다. */
+  /**
+   * 오프닝이 끝났다 — 곧장 튜토리얼(본부)로 넘어간다.
+   * 스테이지1 fetch(11~20초)는 여기서 기다리지 않는다 — Boot 가 얹어둔 startPromise 는
+   * registry 에 그대로 남아있고, 실제 소비는 TutorialScene 이 접선 코드를 통과하는
+   * 시점에 한다. 플레이어가 튜토리얼을 플레이하는 동안 그 대기가 자연스럽게 흡수된다.
+   */
   #goStage() {
-    const waiting = this.add
-      .text(W / 2, H / 2, '동료들의 암호를 수신하는 중…', {
-        fontFamily: 'Malgun Gothic, sans-serif',
-        fontSize: '15px',
-        color: FAINT,
-      })
-      .setOrigin(0.5)
-      .setDepth(51)
-      .setAlpha(0);
-
-    // Boot 가 얹어둔 프로미스는 {state} 또는 {error} 로만 resolve 한다 (절대 reject 안 함).
-    Promise.resolve(this.registry.get('startPromise')).then((res) => {
-      if (!res || res.error) {
-        waiting.destroy();
-        this.#showError(res?.error ?? '스테이지 시작에 실패했습니다.');
-        return;
-      }
-      this.scene.start('Stage', { state: res.state });
-    });
-
-    // 스테이지가 이미 준비돼 있으면 위 then 이 즉시 씬을 바꾼다. 아직이라 남아 있을 때만 문구를 띄운다.
-    this.time.delayedCall(150, () => {
-      if (waiting.active) {
-        this.tweens.add({ targets: waiting, alpha: 1, duration: 300, yoyo: true, repeat: -1 });
-      }
-    });
-  }
-
-  #showError(message) {
-    this.add
-      .text(
-        W / 2,
-        H / 2,
-        `스테이지 시작 실패\n${message}\n\n.env 에 ANTHROPIC_API_KEY 를 넣었는지 확인하세요.`,
-        {
-          fontFamily: 'Malgun Gothic, sans-serif',
-          fontSize: '14px',
-          color: '#c25b4a',
-          align: 'center',
-          lineSpacing: 6,
-        },
-      )
-      .setOrigin(0.5)
-      .setDepth(60);
+    this.scene.start('Tutorial');
   }
 }

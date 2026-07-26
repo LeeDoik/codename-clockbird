@@ -61,7 +61,15 @@ export async function streamAllyReply({
 }) {
   const system = await renderPrompt(
     'dialogue-system',
-    { name: ally.name, role: ally.role, persona: ally.persona, word, alertLevel, arrestedCount },
+    {
+      name: ally.name,
+      role: ally.role,
+      backstory: ally.backstory,
+      personality: ally.personality,
+      word,
+      alertLevel,
+      arrestedCount,
+    },
     promptOverride,
   );
 

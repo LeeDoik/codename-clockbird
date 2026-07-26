@@ -2,6 +2,11 @@ import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
+import watchmakerPortraitUrl from '../assets/portraits/watchmaker.png';
+import waitressPortraitUrl from '../assets/portraits/waitress.png';
+import engineerPortraitUrl from '../assets/portraits/engineer.png';
+import smugglerPortraitUrl from '../assets/portraits/smuggler.png';
+import doctorPortraitUrl from '../assets/portraits/doctor.png';
 
 /**
  * Stage 1.
@@ -15,10 +20,25 @@ const TALK_RANGE = 48;
 const TILE = mapData.tileSize; // 32
 
 // chars.png 스프라이트시트 프레임 — 동료 id → 프레임 (personas.json 순서)
-const ALLY_FRAME = { watchmaker: 1, maid: 2, engineer: 3, smuggler: 4, musician: 5 };
+const ALLY_FRAME = { watchmaker: 1, waitress: 2, engineer: 3, smuggler: 4, doctor: 5 };
 const PLAYER_FRAME = 0;
-const CITIZEN_FRAME = 6;
-
+// 대화창에 띄울 동료 초상화 — id → 실제 아트로 교체됨 (예전엔 간부만 있었다).
+const ALLY_PORTRAIT = {
+  watchmaker: watchmakerPortraitUrl,
+  waitress: waitressPortraitUrl,
+  engineer: engineerPortraitUrl,
+  smuggler: smugglerPortraitUrl,
+  doctor: doctorPortraitUrl,
+};
+// 말을 걸었을 때(선택지와 함께) 뜨는 기본 대사 — 캐릭터성을 살짝 담은 placeholder.
+// 실제 대사는 추후 팀에서 다듬는다.
+const ALLY_GREETING = {
+  watchmaker: '"...시간이 없다. 용건만 짧게 말해라."',
+  waitress: '"누가 들을지 몰라요... 조용히 말씀하세요."',
+  engineer: '"어이, 뭔 일이야? 빨리 말해봐."',
+  smuggler: '"오호, 뭘 원하는지부터 말해보시지."',
+  doctor: '"...무슨 일이십니까. 편히 말씀하세요."',
+};
 export class StageScene extends Phaser.Scene {
   constructor() {
     super('Stage');
@@ -29,8 +49,9 @@ export class StageScene extends Phaser.Scene {
     this.nearbyAlly = null;
     // 감옥 안에서 손이 닿는 동료 — 접선(E/F) 대신 구출(R) 대상이다.
     this.nearbyJailed = null;
-    // 지금 떠 있는 대화창이 "지나가며 뜬 안내"인가 — 이것만 사거리를 벗어날 때 자동으로 접는다.
-    this.proximityHint = false;
+    // 선택지가 떠 있는 동안만 유효한 동료 — E 는 [자유 대화], F 는 [접선 코드 전달] 을 고른다.
+    // 선택지가 뜨기 전(= null)에는 F 를 눌러도 아무 일도 일어나지 않는다.
+    this.pendingAllyChoice = null;
     // 개발용 정답 보기 (백틱 ` 키로 토글, REVEAL_ANSWER=1 일 때만 서버가 응답)
     this.debugAnswer = null;
     this.answerShown = false;
@@ -98,8 +119,21 @@ export class StageScene extends Phaser.Scene {
       wordWrap: { width: 872 },
     });
 
+    // 근처 상호작용 대상 머리 위에 뜨는 "[E]"/"[R]" 아이콘 — 대사는 이 키를 눌러야 나온다.
+    this.promptIcon = this.add
+      .text(0, 0, '[E]', {
+        fontFamily: 'Malgun Gothic, sans-serif',
+        fontSize: '11px',
+        color: '#1a1712',
+        backgroundColor: '#c9a227',
+        padding: { x: 5, y: 2 },
+      })
+      .setOrigin(0.5)
+      .setDepth(900)
+      .setVisible(false);
+
     this.#buildCluePanel();
-    this.add.text(12, this.scale.height - 22, '[E] 대화    [F] 접선 코드    [R] 구출    [C] 단서 수첩', {
+    this.add.text(12, this.scale.height - 22, '[E] 상호작용    [R] 구출    [C] 단서 수첩', {
       fontFamily: 'Malgun Gothic, sans-serif',
       fontSize: '11px',
       color: '#6b6152',
@@ -128,13 +162,13 @@ export class StageScene extends Phaser.Scene {
         `동료 ${total}명 중 ${arrested}명은 같은 암호를 떠올려 정체가 드러나 이미 붙잡혀 갔다.\n(감옥에 갇힌 얼굴을 확인하라.)`,
       );
     }
-    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [F] 접선해 단서를 모으고, 접선 코드를 추리하라.`);
+    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [E] 로 말을 걸어 접선 코드를 전달하고, 단서를 모아 추리하라.`);
     if (arrested > 0) {
       lines.push(
         `\n감옥(좌측 상단) 창살 앞에서 [R] — 붙잡힌 동료를 빼낼 수 있다.\n소란은 새어 나가 경계 레벨이 오르지만, 그가 떠올린 단어는\n둘이 겹쳐서 잡혀갈 만큼 확실한 단서다.`,
       );
     }
-    lines.push('\n[E] 대화 · [F] 접선 코드 · [R] 구출 · [C] 단서 수첩');
+    lines.push('\n[E] 상호작용 · [R] 구출 · [C] 단서 수첩');
 
     this.dialogue.show('접선 지령', lines.join('\n'));
     this.dialogue.setHint('[Space] / [Esc] 로 쪽지를 접는다');
@@ -172,7 +206,7 @@ export class StageScene extends Phaser.Scene {
 
   #refreshClues() {
     if (this.clues.size === 0) {
-      this.clueText.setText('아직 수집한 단서가 없다.\n\n동료 근처에서 [F] 로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.');
+      this.clueText.setText('아직 수집한 단서가 없다.\n\n동료에게 [E] 로 말을 걸어 접선 코드를 전달하면,\n그가 흘린 연상 단어가 여기 기록된다.');
       return;
     }
     const lines = [];
@@ -202,20 +236,6 @@ export class StageScene extends Phaser.Scene {
           this.add.image(c * TILE, r * TILE, 'tiles', f).setOrigin(0, 0);
         }
       }
-    }
-
-    // 시민 스폰 — 마을 NPC 분기 대사는 W3 TODO. 지금은 맵이 지정한 위치에 표시만 한다.
-    const cz = mapData.spawns.citizen;
-    if (cz) {
-      const x = cz.col * TILE + TILE / 2, y = cz.row * TILE + TILE / 2;
-      this.add.sprite(x, y, 'chars', CITIZEN_FRAME);
-      this.add
-        .text(x, y - 24, '시민', {
-          fontFamily: 'Malgun Gothic, sans-serif',
-          fontSize: '11px',
-          color: '#8a7f6a',
-        })
-        .setOrigin(0.5);
     }
 
     // 감옥 구역 표시 (상단 좌측 방)
@@ -297,12 +317,15 @@ export class StageScene extends Phaser.Scene {
 
     this.#checkProximity();
 
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyE) && this.nearbyAlly) {
-      this.#talk(this.nearbyAlly);
+    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+      // 선택지가 떠 있는 채로 E 를 다시 누르면 [자유 대화] 를 고른 것으로 처리한다.
+      if (this.pendingAllyChoice) this.#startChat(this.pendingAllyChoice);
+      else if (this.nearbyAlly) this.#talk(this.nearbyAlly);
     }
-    // F — 근처 동료에게 바로 접선 코드를 전달
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyF) && this.nearbyAlly) {
-      this.#offerCode(this.nearbyAlly);
+    // F — 선택지가 떠 있을 때만 [접선 코드 전달] 을 고른다. E 로 먼저 선택지를 띄우기 전에는
+    // 아무 일도 일어나지 않는다.
+    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyF) && this.pendingAllyChoice) {
+      this.#offerCode(this.pendingAllyChoice);
     }
     // R — 감옥의 동료 구출. 대상이 없어도 눌리게 둔다 (어디로 가야 하는지 알려주기 위해).
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keyR)) {
@@ -310,11 +333,13 @@ export class StageScene extends Phaser.Scene {
     }
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keySpace)) {
       this.dialogue.hide();
+      this.pendingAllyChoice = null;
     }
     // Esc 로도 대화창을 닫는다. 입력칸 포커스 중일 때는 DialogueBox 가 직접 처리하므로
     // 여기서는 입력칸 밖(메시지만 표시 중)일 때를 담당한다.
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
       this.dialogue.hide();
+      this.pendingAllyChoice = null;
     }
     // 백틱(`) — 개발용 정답 토글
     if (Phaser.Input.Keyboard.JustDown(this.keyReveal)) {
@@ -326,13 +351,20 @@ export class StageScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * 근처 상호작용 대상을 찾는다. 자동으로 대화창이 뜨지는 않고, 대상 머리 위에
+   * "[E]"(또는 감옥 동료는 "[R]") 아이콘만 띄운다 — 실제 대사·선택지는 키를 눌러야 나온다.
+   */
   #checkProximity() {
     let found = null;
     let jailed = null;
+    let foundNode = null;
+    let jailedNode = null;
     let nearestFree = Infinity;
     let nearestJailed = Infinity;
 
-    for (const { ally, node } of this.allyNodes) {
+    for (const entry of this.allyNodes) {
+      const { ally, node } = entry;
       if (ally.informed) continue; // 밀고자는 접선도 구출도 대상이 아니다
       const dist = Phaser.Math.Distance.Between(
         this.player.x, this.player.y, node.x, node.y,
@@ -341,38 +373,57 @@ export class StageScene extends Phaser.Scene {
       // 감옥 슬롯 간격(44px)이 접선 거리(48px)보다 좁아 두 명이 동시에 사거리에 들어온다.
       // 그래서 첫 번째가 아니라 가장 가까운 쪽을 집는다 — 옆 칸 동료가 잘못 잡히지 않게.
       if (ally.arrested) {
-        if (dist < nearestJailed) { nearestJailed = dist; jailed = ally; }
+        if (dist < nearestJailed) { nearestJailed = dist; jailed = ally; jailedNode = node; }
       } else if (dist < nearestFree) {
-        nearestFree = dist; found = ally;
+        nearestFree = dist; found = ally; foundNode = node;
       }
     }
 
-    if (found !== this.nearbyAlly || jailed !== this.nearbyJailed) {
-      this.nearbyAlly = found;
-      this.nearbyJailed = jailed;
-      // 접선 대상이 우선 — 구출한 동료가 제자리로 돌아가는 동안 감옥 동료와 겹칠 수 있다.
-      const target = found ?? jailed;
-      if (target && !this.dialogue.isOpen) {
-        this.dialogue.show(
-          target.name,
-          found
-            ? `${found.name} — [E] 대화 · [F] 접선 코드`
-            : `${jailed.name} — 창살 너머에 있다. [R] 구출 (경계 레벨 +1)`,
-        );
-        this.proximityHint = true;
-      } else if (!target && this.proximityHint) {
-        // 지나가며 뜬 안내만 자동으로 접는다. 접선·구출 결과는 플레이어가 [Space] 로 닫는다
-        // — 결과를 읽기도 전에 동료가 tween 으로 사거리를 벗어나 사라져 버리기 때문.
-        this.dialogue.hide();
-        this.proximityHint = false;
-      }
+    this.nearbyAlly = found;
+    this.nearbyJailed = jailed;
+
+    this.#updatePromptIcon({ foundNode, jailedNode });
+  }
+
+  /** 근처 상호작용 대상 머리 위에 아이콘을 띄우거나 숨긴다. */
+  #updatePromptIcon({ foundNode, jailedNode }) {
+    // 이미 대화창이 열려 있으면(선택지·입력 등) 아이콘은 굳이 안 보여줘도 된다.
+    if (this.dialogue.isOpen) {
+      this.promptIcon.setVisible(false);
+      return;
+    }
+    if (foundNode) {
+      this.promptIcon.setPosition(foundNode.x, foundNode.y - 40).setText('[E]').setVisible(true);
+    } else if (jailedNode) {
+      this.promptIcon.setPosition(jailedNode.x, jailedNode.y - 40).setText('[R]').setVisible(true);
+    } else {
+      this.promptIcon.setVisible(false);
     }
   }
 
-  /** E — 자유 대화. 연상 단어는 밝히지 않는다 (단서는 F 접선으로 얻는다). */
+  /**
+   * E — 말을 건다. 접선 코드 메커닉이 있는 동료라 [자유 대화]/[접선 코드 전달] 중
+   * 고르게 한다. 선택지가 뜨기 전까지 F 는 아무 동작도 하지 않는다 — E 로 먼저
+   * 선택지를 띄워야 F(접선 코드) 가 유효해진다.
+   */
   #talk(ally) {
     this.currentAllyId = ally.id;
-    this.dialogue.show(`${ally.name} (${ally.role})`, `${ally.name}에게 말을 건넨다.`);
+    this.pendingAllyChoice = ally;
+    this.dialogue.showChoices(
+      `${ally.name} (${ally.role})`,
+      ALLY_GREETING[ally.id] ?? `${ally.name}에게 다가가 말을 건다.`,
+      [
+        { label: '자유 대화 (E)', onSelect: () => this.#startChat(ally) },
+        { label: '접선 코드 전달 (F)', onSelect: () => this.#offerCode(ally) },
+      ],
+      ALLY_PORTRAIT[ally.id],
+    );
+  }
+
+  /** [자유 대화] 선택 — 연상 단어는 밝히지 않는다 (단서는 접선 코드 전달로 얻는다). */
+  #startChat(ally) {
+    this.pendingAllyChoice = null;
+    this.dialogue.show(`${ally.name} (${ally.role})`, `${ally.name}에게 말을 건넨다.`, ALLY_PORTRAIT[ally.id]);
     this.dialogue.showInput('말을 건넨다...', 'chat');
     this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
   }
@@ -382,7 +433,8 @@ export class StageScene extends Phaser.Scene {
     if (this.contacting) return;
     this.contacting = true;
     this.currentAllyId = ally.id;
-    this.dialogue.show(`${ally.name} (${ally.role})`, '조심스럽게 접선을 시도한다...');
+    this.pendingAllyChoice = null;
+    this.dialogue.show(`${ally.name} (${ally.role})`, '조심스럽게 접선을 시도한다...', ALLY_PORTRAIT[ally.id]);
 
     let contact;
     try {
@@ -407,6 +459,7 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.show(
       `${ally.name} (${ally.role})`,
       `"...「${contact.word}」."\n\n그가 흘린 단서다. [C] 단서 수첩에 기록됐다.\n접선 코드를 안다면 지금 건네라.`,
+      ALLY_PORTRAIT[ally.id],
     );
     this.dialogue.showInput('접선 코드 입력...', 'code');
     this.dialogue.setHint('[Enter] 코드 전달 · [Esc] 취소');
@@ -433,7 +486,6 @@ export class StageScene extends Phaser.Scene {
     }
 
     const jailed = this.state.allies.filter((a) => a.arrested && !a.informed).length;
-    this.proximityHint = false;
     this.dialogue.show(
       '구출',
       jailed === 0
@@ -449,8 +501,7 @@ export class StageScene extends Phaser.Scene {
   async #rescue(ally) {
     if (this.rescuing) return;
     this.rescuing = true;
-    this.proximityHint = false;
-    this.dialogue.show(`${ally.name} (${ally.role})`, '창살 자물쇠를 조용히 비튼다...');
+    this.dialogue.show(`${ally.name} (${ally.role})`, '창살 자물쇠를 조용히 비튼다...', ALLY_PORTRAIT[ally.id]);
 
     let result;
     try {
@@ -479,7 +530,8 @@ export class StageScene extends Phaser.Scene {
       `${ally.name}이(가) 창살 밖으로 빠져나와 제자리로 돌아갔다.\n\n` +
         `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n` +
         `심문에 시달린 그는 겁에 질려 있다. 남은 신뢰: ${trust}\n\n` +
-        `[F] 로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
+        `[E] 로 다시 말을 걸 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
+      ALLY_PORTRAIT[ally.id],
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
@@ -490,7 +542,7 @@ export class StageScene extends Phaser.Scene {
     if (!ally) return;
 
     this.dialogue.setBusy(true);
-    this.dialogue.beginStream(`${ally.name} (${ally.role})`);
+    this.dialogue.beginStream(`${ally.name} (${ally.role})`, ALLY_PORTRAIT[ally.id]);
 
     try {
       const res = await fetch('/api/stage/talk', {
@@ -547,8 +599,9 @@ export class StageScene extends Phaser.Scene {
   }
 
   async #submitGuess(guess) {
+    const portrait = ALLY_PORTRAIT[this.currentAllyId];
     this.dialogue.setBusy(true);
-    this.dialogue.show('...', `"${guess}"...\n\n조심스럽게 코드를 건넨다.`);
+    this.dialogue.show('...', `"${guess}"...\n\n조심스럽게 코드를 건넨다.`, portrait);
 
     try {
       const res = await fetch('/api/stage/guess', {
@@ -572,6 +625,7 @@ export class StageScene extends Phaser.Scene {
         this.dialogue.show(
           '접선 성공',
           `접선 코드는 「${result.codeWord}」 였다.\n\nSTAGE 1 CLEAR`,
+          portrait,
         );
         return;
       }
@@ -583,11 +637,13 @@ export class StageScene extends Phaser.Scene {
         this.dialogue.show(
           '밀고',
           `틀렸다. 동료의 신뢰를 완전히 잃었다.\n그는 당신을 밀고하고 사라졌다.\n\n경계 레벨이 올라갔다. (${this.state.alertLevel})`,
+          portrait,
         );
       } else {
         this.dialogue.show(
           '접선 실패',
           `틀렸다. 동료가 의심스러운 눈으로 당신을 본다.\n남은 신뢰: ${'●'.repeat(result.trust)}${'○'.repeat(3 - result.trust)}`,
+          portrait,
         );
       }
     } catch (err) {

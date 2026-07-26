@@ -44,11 +44,50 @@
         border-radius: 4px;
         padding: 14px 18px;
         display: none;
+        z-index: 10;
       }
       #dialogue.visible { display: block; }
+      /* NPC 컷인 — 배경 제거된 일러스트를 대화창 위, 화면 왼쪽에 크게 세운다
+         (작은 썸네일이 아니라 캐릭터가 게임 화면에 걸쳐 서 있는 느낌). */
+      #dialogue-portrait {
+        display: none;
+        position: absolute;
+        left: 3%;
+        bottom: 10%;
+        height: 80%;
+        width: auto;
+        z-index: 5;
+        pointer-events: none;
+        filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.55));
+      }
+      #dialogue-portrait.visible { display: block; }
       #dialogue-speaker { color: var(--brass); font-weight: 700; margin-bottom: 6px; }
       #dialogue-text { line-height: 1.6; min-height: 3em; white-space: pre-wrap; }
       #dialogue-hint { opacity: 0.5; font-size: 0.8rem; margin-top: 8px; }
+      /* 선택지 — 대화창 안이 아니라, 화면 우측에 세로 메뉴로 따로 뜬다 (레퍼런스 참고). */
+      #dialogue-choices {
+        display: none;
+        position: absolute;
+        right: 16px;
+        bottom: 150px;
+        width: 200px;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 8;
+      }
+      #dialogue-choices.visible { display: flex; }
+      #dialogue-choices button {
+        border: 2px solid var(--brass);
+        border-radius: 6px;
+        padding: 10px 14px;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 700;
+        text-align: left;
+        background: rgba(26, 23, 18, 0.94);
+        color: var(--paper);
+      }
+      #dialogue-choices button:hover { background: var(--brass); color: var(--ink); }
       #dialogue-input { display: none; margin-top: 10px; gap: 8px; }
       #dialogue-input.visible { display: flex; }
       #dialogue-input input {
@@ -82,6 +121,8 @@
     <header>코드네임: 태엽새 — 개발 스켈레톤 (W1)</header>
     <div id="game-root">
       <div id="game-canvas"></div>
+      <img id="dialogue-portrait" alt="" />
+      <div id="dialogue-choices"></div>
       <div id="dialogue">
         <div id="dialogue-speaker"></div>
         <div id="dialogue-text"></div>

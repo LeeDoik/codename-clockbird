@@ -43,7 +43,7 @@ export async function generateOne({ codeWord, ally, maxRetries = 1, promptOverri
 
   const system = await renderPrompt(
     'wordgen-system',
-    { name: ally.name, role: ally.role, persona: ally.persona },
+    { name: ally.name, role: ally.role, backstory: ally.backstory, personality: ally.personality },
     promptOverride,
   );
 

@@ -15,6 +15,8 @@ export class DialogueBox {
     this.sendBtn = document.getElementById('dialogue-send');
     this.codeBtn = document.getElementById('dialogue-code');
     this.hintEl = document.getElementById('dialogue-hint');
+    this.portraitEl = document.getElementById('dialogue-portrait');
+    this.choicesEl = document.getElementById('dialogue-choices');
 
     /** 자유 대화 전송 */
     this.onSend = null;
@@ -61,17 +63,63 @@ export class DialogueBox {
     if (!busy) this.field.focus();
   }
 
-  show(speaker, text) {
+  /** portraitUrl 을 주면 대화창 옆에 초상화를 띄운다 (없으면 이전 초상화를 지운다). */
+  show(speaker, text, portraitUrl) {
     this.speakerEl.textContent = speaker;
     this.textEl.textContent = text;
+    this.#setPortrait(portraitUrl);
+    this.#clearChoices();
     this.root.classList.add('visible');
   }
 
   /** 스트리밍 시작 — 화자만 세우고 본문을 비운다 */
-  beginStream(speaker) {
+  beginStream(speaker, portraitUrl) {
     this.speakerEl.textContent = speaker;
     this.textEl.textContent = '';
+    this.#setPortrait(portraitUrl);
+    this.#clearChoices();
     this.root.classList.add('visible');
+  }
+
+  /**
+   * 선택지 메뉴 — 접선 코드처럼 갈래가 있는 NPC 대화에서, E 로 곧장 자유대화로
+   * 들어가는 대신 먼저 무엇을 할지 버튼으로 고르게 한다.
+   * choices: [{ label, onSelect }]
+   */
+  showChoices(speaker, text, choices, portraitUrl) {
+    this.speakerEl.textContent = speaker;
+    this.textEl.textContent = text;
+    this.#setPortrait(portraitUrl);
+    this.hideInput();
+
+    this.choicesEl.innerHTML = '';
+    for (const { label, onSelect } of choices) {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        this.#clearChoices();
+        onSelect();
+      });
+      this.choicesEl.appendChild(btn);
+    }
+    this.choicesEl.classList.add('visible');
+    this.root.classList.add('visible');
+  }
+
+  #clearChoices() {
+    this.choicesEl.classList.remove('visible');
+    this.choicesEl.innerHTML = '';
+  }
+
+  #setPortrait(url) {
+    if (!this.portraitEl) return;
+    if (url) {
+      this.portraitEl.src = url;
+      this.portraitEl.style.display = 'block';
+    } else {
+      this.portraitEl.removeAttribute('src');
+      this.portraitEl.style.display = 'none';
+    }
   }
 
   /** 스트리밍 델타 append */
@@ -80,6 +128,7 @@ export class DialogueBox {
   }
 
   showInput(placeholder = '말을 건넨다...', mode = 'chat') {
+    this.#clearChoices();
     this.inputMode = mode;
     this.field.placeholder = placeholder;
     // 대화(E)와 접선 코드 제출(F)을 구분한다 — 모드에 맞는 버튼만 보인다.
@@ -101,6 +150,10 @@ export class DialogueBox {
   hide() {
     this.root.classList.remove('visible');
     this.hideInput();
+    this.#clearChoices();
+    // 컷인 초상화는 이제 대화창 밖(게임 화면 위)에 떠 있는 별도 엘리먼트라
+    // #dialogue 를 숨긴다고 같이 사라지지 않는다 — 명시적으로 지운다.
+    this.#setPortrait(null);
   }
 
   get isOpen() {
