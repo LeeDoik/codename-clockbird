@@ -40,6 +40,17 @@ router.post('/start', async (req, res, next) => {
     });
     const session = getMansionSession(sessionId);
 
+    // 개발용 — 클라이언트의 ?stage2&key 가 여기까지 온다. 열쇠는 **서버가** 쥐고 있으므로
+    // 클라이언트에서만 세우면 문서 열람이 409 로 막힌다. 프로덕션에서는 통째로 무시한다.
+    if (!isProd && req.body?.debug === 'key') {
+      session.pieces = Object.entries(data.rewards)
+        .filter(([k]) => !k.startsWith('_'))
+        .map(([, v]) => v);
+      session.hasKey = true;
+      for (const n of session.npcs) if (n.kind === 'ally') n.gave = true;
+      console.log(`[mansion] 세션 ${sessionId.slice(0, 8)} — 개발 플래그: 열쇠 지급`);
+    }
+
     // 서버 콘솔에만 정답(누가 동료인가)을 남긴다 — 개발용.
     const allies = session.npcs.filter((n) => n.kind === 'ally').map((n) => n.name);
     console.log(`[mansion] 세션 ${sessionId.slice(0, 8)} 시작 — 동료: ${allies.join(', ')}`);

@@ -292,11 +292,16 @@ export class MansionScene extends Phaser.Scene {
 
   // ── 세션 ────────────────────────────────────────────────────────
   async #start() {
+    // 개발용 ?stage2&key — 열쇠는 서버가 쥐고 있으므로 여기서 세우면 안 되고
+    // 시작 요청에 실어 보내야 한다 (클라이언트에서만 세우면 문서 열람이 409 로 막힌다).
+    const devKey =
+      import.meta.env.DEV && new URLSearchParams(window.location.search).has('key');
+
     try {
       const res = await fetch('/api/mansion/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify(devKey ? { debug: 'key' } : {}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -306,11 +311,6 @@ export class MansionScene extends Phaser.Scene {
       this.startFailed = true;
       this.dialogue.show('오류', `저택에 들어갈 수 없습니다.\n${err.message}\n\n[Space] 로 다시 시도한다.`);
       return;
-    }
-
-    // 개발용 — ?key 로 열쇠를 쥐고 시작해 연구실 문을 바로 확인한다.
-    if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('key')) {
-      this.state.hasKey = true;
     }
 
     this.dialogue.preload([this.state.escort.id, ...this.state.npcs.map((n) => n.id)]);
