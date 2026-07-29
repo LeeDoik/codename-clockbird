@@ -31,6 +31,8 @@ export class DialogueBox {
     this.codeBtn = document.getElementById('dialogue-code');
     this.closeBtn = document.getElementById('dialogue-close');
     this.hintEl = document.getElementById('dialogue-hint');
+    this.moreEl = document.getElementById('dialogue-more');
+    this.measureEl = document.getElementById('dialogue-measure');
 
     /** 자유 대화 전송 */
     this.onSend = null;
@@ -45,6 +47,14 @@ export class DialogueBox {
      * 닫은 것이 무시된 것으로 보인다. 그 표식을 여기 남기고 reply() 가 참고한다.
      */
     this.dismissed = false;
+
+    /** 페이징 상태 — 현재 대사의 페이지 배열과 커서 */
+    this.pages = [];
+    this.pageIdx = 0;
+    /** 마지막 페이지를 넘겼을 때 부를 콜백 (없으면 hide) — 선택지 복귀용 */
+    this.onPagesDone = null;
+    /** 스트리밍 버퍼 — append 는 여기에만 쌓고 endStream 이 페이징한다 */
+    this.streamBuf = '';
 
     this.sendBtn.addEventListener('click', () => this.#fire(this.onSend));
     this.codeBtn.addEventListener('click', () => this.#fire(this.onCode));
@@ -87,6 +97,12 @@ export class DialogueBox {
     this.sendBtn.disabled = false;
     this.codeBtn.disabled = false;
     this.root.classList.add('no-portrait');
+    this.pages = [];
+    this.pageIdx = 0;
+    this.onPagesDone = null;
+    this.streamBuf = '';
+    this.textEl.classList.remove('thinking');
+    this.moreEl.classList.remove('visible');
     this.hide();
   }
 
@@ -123,6 +139,86 @@ export class DialogueBox {
   }
 
   /**
+   * 텍스트를 "2줄에 들어가는 조각" 배열로 자른다.
+   *
+   * 문단(\n\n)을 먼저 가르고, 넘치는 문단은 실측으로 자른다 — 글꼴·창 크기가
+   * 반응형(--s)이라 글자 수 추정은 어긋난다. 측정 요소는 본문과 같은 서체·폭을 쓴다.
+   */
+  #paginate(text) {
+    const meas = this.measureEl;
+    meas.style.width = `${this.textEl.clientWidth}px`;
+    const lineH = parseFloat(getComputedStyle(this.textEl).lineHeight);
+    const maxH = lineH * 2 + 2; // 서브픽셀 오차 여유
+
+    const fits = (s) => {
+      meas.textContent = s;
+      return meas.offsetHeight <= maxH;
+    };
+
+    const pages = [];
+    for (const para of text.split(/\n{2,}/)) {
+      let rest = para.trim();
+      while (rest) {
+        if (fits(rest)) {
+          pages.push(rest);
+          break;
+        }
+        // 2줄에 들어가는 가장 긴 접두사를 이분 탐색으로 찾는다
+        let lo = 1;
+        let hi = rest.length;
+        let fit = 1;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (fits(rest.slice(0, mid))) {
+            fit = mid;
+            lo = mid + 1;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        // 낱말 중간에서 끊지 않는다 — 마지막 공백·줄바꿈까지 물러난다
+        const head = rest.slice(0, fit);
+        const brk = Math.max(head.lastIndexOf(' '), head.lastIndexOf('\n'));
+        const cut = brk > fit * 0.4 ? brk : fit;
+        pages.push(rest.slice(0, cut).trimEnd());
+        rest = rest.slice(cut).trimStart();
+      }
+    }
+    return pages.length ? pages : [''];
+  }
+
+  /** 현재 페이지를 본문에 싣고 ▼ 표식을 갱신한다 */
+  #renderPage() {
+    this.textEl.classList.remove('thinking');
+    this.textEl.textContent = this.pages[this.pageIdx] ?? '';
+    this.moreEl.classList.toggle('visible', this.hasMore);
+  }
+
+  get hasMore() {
+    return this.pageIdx < this.pages.length - 1;
+  }
+
+  /**
+   * 다음 페이지로 넘긴다. 마지막 페이지였다면 onPagesDone(선택지 복귀)을 부르거나 닫는다.
+   * @returns {boolean} 창이 계속 열려 있는가
+   */
+  advance() {
+    if (this.hasMore) {
+      this.pageIdx += 1;
+      this.#renderPage();
+      return true;
+    }
+    if (this.onPagesDone) {
+      const done = this.onPagesDone;
+      this.onPagesDone = null;
+      done();
+      return this.isOpen;
+    }
+    this.hide();
+    return false;
+  }
+
+  /**
    * 곧 쓸 초상을 미리 받아 둔다. 첫 대사에서 그림이 늦게 붙어 판이 한 번
    * 덜컹이는 것을 막는다 — 실제 일러스트는 장당 1MB 에 가깝다.
    */
@@ -156,8 +252,11 @@ export class DialogueBox {
     this.dismissed = false;
     this.#setPortrait(opts.portrait);
     this.speakerEl.textContent = speaker;
-    this.textEl.textContent = text;
-    this.root.classList.add('visible');
+    this.root.classList.add('visible'); // clientWidth 측정 전에 보여야 폭이 잡힌다
+    this.onPagesDone = opts.onPagesDone ?? null;
+    this.pages = this.#paginate(text);
+    this.pageIdx = 0;
+    this.#renderPage();
   }
 
   /**
@@ -175,18 +274,41 @@ export class DialogueBox {
     return true;
   }
 
-  /** 스트리밍 시작 — 화자만 세우고 본문을 비운다 */
+  /** 스트리밍 시작 — 화자를 세우고 "생각 중" 연출을 띄운다. 본문은 버퍼에 쌓인다. */
   beginStream(speaker, opts = {}) {
     this.dismissed = false;
     this.#setPortrait(opts.portrait);
     this.speakerEl.textContent = speaker;
-    this.textEl.textContent = '';
+    this.streamBuf = '';
+    this.pages = [];
+    this.pageIdx = 0;
+    this.moreEl.classList.remove('visible');
+    this.textEl.textContent = '…';
+    this.textEl.classList.add('thinking');
     this.root.classList.add('visible');
   }
 
-  /** 스트리밍 델타 append */
+  /** 스트리밍 델타 — 화면이 아니라 버퍼에 쌓는다 (2줄 페이징은 완문 기준). */
   append(chunk) {
-    this.textEl.textContent += chunk;
+    this.streamBuf += chunk;
+  }
+
+  /**
+   * 스트리밍 종료 — 버퍼 전체를 페이징해 첫 페이지를 띄운다.
+   * 기다리는 사이 플레이어가 닫았다면(dismissed) 띄우지 않는다 (reply 와 같은 규약).
+   * @returns {string} 버퍼 원문
+   */
+  endStream(hint = '', opts = {}) {
+    const full = this.streamBuf;
+    this.streamBuf = '';
+    this.textEl.classList.remove('thinking');
+    if (this.dismissed) return full;
+    this.onPagesDone = opts.onPagesDone ?? null;
+    this.pages = this.#paginate(full);
+    this.pageIdx = 0;
+    this.#renderPage();
+    this.setHint(hint);
+    return full;
   }
 
   showInput(placeholder = '말을 건넨다...', mode = 'chat') {
@@ -216,6 +338,9 @@ export class DialogueBox {
     // 응답을 기다리는 중에 닫았다면, 그 응답이 도착해도 창을 도로 열지 않는다.
     if (this.busy) this.dismissed = true;
     this.root.classList.remove('visible');
+    this.moreEl.classList.remove('visible');
+    this.textEl.classList.remove('thinking');
+    this.onPagesDone = null;
     this.hideInput();
   }
 

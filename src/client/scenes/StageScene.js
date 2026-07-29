@@ -525,7 +525,7 @@ export class StageScene extends Phaser.Scene {
       this.#tryRescue();
     }
     if (!typing && pressedSpace) {
-      this.dialogue.hide();
+      this.dialogue.advance();
     }
     // Esc 로도 대화창을 닫는다. 입력칸 포커스 중일 때는 DialogueBox 가 직접 처리하므로
     // 여기서는 입력칸 밖(메시지만 표시 중)일 때를 담당한다.
@@ -986,6 +986,7 @@ export class StageScene extends Phaser.Scene {
         if (payload.type === 'text') this.dialogue.append(payload.text);
         else if (payload.type === 'error') throw new Error(payload.error);
       });
+      this.dialogue.endStream('[Space] 다음 · [Esc] 닫기');
     } catch (err) {
       this.dialogue.reply('오류', err.message);
     } finally {

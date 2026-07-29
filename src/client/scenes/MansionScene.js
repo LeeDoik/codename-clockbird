@@ -394,8 +394,8 @@ export class MansionScene extends Phaser.Scene {
       this.#talk(this.nearby);
     }
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keySpace) && this.dialogue.isOpen) {
-      this.dialogue.hide();
-      this.proximityHint = false;
+      this.dialogue.advance();
+      if (!this.dialogue.isOpen) this.proximityHint = false;
     }
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && this.dialogue.isOpen) {
       this.dialogue.hide();
@@ -497,6 +497,8 @@ export class MansionScene extends Phaser.Scene {
     }
 
     if (pending) this.#applyEvent(pending);
+    this.dialogue.endStream('[Space] 다음 · [Esc] 닫기');
+    if (pending?.event === 'reported') this.#endGame('reported');
   }
 
   /** 서버가 알려준 상태를 기존 객체에 덮어쓴다 — 노드가 쥔 참조를 살려 두기 위해서. */
@@ -519,7 +521,6 @@ export class MansionScene extends Phaser.Scene {
       this.dialogue.append('\n\n…그가 뒷걸음질 치더니 복도로 뛰어나간다.\n"여기 외부인이 있어요!"');
       this.dialogue.hideInput();
       this.dialogue.setHint('');
-      this.#endGame('reported');
       return;
     }
     if (event === 'halted') {

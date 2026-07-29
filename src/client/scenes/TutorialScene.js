@@ -197,7 +197,7 @@ export class TutorialScene extends Phaser.Scene {
       this.scene.restart();
       return;
     }
-    if (!typing && pressedSpace) this.dialogue.hide();
+    if (!typing && pressedSpace) this.dialogue.advance();
     if (pressedEsc) this.dialogue.hide();
   }
 
@@ -306,6 +306,7 @@ export class TutorialScene extends Phaser.Scene {
         if (payload.type === 'text') this.dialogue.append(payload.text);
         else if (payload.type === 'error') throw new Error(payload.error);
       });
+      this.dialogue.endStream('[Space] 다음 · [Esc] 닫기');
     } catch (err) {
       // 자유 대화는 "있으면 좋은 것"이다 — 실패하면 고정 첫 대사로 되돌려 진행을 막지 않는다.
       console.warn('[tutorial/talk]', err.message);
