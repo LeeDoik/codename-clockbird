@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import mansionRouter from './routes/mansion.js';
 import stageRouter from './routes/stage.js';
 import studioRouter from './routes/studio.js';
 import tutorialRouter from './routes/tutorial.js';
@@ -16,6 +17,7 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, hasApiKey: Boolean(process.env.ANTHROPIC_API_KEY) });
 });
 
+app.use('/api/mansion', mansionRouter);
 app.use('/api/stage', stageRouter);
 app.use('/api/studio', studioRouter);
 app.use('/api/tutorial', tutorialRouter);

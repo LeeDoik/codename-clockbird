@@ -16,6 +16,7 @@ const TEMPLATES = [
   'wordgen-system',
   'dialogue-system',
   'tutorial-dialogue',
+  'mansion-dialogue',
   'checkpoint-question',
   'checkpoint-judge',
 ];

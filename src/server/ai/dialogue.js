@@ -82,6 +82,86 @@ export async function streamAllyReply({
 }
 
 /**
+ * 저택 직원의 응답을 스트리밍으로 생성 (스테이지 2).
+ *
+ * 여기엔 접선 코드도 연상 단어도 없다. 대신 **모델은 자기가 동료인지 민간인인지 안다** —
+ * 그 사실이 이 스테이지의 정답이고, 플레이어는 말투와 반응만으로 그걸 알아내야 한다.
+ * 그래서 프롬프트가 "먼저 밝히지 마라"를 규칙으로 못박는다. 여기가 뚫리면 게임이 없다.
+ *
+ * 호감도·의심도 수치를 프롬프트에 넣는 이유는 연기의 온도를 맞추기 위해서다.
+ * 수치 자체는 클라이언트로 나가지 않는다 (mansionSession.toMansionView 참고).
+ */
+/**
+ * 호감도·의심도를 **말로** 바꾼다.
+ *
+ * 프롬프트에 "0 / 3" 같은 숫자를 넣었더니 모델이 그걸 대사에 적어 화면에 내보냈다
+ * (`*마음 열림도: 0 / 3*`). 수치 비노출은 이 스테이지의 규칙이라 그 순간 게임이 깨진다.
+ * "말하지 마라"로 막는 대신 아예 숫자를 주지 않는다 — 모르는 것은 유출될 수 없다.
+ * 이제 모델이 제 상태를 흘려도 "아직 낯설다" 정도라 그건 연기의 일부다.
+ */
+const FAVOR_WORDS = [
+  '아직 완전히 낯설다. 그저 지나가는 외부인이다',
+  '조금 경계가 풀렸다. 말이 통하는 구석이 있는 것 같다',
+  '꽤 마음이 놓인다. 어쩌면 같은 편일지도 모른다',
+  '이 사람은 믿어도 될 것 같다',
+];
+const SUSPICION_WORDS = [
+  '별로 신경 쓰지 않는다',
+  '뭔가 거슬리는 말을 한다',
+  '꽤 수상하다. 저 사람 조심해야겠다',
+  '더는 못 참겠다',
+];
+const pick = (words, n) => words[Math.min(n, words.length - 1)];
+
+export async function streamMansionReply({ npc, room, history, userMessage, onText, promptOverride }) {
+  const kindBlock =
+    npc.kind === 'ally'
+      ? `[너의 진짜 처지]
+너는 겉으로는 이 저택의 직원이지만, 속으로는 저항 세력에 마음이 기운 사람이다.
+그러나 그것을 먼저 밝히면 죽는다. 상대가 어느 쪽 사람인지 네가 먼저 알아내야 한다.
+
+- 상대가 지배 세력·로봇·저택 주인을 비판하는 말을 하면 조금씩 경계를 푼다.
+  말이 길어지고, 너도 슬쩍 같은 결의 말을 얹는다.
+- 상대가 지배 세력을 두둔하거나 로봇을 옹호하면 입을 닫는다. 짧고 사무적으로 답하고 화제를 돌린다.
+- 어느 쪽도 아닌 말에는 그냥 평범한 직원으로 답한다.
+- **절대 먼저 "나는 저항군이다"라고 말하지 마라.** 끝까지 에둘러라.
+  상대가 확신을 갖는 것은 네 말투와 눈빛에서지, 네 고백에서가 아니다.
+
+지금 이 상대에 대한 네 마음: ${pick(FAVOR_WORDS, npc.favor)}.`
+      : `[너의 처지]
+너는 이 저택의 평범한 직원이다. 정치에는 관심이 없고, 일에 문제가 생기는 것이 제일 싫다.
+
+- 상대가 지배 세력·로봇·저택 주인을 비판하는 말을 하면 불편해진다.
+  말을 자르고 "그런 말은 하는 게 아니에요" 같은 반응을 보인다. 반복되면 사람을 부르겠다고 한다.
+- 안전한 화제(일·저택의 구조·사람들이 어디서 일하는지·언제 자리를 비우는지)에는 편하게 답한다.
+  네가 아는 것을 알려줘도 된다. 그건 비밀이 아니다.
+- 굳이 "나는 저항군이 아니다" 같은 말은 하지 마라. 그냥 평범하게 굴어라.
+
+지금 이 상대에 대한 네 기분: ${pick(SUSPICION_WORDS, npc.suspicion)}.`;
+
+  const system = await renderPrompt(
+    'mansion-dialogue',
+    { name: npc.name, role: npc.name, persona: npc.persona, room, kindBlock },
+    promptOverride,
+  );
+
+  const stream = anthropic.messages.stream({
+    model: MODEL_CHAT,
+    max_tokens: 250,
+    system,
+    messages: [...trimHistory(history), { role: 'user', content: userMessage }],
+  });
+
+  stream.on('text', onText);
+
+  const final = await stream.finalMessage();
+  return final.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+}
+
+/**
  * 튜토리얼 동료의 응답을 스트리밍으로 생성.
  *
  * streamAllyReply 와 다른 점은 딱 하나 — 여기서는 "왜 그 단어를 떠올렸는가"(reason)가
