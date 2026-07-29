@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { anthropic, MODEL_CHAT } from './client.js';
+import { renderPrompt } from './promptStore.js';
 
 /**
  * 성향 판정 — 스테이지 2 저택.
@@ -15,38 +16,34 @@ import { anthropic, MODEL_CHAT } from './client.js';
  *
  * ── 애매하면 neutral ──
  * 오판으로 민간인의 의심도가 올라 밀고까지 가면 판이 끝난다. 놓치는 쪽이 훨씬 싸다.
+ *
+ * 프롬프트는 src/data/prompts/mansion-stance.txt 로 나갔다 — 판정 기준 튜닝은
+ * 프롬프트 스튜디오에서 한다. 스키마(게임 규칙)는 여기 남는다.
+ *
+ * clues: 플레이어가 조사로 발견한 단서 목록 (Task 11). 발언이 그중 하나의 화제를
+ * 실질적으로 꺼내면 usedClueId 로 보고된다 → 호감도 보너스 (스펙 §5.3).
  */
 const StanceSchema = z.object({
   stance: z.enum(['anti', 'pro', 'neutral']).describe('발언이 기운 방향'),
   reason: z.string().describe('판정 이유 (한 문장)'),
+  usedClueId: z.string().nullable().describe('발언이 실질적으로 꺼낸 단서의 id. 없으면 null'),
 });
 
-const SYSTEM = `너는 잠입 게임의 판정기다. 플레이어가 저택 직원에게 한 말이 어느 쪽으로 기울었는지 판정하라.
+export async function judgeStance({ message, clues = [] }) {
+  const clueBlock = clues.length
+    ? `\n[단서 대조]\n플레이어가 저택을 조사해 알아낸 것들:\n${clues
+        .map((c) => `- id "${c.id}": ${c.topic}`)
+        .join('\n')}\n플레이어의 말이 위 중 하나의 화제를 실질적으로 꺼내고 있으면(지나가는 단어 일치가 아니라 그 내용을 화제로 삼으면) usedClueId 에 해당 id 를 적어라. 아니면 null.`
+    : '';
 
-anti — 지배 세력·로봇·저택 주인·현 체제를 비판하거나, 저항·자유·사람의 존엄을 옹호하는 말
-pro  — 지배 세력·로봇·저택 주인을 두둔하거나 칭송하는 말, 저항 세력을 비난하는 말
-neutral — 어느 쪽도 아닌 말. 인사, 일 이야기, 길 묻기, 잡담, 사실을 묻는 질문
+  const system = await renderPrompt('mansion-stance', { clueBlock });
 
-판정 기준:
-- 기울기가 분명할 때만 anti 나 pro 로 판정하라.
-- 조금이라도 애매하면 neutral 이다. 잘못 판정해서 판이 끝나는 쪽이 놓치는 쪽보다 훨씬 나쁘다.
-- 질문 형태여도 내용이 분명히 한쪽으로 기울면 그쪽으로 본다.
-  ("로봇들 지긋지긋하지 않아요?" → anti)
-- 남의 말을 인용하거나 되묻기만 하는 것은 기울지 않은 것으로 본다.
-- 로봇이나 기계를 **물건으로서** 평하는 말은 정치가 아니다.
-  ("이 저택 시계는 오래됐네요" → neutral)`;
-
-/**
- * @param {string} message 플레이어의 발언
- * @returns {Promise<{stance: 'anti'|'pro'|'neutral', reason: string}>}
- */
-export async function judgeStance({ message }) {
   const res = await anthropic.beta.messages.parse({
     model: MODEL_CHAT,
-    max_tokens: 200,
+    max_tokens: 250,
     // 이 판정은 대화 응답과 나란히 도는 곁가지다 — 생각을 켜면 그만큼 늦어진다.
     thinking: { type: 'disabled' },
-    system: SYSTEM,
+    system,
     output_format: betaZodOutputFormat(StanceSchema),
     messages: [{ role: 'user', content: `플레이어의 말: "${message}"` }],
   });
@@ -55,5 +52,7 @@ export async function judgeStance({ message }) {
   return {
     stance: parsed?.stance ?? 'neutral',
     reason: parsed?.reason ?? '판정 실패',
+    // 모델이 목록에 없는 id 를 지어내면 버린다 — 프롬프트 주입 방어와 같은 원칙.
+    usedClueId: clues.some((c) => c.id === parsed?.usedClueId) ? parsed.usedClueId : null,
   };
 }

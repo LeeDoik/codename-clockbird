@@ -17,6 +17,7 @@ const TEMPLATES = [
   'dialogue-system',
   'tutorial-dialogue',
   'mansion-dialogue',
+  'mansion-stance',
   'checkpoint-question',
   'checkpoint-judge',
 ];

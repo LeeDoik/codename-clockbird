@@ -33,6 +33,7 @@ const RECOMMENDED_VARS = {
   'wordgen-system': ['name', 'role', 'persona'],
   'dialogue-system': ['name', 'role', 'persona', 'word', 'alertLevel', 'arrestedCount'],
   'tutorial-dialogue': ['name', 'role', 'persona', 'word', 'reasonBlock'],
+  'mansion-stance': ['clueBlock'],
   'checkpoint-question': ['alertLevel', 'arrestedCount'],
   'checkpoint-judge': ['alertLevel', 'arrestedCount', 'strictness'],
 };
