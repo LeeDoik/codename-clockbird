@@ -36,6 +36,7 @@ const RECOMMENDED_VARS = {
   'mansion-stance': ['clueBlock'],
   'mansion-ally': ['mood'],
   'mansion-civ': ['mood'],
+  'mansion-dialogue': ['backstory', 'personality'],
   'checkpoint-question': ['alertLevel', 'arrestedCount'],
   'checkpoint-judge': ['alertLevel', 'arrestedCount', 'strictness'],
 };

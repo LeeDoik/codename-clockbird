@@ -120,7 +120,7 @@ export async function streamMansionReply({ npc, room, history, userMessage, onTe
 
   const system = await renderPrompt(
     'mansion-dialogue',
-    { name: npc.name, role: npc.name, persona: npc.persona, room, kindBlock },
+    { name: npc.name, role: npc.name, backstory: npc.backstory, personality: npc.personality, room, kindBlock },
     promptOverride,
   );
 
