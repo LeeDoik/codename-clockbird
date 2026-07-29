@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
-import { buildColliders, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
+import { buildColliders, createPlayer, applyMovement, setupCameras } from '../world/worldParts.js';
+import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
 import hqData from '../assets/hq.json';
@@ -12,7 +13,6 @@ import hqProps from '../assets/hq-props.json';
  * 여기엔 순찰도 검문도 감옥도 없다. 실패해도 판이 끝나지 않는다 (신뢰도만 깎인다).
  * 가르치는 것은 셋이다: 걷고, 말을 걸고, 겹치는 단어를 찾아 한 사람에게 건넨다.
  */
-const TALK_RANGE = 48;
 const TILE = hqData.tileSize;
 const PLAYER_FRAME = 0;
 // 간부·동료 전용 스프라이트는 아직 없다 — chars.png 의 기존 프레임을 빌려 쓴다 (아트는 W3).
@@ -33,10 +33,6 @@ export class TutorialScene extends Phaser.Scene {
   init() {
     this.state = null;
     this.allyNodes = [];
-    this.nearbyAlly = null;
-    this.nearbyOfficer = false;
-    // 지나가며 뜬 안내인가 — 이것만 사거리를 벗어날 때 자동으로 접는다.
-    this.proximityHint = false;
     this.ended = false;
     // /start 가 실패했다 — [Space] 로 다시 시도할 수 있게 열어 둔다.
     this.startFailed = false;
@@ -54,6 +50,7 @@ export class TutorialScene extends Phaser.Scene {
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
     setupCameras(this, hqData, this.player);
+    this.interact = new InteractionManager(this, this.dialogue);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -132,6 +129,46 @@ export class TutorialScene extends Phaser.Scene {
     });
 
     this.#refreshTrust();
+
+    // 인터랙션 노드 — 간부는 선택지 NPC(코드 제출 창구), 동료는 대화 NPC.
+    this.interact.register({
+      id: 'officer',
+      type: 'choiceNpc',
+      sprite: this.officerNode,
+      speaker: `${this.state.officer.name} (${this.state.officer.role})`,
+      line:
+        '"셋의 말을 다 들었나?\n\n' +
+        '하나는 색을 말하고, 하나는 그것이 무엇으로 분류되는지를 말하고,\n' +
+        '하나는 누구나 아는 이야기를 말한다.\n세 갈래가 한 점에서 만난다 — 거기가 코드다."',
+      portrait: this.state.officer.id,
+      choices: [
+        { label: '암호 말하기', key: 'F' },
+        { label: '그만하기', key: 'Esc' },
+      ],
+      onChoice: (key) => {
+        if (key === 'F') this.#offerCode();
+        else this.dialogue.hide();
+      },
+    });
+
+    for (const entry of this.allyNodes) {
+      this.interact.register({
+        id: entry.ally.id,
+        type: 'choiceNpc',
+        sprite: entry.node,
+        speaker: `${entry.ally.name} (${entry.ally.role})`,
+        line: `"${entry.ally.line}"`,
+        portrait: entry.ally.id,
+        choices: [
+          { label: '대화하기', key: 'E' },
+          { label: '그만하기', key: 'Esc' },
+        ],
+        onChoice: (key) => {
+          if (key === 'E') this.#talk(entry.ally);
+          else this.dialogue.hide();
+        },
+      });
+    }
   }
 
   /** this.state 의 신뢰도를 동료 머리 위 표시(●●/●○/○○)에 반영한다. */
@@ -175,18 +212,23 @@ export class TutorialScene extends Phaser.Scene {
     const pressedSpace = Phaser.Input.Keyboard.JustDown(this.keySpace);
     const pressedEsc = Phaser.Input.Keyboard.JustDown(this.keyEsc);
 
-    // 근접 안내도 대기 중에는 띄우지 않는다 — 지나가다 뜬 안내 위에 스트림이 이어붙는다.
-    if (this.state && !waiting) this.#checkProximity();
+    // 말풍선·최근접 노드 갱신 — 대화 중이거나 대기 중이면 레이어가 알아서 감춘다.
+    if (this.state) this.interact.update(this.player, { suppress: waiting });
 
     if (!waiting && !this.startFailed && pressedTalk) {
-      if (this.nearbyAlly) this.#talk(this.nearbyAlly);
-      else if (this.nearbyOfficer) this.#talkOfficer();
+      if (this.dialogue.isOpen && !this.dialogue.hasMore && this.dialogue.onChoice) {
+        // 선택지가 떠 있으면 E = "대화하기" 선택
+        this.dialogue.onChoice('E');
+      } else if (this.dialogue.isOpen) {
+        this.dialogue.advance();
+      } else {
+        this.interact.trigger();
+      }
     }
     // F — 코드 입력은 간부 앞에서만 열린다 (스테이지 1의 접선책과 같은 규칙).
     if (!waiting && !this.startFailed && pressedCode) {
-      if (this.nearbyOfficer) this.#offerCode();
+      if (this.interact.current?.id === 'officer') this.#offerCode();
       else {
-        this.proximityHint = false;
         this.dialogue.show('접선 코드', '코드는 간부에게만 건넨다.\n간부 앞으로 가서 [F].');
         this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       }
@@ -201,72 +243,18 @@ export class TutorialScene extends Phaser.Scene {
     if (pressedEsc) this.dialogue.hide();
   }
 
-  #checkProximity() {
-    if (!this.officerNode) return;
-
-    const ally = nearestOf(
-      this.player,
-      this.allyNodes.map((e) => ({ value: e.ally, x: e.node.x, y: e.node.y })),
-      TALK_RANGE,
-    );
-    const officer = Boolean(
-      nearestOf(
-        this.player,
-        [{ value: true, x: this.officerNode.x, y: this.officerNode.y }],
-        TALK_RANGE,
-      ),
-    );
-
-    if (ally === this.nearbyAlly && officer === this.nearbyOfficer) return;
-    this.nearbyAlly = ally;
-    this.nearbyOfficer = officer;
-
-    if (ally && !this.dialogue.isOpen) {
-      this.dialogue.show(ally.name, `${ally.name} (${ally.role}) — [E] 대화`, {
-        portrait: ally.id,
-      });
-      this.proximityHint = true;
-    } else if (officer && !ally && !this.dialogue.isOpen) {
-      const o = this.state.officer;
-      this.dialogue.show(o.name, `${o.name} (${o.role}) — [E] 대화 · [F] 접선 코드`, {
-        portrait: o.id,
-      });
-      this.proximityHint = true;
-    } else if (!ally && !officer && this.proximityHint) {
-      this.dialogue.hide();
-      this.proximityHint = false;
-    }
-  }
-
-  /** E — 동료. 고정 첫 대사(힌트)를 보이고 자유 입력을 연다. */
+  /** 선택지 "대화하기" — 자유 입력을 연다 (기본 대사는 레이어가 이미 띄웠다). */
   #talk(ally) {
     this.currentAllyId = ally.id;
-    this.proximityHint = false;
-    const live = this.state.allies.find((a) => a.id === ally.id) ?? ally;
-    this.dialogue.show(`${live.name} (${live.role})`, `"${live.line}"`, { portrait: live.id });
+    this.dialogue.hideChoices();
     this.dialogue.showInput('더 물어본다...', 'chat');
     this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
-  }
-
-  /** E — 간부. 고정 대사만 한다 (자유 대화는 동료에게서 배운다). */
-  #talkOfficer() {
-    const o = this.state.officer;
-    this.proximityHint = false;
-    this.dialogue.show(
-      `${o.name} (${o.role})`,
-      '"셋의 말을 다 들었나?\n\n' +
-        '하나는 색을 말하고, 하나는 그것이 무엇으로 분류되는지를 말하고,\n' +
-        '하나는 누구나 아는 이야기를 말한다.\n세 갈래가 한 점에서 만난다 — 거기가 코드다.\n\n' +
-        '답을 찾았으면 [F]."',
-      { portrait: o.id },
-    );
-    this.dialogue.setHint('[F] 코드 전달 · [Space] 닫기');
   }
 
   /** F — 간부에게 코드를 건넨다. 입력창은 오직 여기서만 열린다. */
   #offerCode() {
     const o = this.state.officer;
-    this.proximityHint = false;
+    this.dialogue.hideChoices();
     this.dialogue.show(`${o.name} (${o.role})`, '"…코드는?"', { portrait: o.id });
     this.dialogue.showInput('접선 코드 입력...', 'code');
     this.dialogue.setHint('[Enter] 코드 전달 · [Esc] 취소');
@@ -306,7 +294,7 @@ export class TutorialScene extends Phaser.Scene {
         if (payload.type === 'text') this.dialogue.append(payload.text);
         else if (payload.type === 'error') throw new Error(payload.error);
       });
-      this.dialogue.endStream('[Space] 다음 · [Esc] 닫기');
+      this.dialogue.endStream('[Enter] 계속 묻기 · [Esc] 닫기');
     } catch (err) {
       // 자유 대화는 "있으면 좋은 것"이다 — 실패하면 고정 첫 대사로 되돌려 진행을 막지 않는다.
       console.warn('[tutorial/talk]', err.message);
@@ -382,7 +370,6 @@ export class TutorialScene extends Phaser.Scene {
     const os = hqData.spawns.officer;
     // 간부 바로 아래 칸으로 옮긴다 — "불려 갔다"는 연출이자, 다음 [F] 가 바로 닿는 자리다.
     this.player.body.reset(os.col * TILE + TILE / 2, (os.row + 1) * TILE + TILE / 2);
-    this.proximityHint = false;
     // 창을 닫아 뒀더라도 이건 띄운다 — 갑자기 순간이동당한 이유를 설명하는 유일한 대사다.
     this.dialogue.show(
       `${this.state.officer.name} (${this.state.officer.role})`,
