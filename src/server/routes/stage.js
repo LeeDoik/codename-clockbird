@@ -297,7 +297,7 @@ router.post('/alarm', (req, res) => {
 });
 
 /**
- * POST /api/stage/guess  { sessionId, brokerId, guess }
+ * POST /api/stage/guess  { sessionId, targetId, guess }  (brokerId 도 하위호환 수용)
  * 접선 코드 입력. 정답 판정은 서버에서만 이뤄진다.
  *
  * 코드는 접선책 또는 체포되지 않은 동료 누구에게나 건넬 수 있다 (스펙 §4.2).
