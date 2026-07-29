@@ -126,8 +126,10 @@
           <input type="text" id="p-name" />
           <label>직업</label>
           <input type="text" id="p-role" />
-          <label>성격·배경 (연상 단어 생성과 자유 대화 양쪽에 주입됨)</label>
-          <textarea id="p-persona" rows="5"></textarea>
+          <label>배경 (직업·이력 — "무엇이 먼저 보이는가". 연상 단어 생성과 자유 대화 양쪽에 주입됨)</label>
+          <textarea id="p-backstory" rows="4"></textarea>
+          <label>성격·특징 (말투·태도 — 힌트를 얼마나 직접적으로 줄지의 다이얼)</label>
+          <textarea id="p-personality" rows="3"></textarea>
           <div class="row">
             <button class="primary" id="save-personas">페르소나 5인 저장</button>
             <span class="status" id="personas-status"></span>
@@ -142,7 +144,7 @@
             시작하자마자 단서가 사라져 <b>오히려 못 푸는 판</b>이 됩니다 (실측된 함정).
             대규모 측정은 터미널에서 <code>npm run exp:diff</code>.
           </div>
-          <div class="legend">치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{persona}}</code> — 접선 코드는 유저 메시지로 별도 전달됨</div>
+          <div class="legend">치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> — 접선 코드는 유저 메시지로 별도 전달됨</div>
           <textarea id="t-wordgen" rows="16" spellcheck="false"></textarea>
           <div class="row">
             <button class="primary" id="save-wordgen">연상 단어 프롬프트 저장</button>
@@ -153,7 +155,7 @@
         <section>
           <h2>자유 대화 프롬프트 <span class="dirty" id="dialogue-dirty" hidden>● 저장 안 됨</span></h2>
           <div class="legend">
-            치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{persona}}</code> <code>{{word}}</code>
+            치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> <code>{{word}}</code>
             <code>{{alertLevel}}</code> <code>{{arrestedCount}}</code><br />
             안전 설계: 접선 코드는 이 프롬프트에 <b>주입 자체가 안 되므로</b> 어떻게 고쳐도 코드가 유출될 수 없습니다. 톤·힌트 강도는 자유롭게 조율하세요.
           </div>
@@ -278,13 +280,14 @@
         const a = currentAlly();
         a.name = $('p-name').value;
         a.role = $('p-role').value;
-        a.persona = $('p-persona').value;
+        a.backstory = $('p-backstory').value;
+        a.personality = $('p-personality').value;
       }
       function refreshDirty() {
         const now = JSON.parse(state.saved);
         $('personas-dirty').hidden =
-          JSON.stringify(state.allies.map(({ id, name, role, persona }) => ({ id, name, role, persona }))) ===
-          JSON.stringify(now.allies.map(({ id, name, role, persona }) => ({ id, name, role, persona })));
+          JSON.stringify(state.allies.map(({ id, name, role, backstory, personality }) => ({ id, name, role, backstory, personality }))) ===
+          JSON.stringify(now.allies.map(({ id, name, role, backstory, personality }) => ({ id, name, role, backstory, personality })));
         $('wordgen-dirty').hidden = state.prompts['wordgen-system'] === now.prompts['wordgen-system'];
         $('dialogue-dirty').hidden = state.prompts['dialogue-system'] === now.prompts['dialogue-system'];
         $('pool-dirty').hidden = JSON.stringify(normalizedPool()) === JSON.stringify(now.pool);
@@ -311,10 +314,11 @@
         const a = currentAlly();
         $('p-name').value = a.name;
         $('p-role').value = a.role;
-        $('p-persona').value = a.persona;
+        $('p-backstory').value = a.backstory;
+        $('p-personality').value = a.personality;
       }
 
-      for (const id of ['p-name', 'p-role', 'p-persona']) {
+      for (const id of ['p-name', 'p-role', 'p-backstory', 'p-personality']) {
         $(id).addEventListener('input', () => { collectPersonaFields(); refreshDirty(); });
       }
       $('t-wordgen').addEventListener('input', () => { state.prompts['wordgen-system'] = $('t-wordgen').value; refreshDirty(); });
@@ -417,7 +421,7 @@
         try {
           await api('/personas', {
             method: 'PUT',
-            body: JSON.stringify({ allies: state.allies.map(({ id, name, role, persona }) => ({ id, name, role, persona })) }),
+            body: JSON.stringify({ allies: state.allies.map(({ id, name, role, backstory, personality }) => ({ id, name, role, backstory, personality })) }),
           });
           snapshot();
           setStatus('personas-status', '저장됨 — 다음 판부터 반영됩니다.', 'ok');

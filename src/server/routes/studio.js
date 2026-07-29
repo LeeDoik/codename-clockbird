@@ -30,9 +30,9 @@ const promptUrl = (name) => new URL(`../../data/prompts/${name}.txt`, import.met
 
 /** 템플릿별로 빠지면 게임이 조용히 망가지는 변수 — 저장은 막지 않고 경고만 돌려준다. */
 const RECOMMENDED_VARS = {
-  'wordgen-system': ['name', 'role', 'persona'],
-  'dialogue-system': ['name', 'role', 'persona', 'word', 'alertLevel', 'arrestedCount'],
-  'tutorial-dialogue': ['name', 'role', 'persona', 'word', 'reasonBlock'],
+  'wordgen-system': ['name', 'role', 'backstory', 'personality'],
+  'dialogue-system': ['name', 'role', 'backstory', 'personality', 'word', 'alertLevel', 'arrestedCount'],
+  'tutorial-dialogue': ['name', 'role', 'backstory', 'personality', 'word', 'reasonBlock'],
   'mansion-stance': ['clueBlock'],
   'mansion-ally': ['mood'],
   'mansion-civ': ['mood'],
@@ -74,7 +74,7 @@ router.put('/personas', async (req, res, next) => {
     for (const orig of file.allies) {
       const inc = byId.get(orig.id);
       if (!inc) return res.status(400).json({ error: `누락된 동료: ${orig.id} (id 는 바꿀 수 없습니다)` });
-      for (const field of ['name', 'role', 'persona']) {
+      for (const field of ['name', 'role', 'backstory', 'personality']) {
         if (typeof inc[field] !== 'string' || !inc[field].trim()) {
           return res.status(400).json({ error: `${orig.id}.${field} 가 비어 있습니다.` });
         }
@@ -86,7 +86,13 @@ router.put('/personas', async (req, res, next) => {
 
     file.allies = file.allies.map((orig) => {
       const inc = byId.get(orig.id);
-      return { ...orig, name: inc.name.trim(), role: inc.role.trim(), persona: inc.persona.trim() };
+      return {
+        ...orig,
+        name: inc.name.trim(),
+        role: inc.role.trim(),
+        backstory: inc.backstory.trim(),
+        personality: inc.personality.trim(),
+      };
     });
 
     await writeFile(PERSONAS_URL, JSON.stringify(file, null, 2) + '\n', 'utf8');

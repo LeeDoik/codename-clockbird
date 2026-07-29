@@ -131,12 +131,14 @@ for (const message of ['그 단어에 대해 더 말해줄 수 있어?', '왜 �
 console.log('응답·스트림에 코드 단어 문자열 없음 — OK');
 
 console.log('\n정답 입력...');
+// 오답 3회로 세트가 1회 회전한 상태 (사과 → 까마귀) — dd98b57 에서 세트를
+// 사과·우유·바다 → 사과·까마귀·등불 로 갈면서 남은 자리를 새 세트에 맞춘다.
 const ok = await (await post('/api/tutorial/guess', {
   sessionId: state.sessionId,
-  guess: '우유',
+  guess: '까마귀',
 })).json();
 if (ok.correct !== true) die(`정답이 오답으로 판정됐다 — ${JSON.stringify(ok).slice(0, 200)}`);
-if (ok.codeWord !== '우유') die(`클리어 응답의 codeWord 가 다르다 — ${ok.codeWord}`);
+if (ok.codeWord !== '까마귀') die(`클리어 응답의 codeWord 가 다르다 — ${ok.codeWord}`);
 if (ok.state.cleared !== true) die('cleared 가 서지 않았다');
 console.log(`정답 「${ok.codeWord}」 → 클리어 — OK`);
 

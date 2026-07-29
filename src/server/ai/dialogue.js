@@ -61,7 +61,15 @@ export async function streamAllyReply({
 }) {
   const system = await renderPrompt(
     'dialogue-system',
-    { name: ally.name, role: ally.role, persona: ally.persona, word, alertLevel, arrestedCount },
+    {
+      name: ally.name,
+      role: ally.role,
+      backstory: ally.backstory,
+      personality: ally.personality,
+      word,
+      alertLevel,
+      arrestedCount,
+    },
     promptOverride,
   );
 
@@ -186,7 +194,8 @@ export async function streamTutorialReply({
     {
       name: ally.name,
       role: ally.role,
-      persona: ally.persona,
+      backstory: ally.backstory,
+      personality: ally.personality,
       word,
       reasonBlock: reason
         ? `상대가 왜 그 단어를 떠올렸는지 물으면, 딱 이만큼만 말해도 된다: "${reason}"`
