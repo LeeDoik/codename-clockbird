@@ -281,6 +281,37 @@
         margin-top: calc(18 * var(--s));
       }
       #dialogue-hint { flex: 1; opacity: 0.45; font-size: calc(19 * var(--s)); min-height: 1.2em; }
+      /* 선택지 — 대화 상자 본문 밖, 우측 세로 스택 (스펙 §3) */
+      #dialogue.has-choices { padding-right: calc(340 * var(--s)); }
+      #dialogue-choices {
+        position: absolute;
+        right: calc(24 * var(--s));
+        bottom: calc(24 * var(--s));
+        width: calc(290 * var(--s));
+        display: none;
+        flex-direction: column;
+        gap: calc(12 * var(--s));
+      }
+      #dialogue.has-choices #dialogue-choices { display: flex; }
+      .dlg-choice {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: calc(8 * var(--s));
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(23 * var(--s));
+        padding: calc(10 * var(--s)) calc(18 * var(--s));
+        border-radius: calc(3 * var(--s));
+        cursor: pointer;
+        border: 1px solid var(--brass-lo);
+        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 45%, var(--brass-lo) 100%);
+        color: var(--ink);
+        text-shadow: 0 1px 0 rgba(255, 240, 200, 0.45);
+      }
+      .dlg-choice .key { font-family: var(--font-body); font-weight: 400; font-size: calc(17 * var(--s)); opacity: 0.6; }
+      .dlg-choice:hover { filter: brightness(1.14); }
+      .dlg-choice:active { transform: translateY(1px); }
       /* 키를 버튼 안에 같이 적는다 — 별도 조작 안내 줄이 필요 없어진다. */
       .dlg-btn {
         display: inline-flex;
@@ -478,6 +509,7 @@
         <div id="dialogue-input">
           <input id="dialogue-field" type="text" placeholder="말을 건넨다..." autocomplete="off" />
         </div>
+        <div id="dialogue-choices"></div>
         <div id="dialogue-actions">
           <div id="dialogue-hint"></div>
           <button id="dialogue-send" class="dlg-btn" style="display: none">대화 <span class="key">Enter</span></button>

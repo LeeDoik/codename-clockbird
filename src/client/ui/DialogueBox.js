@@ -33,6 +33,7 @@ export class DialogueBox {
     this.hintEl = document.getElementById('dialogue-hint');
     this.moreEl = document.getElementById('dialogue-more');
     this.measureEl = document.getElementById('dialogue-measure');
+    this.choicesEl = document.getElementById('dialogue-choices');
 
     /** 자유 대화 전송 */
     this.onSend = null;
@@ -55,6 +56,8 @@ export class DialogueBox {
     this.onPagesDone = null;
     /** 스트리밍 버퍼 — append 는 여기에만 쌓고 endStream 이 페이징한다 */
     this.streamBuf = '';
+    /** 선택지 콜백 */
+    this.onChoice = null;
 
     this.sendBtn.addEventListener('click', () => this.#fire(this.onSend));
     this.codeBtn.addEventListener('click', () => this.#fire(this.onCode));
@@ -103,6 +106,8 @@ export class DialogueBox {
     this.streamBuf = '';
     this.textEl.classList.remove('thinking');
     this.moreEl.classList.remove('visible');
+    this.onChoice = null;
+    this.hideChoices();
     this.hide();
   }
 
@@ -330,6 +335,32 @@ export class DialogueBox {
     this.field.blur();
   }
 
+  /**
+   * 우측 선택지 버튼 (최대 3개). 키 라벨은 표시용이다 — 실제 키 입력은 씬이 처리하고,
+   * 여기서는 클릭만 onChoice(key) 로 중계한다. 같은 행동에 대해 키와 클릭이 같은
+   * 콜백으로 모이게 하는 것이 규약이다.
+   */
+  showChoices(choices) {
+    this.choicesEl.replaceChildren(
+      ...choices.slice(0, 3).map((c) => {
+        const btn = document.createElement('button');
+        btn.className = 'dlg-choice';
+        btn.innerHTML = `<span></span><span class="key"></span>`;
+        btn.firstChild.textContent = c.label;
+        btn.lastChild.textContent = `[${c.key}]`;
+        btn.addEventListener('click', () => this.onChoice?.(c.key));
+        return btn;
+      }),
+    );
+    this.root.classList.add('has-choices');
+  }
+
+  hideChoices() {
+    this.root.classList.remove('has-choices');
+    this.choicesEl.replaceChildren();
+    this.onChoice = null;
+  }
+
   setHint(text) {
     this.hintEl.textContent = text;
   }
@@ -342,6 +373,7 @@ export class DialogueBox {
     this.textEl.classList.remove('thinking');
     this.onPagesDone = null;
     this.hideInput();
+    this.hideChoices();
   }
 
   get isOpen() {
