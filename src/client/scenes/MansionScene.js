@@ -112,6 +112,11 @@ export class MansionScene extends Phaser.Scene {
     this.#buildSteam();
     this.#buildShroud();
     this.#buildHud();
+
+    // 거리에서 암전으로 넘어온다 — 받는 쪽도 밝아지며 열려야 한 장면으로 이어진다.
+    this.cameras.main.fadeIn(700, 0, 0, 0);
+    this.uiCam?.fadeIn(700, 0, 0, 0);
+
     this.#start();
   }
 

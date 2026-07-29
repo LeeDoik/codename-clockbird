@@ -6,11 +6,12 @@ import { runLockPuzzle } from '../minigames/lockPuzzle.js';
 import { runTimingLock } from '../minigames/timingLock.js';
 import { runInterrogation } from '../minigames/interrogation.js';
 import { Patrol, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
-import { buildTilemap, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
+import { buildColliders, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS, drawOrnateFrame } from '../ui/theme.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
+import streetProps from '../assets/street-props.json';
 
 /**
  * Stage 1.
@@ -21,6 +22,8 @@ import mapData from '../assets/map.json';
  */
 const SPEED = 200;
 const TALK_RANGE = 48;
+/** 자석 수류탄 시작 개수 (스토리보드 p16 — 다 쓰면 게임오버) */
+const GRENADES_START = 2;
 /** 검문이 끝난 뒤 다시 잡히지 않는 시간. 서버의 checkpointCooldownUntil 과 같은 값이어야 한다. */
 const CHECKPOINT_COOLDOWN_MS = 10_000;
 const TILE = mapData.tileSize; // 32
@@ -60,6 +63,8 @@ export class StageScene extends Phaser.Scene {
     this.reinforced = false;
     // 검문 진행 중 — 감지·입력·중복 호출을 한꺼번에 막는 스위치.
     this.checkpointActive = false;
+    // 자석 수류탄 — 적발에서 빠져나갈 수단. 0 이 되면 다음 적발이 곧 게임오버다.
+    this.grenades = GRENADES_START;
   }
 
   create() {
@@ -83,10 +88,12 @@ export class StageScene extends Phaser.Scene {
     this.allyNodes = [];
     this.jailCount = 0; // 감옥에 들어간 동료 수 (체포 시 슬롯 번호로 쓴다)
     this.state.allies.forEach((ally, i) => {
-      const sp = mapData.spawns.allies[i];
+      // id 로 먼저 찾는다 — 자리마다 직업이 맞물려 있어서(시계공은 목공소 뒷마당,
+      // 기관사는 정거장…) 서버가 순서를 바꿔 보내도 배치가 어긋나면 안 된다.
+      const sp = mapData.spawns.allies.find((s) => s.id === ally.id) ?? mapData.spawns.allies[i];
       // 구출하면 이 자리로 되돌려 보내야 하므로, 감옥에서 시작하는 동료의 원래 자리도 기억해 둔다.
       const home = sp ? { x: sp.col * TILE + TILE / 2, y: sp.row * TILE + TILE / 2 } : ally.spawn;
-      const pos = ally.arrested ? { x: 80 + this.jailCount++ * 44, y: 60 } : home;
+      const pos = ally.arrested ? this.#jailSlot(this.jailCount++) : home;
 
       const frame = ALLY_FRAME[ally.id] ?? i + 1;
       const node = this.add.sprite(pos.x, pos.y, 'chars', frame);
@@ -117,6 +124,8 @@ export class StageScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    this.#buildSteam();
+    this.#buildPlayerLight();
     this.#spawnPatrols();
     // 여기까지가 월드 — 이후의 HUD·수첩·도움말은 UI 카메라 소속이다.
     // (경계 상승으로 나중에 붙는 증원 순찰은 #maybeReinforce 가 asWorld 로 등록한다.)
@@ -164,9 +173,11 @@ export class StageScene extends Phaser.Scene {
     // 시연 직전 비상용 킬스위치 (?nointro 관례를 그대로 따른다).
     if (new URLSearchParams(window.location.search).has('nopatrol')) return;
 
-    this.patrols.push(new Patrol(this, PATROL_ROUTES.corridor));
+    for (const route of [PATROL_ROUTES.avenue, PATROL_ROUTES.crossing, PATROL_ROUTES.wharf]) {
+      this.patrols.push(new Patrol(this, route));
+    }
     if (this.state.alertLevel >= REINFORCE_AT) {
-      this.patrols.push(new Patrol(this, PATROL_ROUTES.lowerHall));
+      this.patrols.push(new Patrol(this, PATROL_ROUTES.reinforce));
       this.reinforced = true;
     }
     // 스폰 직후 유예 — 시작하자마자 검문에 걸리면 플레이어는 뭘 한 것도 없이 당한다.
@@ -178,7 +189,7 @@ export class StageScene extends Phaser.Scene {
     if (this.reinforced || !this.patrols.length) return;
     if (this.state.alertLevel < REINFORCE_AT) return;
     this.reinforced = true;
-    const p = new Patrol(this, PATROL_ROUTES.lowerHall);
+    const p = new Patrol(this, PATROL_ROUTES.reinforce);
     // 카메라 분리(setupCameras) 이후에 태어나는 월드 오브젝트라 소속을 직접 밝힌다.
     this.asWorld(p.sprite, p.cone);
     p.resume({ graceMs: 2000 });
@@ -271,16 +282,92 @@ export class StageScene extends Phaser.Scene {
    * map.json 의 layout 을 깔고, solid 타일은 정적 물리 바디로 만들어 플레이어를 막는다.
    * 정적 그룹의 create 는 보이는 스프라이트와 정적 바디를 한 번에 만든다.
    */
-  #buildMap() {
-    this.walls = buildTilemap(this, mapData);
+  /**
+   * 플레이어가 든 등불.
+   *
+   * 배경의 조명은 구워져 있어 가로등 사이가 어둡다. 밤거리로는 맞지만, 그 어둠 속을
+   * 걸을 때 발밑이 안 보이면 길찾기가 답답해진다. 인물을 따라다니는 빛을 하나 얹어
+   * "내가 선 자리만 밝다"를 만든다 — 어둠을 걷어내지 않으면서 갈 곳은 보이게 한다.
+   *
+   * ADD 합성이라 배경 위에 더해진다. 곱하기로 하면 어두운 자갈이 더 어두워질 뿐이다.
+   */
+  #buildPlayerLight() {
+    if (!this.textures.exists('player-light')) {
+      const R = 108;
+      const g = this.make.graphics({ add: false });
+      // 32단으로 끊어 그린다 — 도트 화면에 매끄러운 그라디언트를 얹으면 그 부분만
+      // 해상도가 달라 보인다. 계단진 빛이 오히려 어울린다.
+      for (let i = 32; i > 0; i--) {
+        const t = i / 32;
+        // 밝기는 낮게. 이 빛은 어둠을 걷어내는 것이 아니라 발밑을 알려 주는 정도여야
+        // 한다 — 세게 주면 구운 배경의 등불 웅덩이가 통째로 묻힌다.
+        g.fillStyle(0xffe2b0, 0.016 * (1 - t) ** 1.8);
+        g.fillCircle(R, R, R * t);
+      }
+      g.generateTexture('player-light', R * 2, R * 2);
+      g.destroy();
+    }
 
-    // 시민 스폰 — 마을 NPC 분기 대사는 W3 TODO. 지금은 맵이 지정한 위치에 표시만 한다.
-    const cz = mapData.spawns.citizen;
-    if (cz) {
-      const x = cz.col * TILE + TILE / 2, y = cz.row * TILE + TILE / 2;
+    this.playerLight = this.add
+      .image(this.player.x, this.player.y, 'player-light')
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(4);
+  }
+
+  /**
+   * 길바닥 배출구에서 오르는 김.
+   *
+   * 배경에 굽지 않는 이유는 김이 움직여야 김이기 때문이다 — 정지된 흰 얼룩은
+   * 그냥 얼룩이고, 증기 도시라는 인상은 그것이 흔들릴 때 생긴다.
+   * 자리는 아트 스크립트가 배출구를 그린 곳 그대로다 (street-props.json).
+   */
+  #buildSteam() {
+    if (!this.textures.exists('steam')) {
+      const g = this.make.graphics({ add: false });
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(2, 0, 4, 8);
+      g.fillRect(0, 2, 8, 4);
+      g.fillRect(1, 1, 6, 6);
+      g.generateTexture('steam', 8, 8);
+      g.destroy();
+    }
+
+    for (const [i, [x, y]] of (streetProps.vents ?? []).entries()) {
+      const em = this.add.particles(x, y, 'steam', {
+        speedY: { min: -30, max: -14 },
+        speedX: { min: -13, max: 13 },
+        scale: { start: 0.6, end: 3.1 },
+        alpha: { start: 0.34, end: 0 },
+        lifespan: { min: 1800, max: 3200 },
+        // 배출구마다 주기를 달리한다 — 같은 박자로 뿜으면 기계 장치처럼 보인다.
+        frequency: 300 + (i % 4) * 130,
+        quantity: 1,
+        tint: 0xdfe4e8,
+      });
+      // setupCameras 앞에서 만들어지므로 월드 소속으로 자동 분류된다.
+      em.setDepth(6);
+    }
+  }
+
+  /** 감옥 안에서 체포된 동료가 서는 자리. 슬롯마다 오른쪽으로 밀린다. */
+  #jailSlot(n) {
+    const j = mapData.spawns.jail;
+    return { x: j.col * TILE + TILE / 2 + n * j.step, y: j.row * TILE + TILE / 2 };
+  }
+
+  #buildMap() {
+    // 거리는 저택과 같은 방식이다 — 자갈·건물·나무·가로등·조명을 한 장에 구워
+    // 배경으로 깔고 충돌만 따로 세운다 (scripts/gen-street-art.js).
+    this.add.image(0, 0, 'street-bg').setOrigin(0, 0).setDepth(-100);
+    this.walls = buildColliders(this, mapData, streetProps.blocked);
+
+    // 마을 사람 다섯 — 분기 대사는 W3 TODO. 지금은 맵이 지정한 자리에 세워만 둔다.
+    for (const [i, z] of (mapData.spawns.citizens ?? []).entries()) {
+      const x = z.col * TILE + TILE / 2;
+      const y = z.row * TILE + TILE / 2;
       this.add.sprite(x, y, 'chars', CITIZEN_FRAME);
       this.add
-        .text(x, y - 24, '시민', {
+        .text(x, y - 24, `마을 사람 ${i + 1}`, {
           fontFamily: FONTS.body,
           fontSize: '11px',
           color: CSS.paperDim,
@@ -288,13 +375,13 @@ export class StageScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
 
-    // 감옥 구역 표시 (상단 좌측 방)
-    this.add.rectangle(160, 60, 300, 70).setStrokeStyle(1, 0x6b4a4a);
+    // 감옥은 이제 배경에 창살과 자물쇠까지 그려져 있다 — 자리를 알리는 이름표만 얹는다.
+    const cage = mapData.cage;
     this.add
-      .text(160, 20, '감옥', {
+      .text((cage.x + cage.w / 2) * TILE, (cage.y - 0.6) * TILE, '임시 감옥', {
         fontFamily: FONTS.body,
-        fontSize: '11px',
-        color: '#6b4a4a', // 감옥 구역 표시색(0x6b4a4a)과 짝 — 테마 토큰 아님
+        fontSize: '12px',
+        color: '#8a5a5a', // 감옥 표시색 — 테마 토큰 아님 (여기서만 쓴다)
       })
       .setOrigin(0.5);
   }
@@ -305,7 +392,8 @@ export class StageScene extends Phaser.Scene {
 
     const active = this.state.allies.filter((a) => !a.arrested);
     const lines = [
-      `경계 레벨 ${this.state.alertLevel} / 3   |   접선 가능 ${active.length}/${this.state.allies.length}`,
+      `경계 레벨 ${this.state.alertLevel} / 3   |   접선 가능 ${active.length}/${this.state.allies.length}` +
+        `   |   자석 수류탄 ${'◆'.repeat(this.grenades)}${'◇'.repeat(GRENADES_START - this.grenades)}`,
     ];
     if (this.answerShown && this.debugAnswer) {
       lines.push(`[디버그] 접선 코드: 「${this.debugAnswer.codeWord}」 (${this.debugAnswer.category})`);
@@ -346,12 +434,14 @@ export class StageScene extends Phaser.Scene {
   }
 
   /**
-   * 판을 끝내고 결과 화면을 띄운다.
+   * 판을 **패배로** 끝내고 결과 화면을 띄운다.
    *
-   * 클리어는 기존 "STAGE 1 CLEAR" 대사를 읽을 틈을 준 뒤 덮고, 게임오버는 즉시 덮는다
-   * — 진 이유는 이미 대사로 나왔고, 늘어질수록 다시 하기 싫어진다.
+   * 클리어는 여기로 오지 않는다 — 코드를 맞히면 결과 화면 대신 저택으로 이어진다
+   * (#toMansion). 이야기가 계속되는 자리에 창을 덮으면 흐름이 끊긴다.
    *
-   * @param {'cleared'|'caught'|'spotted'} outcome
+   * 게임오버는 즉시 덮는다 — 진 이유는 이미 대사로 나왔고, 늘어질수록 다시 하기 싫어진다.
+   *
+   * @param {'caught'|'spotted'} outcome
    */
   #endGame(outcome, { delay = 0 } = {}) {
     if (this.ended) return;
@@ -402,6 +492,9 @@ export class StageScene extends Phaser.Scene {
     } else {
       applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
     }
+
+    // 등불은 인물을 그대로 따라간다 (물리 바디가 아니라 표시용이라 매 프레임 위치만 맞춘다).
+    this.playerLight?.setPosition(this.player.x, this.player.y);
 
     // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운
     // 다른 대사 위에 그대로 이어붙는다 (setBusy 가 입력칸을 blur 시켜 typing 이 풀리기 때문).
@@ -522,15 +615,7 @@ export class StageScene extends Phaser.Scene {
       });
 
       if (this.ended) return;
-      if (outcome === 'caught') {
-        this.dialogue.show(
-          '검문 적발',
-          '진술이 받아들여지지 않았다. 기록이 남았다.\n\n' +
-            `경계 레벨이 올라갔다. (${this.state.alertLevel}/3)\n` +
-            '경계가 극에 달하면 다음 발각은 검문도 없이 끝난다.',
-        );
-        this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
-      }
+      if (outcome === 'caught') this.#useGrenade();
     } catch (err) {
       // 검문이 네트워크 사고로 게임을 멈추게 두지 않는다. 패널을 접고 그냥 보내 준다.
       this.minigame.close();
@@ -541,6 +626,90 @@ export class StageScene extends Phaser.Scene {
       // 같은 길이로 준다 — 짧게 주면 그 차이만큼 거절당할 요청을 계속 쏘게 된다.
       for (const p of this.patrols) p.resume({ graceMs: CHECKPOINT_COOLDOWN_MS });
     }
+  }
+
+  /** 연출용 사이 — delayedCall 을 await 할 수 있게 감싼다. */
+  #beat(ms) {
+    return new Promise((resolve) => this.time.delayedCall(ms, resolve));
+  }
+
+  /**
+   * 스테이지 1 클리어 → 저택 잠입 (스테이지 2).
+   *
+   * 결과 화면을 띄우지 않는다. 여기는 판이 끝나는 자리가 아니라 **이야기가 이어지는
+   * 자리**라, 창을 하나 덮어 흐름을 끊으면 "한 판 더?"로 읽힌다 (계획서 §4.3 마지막 줄
+   * — 클리어 → 저택 잠입 연결 연출).
+   *
+   * 연결 대사의 화자는 요른이다. 스토리보드 수정안 p.19 에서 이 대사의 화자가
+   * 비어 있던 것을 시계 수리공으로 확정했고, 그가 곧 스테이지 2 의 동행이 된다.
+   */
+  async #toMansion(codeWord) {
+    if (this.ended) return;
+    this.ended = true; // update() 를 멈춘다 — 이후는 연출 시간이다
+    this.player.body.setVelocity(0, 0);
+    for (const p of this.patrols) p.halt();
+
+    const b = this.state.broker;
+    this.dialogue.show(
+      `${b.name} (${b.role})`,
+      `접선 코드는 「${codeWord}」 였다.\n\n"…맞군. 늦지 않아서 다행이야."`,
+      { portrait: b.id },
+    );
+    await this.#beat(2600);
+
+    this.dialogue.show(
+      `${b.name} (${b.role})`,
+      '"저택에서 시계 수리공을 구한다더군. 너는 내 보조로 같이 간다.\n\n' +
+        '내가 괘종시계를 붙들고 시간을 끄는 동안, 안에 있는 동료를 찾아 정보를 받아 와."',
+      { portrait: b.id },
+    );
+    await this.#beat(4200);
+
+    this.dialogue.hide();
+    // 월드와 HUD 를 함께 접는다 — 메인 카메라만 어둡게 하면 HUD 가 허공에 뜬다.
+    this.cameras.main.fadeOut(900, 0, 0, 0);
+    this.uiCam?.fadeOut(900, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Mansion'));
+  }
+
+  /**
+   * 자석 수류탄 — 검문에 적발됐을 때의 마지막 수단 (스토리보드 p16, 계획서 §4.3).
+   *
+   * 강한 자기장으로 로봇의 구동부를 잠깐 붙여 놓고 그 틈에 빠져나간다.
+   * 두 개로 시작하고, **다 쓰면 게임오버**다 — "게임오버 = 자석 수류탄 소진"이
+   * 이 스테이지의 패배 조건이다. 적발 자체가 즉사가 아니라, 빠져나갈 수단이
+   * 남아 있느냐가 판을 가른다.
+   *
+   * ※ 지금은 클라이언트가 개수를 센다. 판이 끝나면 세션도 끝나 되돌릴 여지가 없어
+   *   당장 문제는 없지만, 서버 권위가 원칙이므로 세션으로 옮기는 것이 옳다 (후속).
+   */
+  #useGrenade() {
+    if (this.grenades <= 0) {
+      this.dialogue.show(
+        '검문 적발',
+        '주머니를 더듬었지만 아무것도 잡히지 않는다.\n\n' +
+          '자석 수류탄이 없다. 로봇의 팔이 어깨를 붙든다.',
+      );
+      this.#endGame('caught', { delay: 1800 });
+      return;
+    }
+
+    this.grenades -= 1;
+    this.#updateHud();
+
+    // 자기장이 터지는 순간 — 화면이 한 번 희게 튀고 로봇들이 굳는다.
+    this.cameras.main.flash(220, 210, 230, 255);
+    this.cameras.main.shake(180, 0.006);
+    for (const p of this.patrols) p.halt();
+
+    this.dialogue.show(
+      '자석 수류탄',
+      '진술이 받아들여지지 않았다. 팔이 뻗어 오는 순간, 주머니의 수류탄을 굴렸다.\n\n' +
+        '푸른 섬광. 로봇의 관절이 서로 들러붙어 굳는다. 그 틈에 골목으로 몸을 던졌다.\n\n' +
+        `경계 레벨 ${this.state.alertLevel}/3   ·   남은 수류탄 ${this.grenades}개` +
+        (this.grenades === 0 ? '\n\n이제 다음은 없다.' : ''),
+    );
+    this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
 
   /** 상태를 갱신하는 POST 한 번. 실패는 예외로 올린다. */
@@ -847,13 +1016,7 @@ export class StageScene extends Phaser.Scene {
       if (result.correct) {
         this.dialogue.hideInput();
         this.dialogue.setHint('');
-        // 창을 닫아 뒀더라도 이건 띄운다 — 코드를 밝히는 대사이고, 곧 결과 화면이 덮는다.
-        this.dialogue.show(
-          '접선 성공',
-          `접선 코드는 「${result.codeWord}」 였다.\n\nSTAGE 1 CLEAR`,
-          { portrait: this.state.broker.id },
-        );
-        this.#endGame('cleared', { delay: 1200 });
+        this.#toMansion(result.codeWord);
         return;
       }
 
@@ -886,8 +1049,7 @@ export class StageScene extends Phaser.Scene {
 
       if (updated.arrested && !entry.jailed) {
         entry.jailed = true;
-        const x = 80 + this.jailCount++ * 44;
-        const y = 60;
+        const { x, y } = this.#jailSlot(this.jailCount++);
         entry.node.setTint(0x9a9088); // 붙잡혀 색이 죽는다
         entry.label.setText(`${updated.name} (체포)`).setColor(CSS.paperDim);
         // 감옥으로 끌려가는 연출
