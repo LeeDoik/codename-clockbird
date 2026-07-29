@@ -121,19 +121,20 @@ if (JSON.stringify(state).includes('"trust"') || JSON.stringify(state).includes(
 }
 console.log('상태 응답에 trust/informed 없음 — OK');
 
-// 코드는 접선책에게만 — 동료 id 로 건네면 400
-const oldWay = await post('/api/stage/guess', {
-  sessionId: state.sessionId, brokerId: target.id, guess: '아무말',
+// 코드는 접선책 또는 살아 있는 동료 누구에게나 건넬 수 있다 (스펙 §4.2, Task 14) —
+// 그래도 화이트리스트 밖 임의 문자열은 여전히 거부돼야 한다.
+const badTarget = await post('/api/stage/guess', {
+  sessionId: state.sessionId, targetId: 'no-such-target-id', guess: '아무말',
 });
-if (oldWay.status !== 400) {
-  console.error(`[!] 동료 대상 코드 입력이 ${oldWay.status} — 400 이어야 한다`);
+if (badTarget.status !== 400) {
+  console.error(`[!] 존재하지 않는 대상 코드 입력이 ${badTarget.status} — 400 이어야 한다`);
   process.exit(1);
 }
-console.log('동료 대상 코드 입력 거부(400) — OK');
+console.log('존재하지 않는 대상 코드 입력 거부(400) — OK');
 
-// 오답 → 경계 +1 (신뢰도 하락이 아니라)
+// 오답 → 경계 +1 (신뢰도 하락이 아니라) — 동료에게 제출해도 유효해야 한다 (Task 14)
 const g1 = await post('/api/stage/guess', {
-  sessionId: state.sessionId, brokerId: state.broker.id, guess: '전혀상관없는말',
+  sessionId: state.sessionId, targetId: target.id, guess: '전혀상관없는말',
 });
 const g1body = await g1.json();
 if (g1body.correct !== false || g1body.alertLevel !== 1) {
@@ -144,7 +145,7 @@ if (JSON.stringify(g1body).includes('"trust"') || JSON.stringify(g1body).include
   console.error('[!] guess 응답에 신뢰도/밀고 필드가 남아 있다');
   process.exit(1);
 }
-console.log('오답 → 경계 1 — OK');
+console.log('동료 대상 오답 → 경계 1 — OK');
 
 // 오답을 반복해 경계 3(상한)까지 올린다
 for (const n of [2, 3]) {
