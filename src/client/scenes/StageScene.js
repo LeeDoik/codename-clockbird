@@ -206,10 +206,12 @@ export class StageScene extends Phaser.Scene {
       portrait: ally.id,
       choices: [
         { label: '대화하기', key: 'E' },
+        { label: '암호 말하기', key: 'F' },
         { label: '그만하기', key: 'Esc' },
       ],
       onChoice: (key) => {
         if (key === 'E') this.#talk(ally);
+        else if (key === 'F') this.#offerCode(ally);
         else this.dialogue.hide();
       },
     });
@@ -1017,7 +1019,7 @@ export class StageScene extends Phaser.Scene {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: this.state.sessionId,
-          brokerId: this.state.broker.id,
+          targetId: this.codeTargetId ?? this.state.broker.id,
           guess,
         }),
       });

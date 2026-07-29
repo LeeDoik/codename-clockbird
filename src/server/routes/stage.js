@@ -306,7 +306,7 @@ router.post('/alarm', (req, res) => {
  */
 router.post('/guess', async (req, res, next) => {
   try {
-    const { sessionId, brokerId, guess } = req.body ?? {};
+    const { sessionId, targetId, brokerId, guess } = req.body ?? {};
     const session = getSession(sessionId);
 
     if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
@@ -314,8 +314,14 @@ router.post('/guess', async (req, res, next) => {
       return res.status(409).json({ error: '이미 종료된 세션입니다.' });
     }
     if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
-    if (brokerId !== session.broker?.id) {
-      return res.status(400).json({ error: '접선책에게만 코드를 건넬 수 있습니다.' });
+    // 코드는 접선책 또는 살아 있는 동료 누구에게나 건넬 수 있다 (스펙 §4.2).
+    // 임의 문자열로 우회하지 못하게 대상 검증은 유지한다 (/alarm 화이트리스트와 같은 원칙).
+    const target = targetId ?? brokerId;
+    const validTarget =
+      target === session.broker?.id ||
+      session.allies.some((a) => a.id === target && !a.arrested);
+    if (!validTarget) {
+      return res.status(400).json({ error: '코드를 건넬 수 있는 상대가 아닙니다.' });
     }
 
     const verdict = await judgeGuess({ codeWord: session.codeWord, guess });
