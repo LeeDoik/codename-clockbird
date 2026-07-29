@@ -13,8 +13,8 @@ npm-debug.log*
 cloudflared.exe
 *.preview8x.png
 
-# 저택 막힌 칸 겹쳐보기 (gen-mansion-art.js --debug 가 다시 만든다)
-src/client/assets/mansion-blocked-debug.png
+# 막힌 칸 겹쳐보기 (gen-*-art.js --debug 가 다시 만든다)
+src/client/assets/*-blocked-debug.png
 
 # Claude Code 로컬 설정
 .claude/settings.local.json

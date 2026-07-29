@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
-import { buildTilemap, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
+import { buildColliders, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
 import hqData from '../assets/hq.json';
+import hqProps from '../assets/hq-props.json';
 
 /**
  * 튜토리얼 — 레지스탕스 본부.
@@ -46,7 +47,10 @@ export class TutorialScene extends Phaser.Scene {
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
 
-    this.walls = buildTilemap(this, hqData);
+    // 거리·저택과 같은 방식 — 바닥·벽·가구·조명을 한 장에 구운 배경을 깔고
+    // 충돌만 따로 세운다 (scripts/gen-hq-art.js).
+    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setDepth(-100);
+    this.walls = buildColliders(this, hqData, hqProps.blocked);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
     setupCameras(this, hqData, this.player);
@@ -142,10 +146,12 @@ export class TutorialScene extends Phaser.Scene {
   #showBriefing() {
     this.dialogue.show(
       `${this.state.officer.name} (${this.state.officer.role})`,
-      '"거리에 나가기 전에 한 가지만 익히고 가라.\n\n' +
-        '우리는 서로를 단어로 알아본다. 저기 셋이 같은 것을 두고 각자 다른 단어를 떠올렸다.\n' +
-        '셋을 모아 겹치는 것 하나를 찾아내라 — 그게 접선 코드다.\n\n' +
-        '[WASD] 로 걷고, 동료 앞에서 [E] 로 말을 건다.\n답을 찾으면 내 앞에서 [F]."',
+      // 스토리보드(튜토리얼 본부 맵.dc.html) 의 chiefBrief 를 옮겼다.
+      '"브루주아 대저택에 심상치 않은 일이 있다는 소식이다.\n\n' +
+        '거리의 동료들이 잠입 방법을 준비해 뒀다고 한다. 동료를 만나 접선 코드를 말하고 합류해라.\n' +
+        '동료들이 말하는 단어들을 조합해서 접선 코드를 유추해라. 로봇들은 알 수 없는 방법이지.\n\n' +
+        '준비되어 있는지 한번 확인해볼까? 여기 동료들과 대화로 코드를 유추해 봐.\n' +
+        '[WASD] 로 걷고, 동료 앞에서 [E]. 답을 찾으면 내 앞에서 [F]."',
       { portrait: this.state.officer.id },
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');

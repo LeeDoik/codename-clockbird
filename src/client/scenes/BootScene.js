@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 // Vite 가 번들·핑거프린팅하도록 에셋을 import 한다 (문자열 URL 을 그대로 load 하면
 // import 되지 않은 assets/ 는 프로덕션 빌드의 dist 에 복사되지 않아 404 가 난다).
 import tilesUrl from '../assets/tiles/tiles.png';
+import hqBgUrl from '../assets/hq-bg.png';
 import streetBgUrl from '../assets/street-bg.png';
 import mansionBgUrl from '../assets/mansion-bg.png';
 import mansionDoorUrl from '../assets/mansion-door-open.png';
@@ -29,6 +30,7 @@ export class BootScene extends Phaser.Scene {
     // 거리(스테이지 1)와 저택(스테이지 2)은 타일을 한 칸씩 깔지 않는다 — 바닥·건물·
     // 소품·조명을 한 장에 구운 배경을 쓴다 (scripts/gen-{street,mansion}-art.js).
     // 충돌은 각 map.json + *-props.json 이 맡는다.
+    this.load.image('hq-bg', hqBgUrl);
     this.load.image('street-bg', streetBgUrl);
     this.load.image('mansion-bg', mansionBgUrl);
     this.load.image('mansion-door-open', mansionDoorUrl);
