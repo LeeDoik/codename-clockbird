@@ -318,7 +318,7 @@ export class StageScene extends Phaser.Scene {
     const hint = this.state.hint;
     const head = hint ? `접선 코드: ${'○'.repeat(hint.length)} (${hint.category})\n\n` : '';
     if (this.clues.size === 0) {
-      this.clueText.setText(`${head}아직 수집한 단서가 없다.\n\n동료 근처에서 [F] 로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.`);
+      this.clueText.setText(`${head}아직 수집한 단서가 없다.\n\n동료에게 다가가 [E] 로 말을 걸면,\n그가 흘린 연상 단어가 여기 기록된다.`);
       return;
     }
     const lines = [];
@@ -817,13 +817,21 @@ export class StageScene extends Phaser.Scene {
       this.#recordClue(ally, contact.word);
       this.#syncAllyNodes();
 
-      const shown = this.dialogue.reply(
+      // 단어 공개는 두 페이지다 — 입력창은 다 읽은 뒤에 연다. 바로 열면
+      // 포커스가 페이지 넘김([Space])을 막아 둘째 페이지에 영영 못 간다.
+      this.dialogue.reply(
         `${ally.name} (${ally.role})`,
         `"...「${contact.word}」."\n\n그가 흘린 단서다. [C] 단서 수첩에 기록됐다.`,
-        '[Enter] 더 묻기 · [Esc] 닫기',
-        { portrait: ally.id },
+        '[Space] 다음',
+        {
+          portrait: ally.id,
+          onPagesDone: () => {
+            this.dialogue.showInput('말을 건넨다...', 'chat');
+            this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
+          },
+        },
       );
-      if (!shown) return;
+      return;
     }
 
     this.dialogue.showInput('말을 건넨다...', 'chat');
@@ -938,7 +946,7 @@ export class StageScene extends Phaser.Scene {
       `${ally.name} (${ally.role})`,
       `${freed.name}이(가) 창살 밖으로 빠져나와 제자리로 돌아갔다.\n\n` +
         `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n\n` +
-        `[F] 로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
+        `[E] 대화로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
       '[Space] / [Esc] 로 닫는다',
       { portrait: ally.id },
     );
