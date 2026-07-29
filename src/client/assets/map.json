@@ -94,7 +94,7 @@
       {
         "id": "watchmaker",
         "col": 51,
-        "row": 27
+        "row": 23
       },
       {
         "id": "maid",
@@ -103,8 +103,8 @@
       },
       {
         "id": "engineer",
-        "col": 46,
-        "row": 11
+        "col": 52,
+        "row": 7
       },
       {
         "id": "smuggler",
@@ -113,8 +113,8 @@
       },
       {
         "id": "musician",
-        "col": 33,
-        "row": 11
+        "col": 30,
+        "row": 3
       }
     ],
     "broker": {
