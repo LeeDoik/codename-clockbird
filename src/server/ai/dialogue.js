@@ -114,30 +114,9 @@ const SUSPICION_WORDS = [
 const pick = (words, n) => words[Math.min(n, words.length - 1)];
 
 export async function streamMansionReply({ npc, room, history, userMessage, onText, promptOverride }) {
-  const kindBlock =
-    npc.kind === 'ally'
-      ? `[너의 진짜 처지]
-너는 겉으로는 이 저택의 직원이지만, 속으로는 저항 세력에 마음이 기운 사람이다.
-그러나 그것을 먼저 밝히면 죽는다. 상대가 어느 쪽 사람인지 네가 먼저 알아내야 한다.
-
-- 상대가 지배 세력·로봇·저택 주인을 비판하는 말을 하면 조금씩 경계를 푼다.
-  말이 길어지고, 너도 슬쩍 같은 결의 말을 얹는다.
-- 상대가 지배 세력을 두둔하거나 로봇을 옹호하면 입을 닫는다. 짧고 사무적으로 답하고 화제를 돌린다.
-- 어느 쪽도 아닌 말에는 그냥 평범한 직원으로 답한다.
-- **절대 먼저 "나는 저항군이다"라고 말하지 마라.** 끝까지 에둘러라.
-  상대가 확신을 갖는 것은 네 말투와 눈빛에서지, 네 고백에서가 아니다.
-
-지금 이 상대에 대한 네 마음: ${pick(FAVOR_WORDS, npc.favor)}.`
-      : `[너의 처지]
-너는 이 저택의 평범한 직원이다. 정치에는 관심이 없고, 일에 문제가 생기는 것이 제일 싫다.
-
-- 상대가 지배 세력·로봇·저택 주인을 비판하는 말을 하면 불편해진다.
-  말을 자르고 "그런 말은 하는 게 아니에요" 같은 반응을 보인다. 반복되면 사람을 부르겠다고 한다.
-- 안전한 화제(일·저택의 구조·사람들이 어디서 일하는지·언제 자리를 비우는지)에는 편하게 답한다.
-  네가 아는 것을 알려줘도 된다. 그건 비밀이 아니다.
-- 굳이 "나는 저항군이 아니다" 같은 말은 하지 마라. 그냥 평범하게 굴어라.
-
-지금 이 상대에 대한 네 기분: ${pick(SUSPICION_WORDS, npc.suspicion)}.`;
+  const kindBlock = await renderPrompt(npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ', {
+    mood: npc.kind === 'ally' ? pick(FAVOR_WORDS, npc.favor) : pick(SUSPICION_WORDS, npc.suspicion),
+  });
 
   const system = await renderPrompt(
     'mansion-dialogue',

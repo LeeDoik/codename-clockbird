@@ -34,6 +34,8 @@ const RECOMMENDED_VARS = {
   'dialogue-system': ['name', 'role', 'persona', 'word', 'alertLevel', 'arrestedCount'],
   'tutorial-dialogue': ['name', 'role', 'persona', 'word', 'reasonBlock'],
   'mansion-stance': ['clueBlock'],
+  'mansion-ally': ['mood'],
+  'mansion-civ': ['mood'],
   'checkpoint-question': ['alertLevel', 'arrestedCount'],
   'checkpoint-judge': ['alertLevel', 'arrestedCount', 'strictness'],
 };

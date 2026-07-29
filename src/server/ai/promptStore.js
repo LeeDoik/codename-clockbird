@@ -18,6 +18,8 @@ const TEMPLATES = [
   'tutorial-dialogue',
   'mansion-dialogue',
   'mansion-stance',
+  'mansion-ally',
+  'mansion-civ',
   'checkpoint-question',
   'checkpoint-judge',
 ];
