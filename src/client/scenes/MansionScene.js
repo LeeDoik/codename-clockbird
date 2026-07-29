@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
-import { buildColliders, createPlayer, applyMovement, nearestOf, setupCameras } from '../world/worldParts.js';
+import { buildColliders, createPlayer, applyMovement, setupCameras } from '../world/worldParts.js';
+import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
 import mansionData from '../assets/mansion.json';
@@ -17,7 +18,6 @@ import mansionProps from '../assets/mansion-props.json';
  * 그래서 이 씬은 동료 명단을 모른다. 서버만 안다.
  */
 const TILE = mansionData.tileSize;
-const TALK_RANGE = 52;
 const PLAYER_FRAME = 0;
 
 /**
@@ -56,7 +56,7 @@ const SHROUD_COLOR = 0x05040a;
 const ALWAYS_LIT = new Set(['hall']);
 
 /** 연구실 문서 받침대 — 스테이지 목표. 가구를 그린 자리와 같다. */
-const DOCUMENT = { id: '__document', name: '신형 로봇 기록', col: 53, row: 22 };
+const DOCUMENT = { name: '신형 로봇 기록', col: 53, row: 22 };
 /**
  * 홀과 벽 없이 맞닿는 방과, 그 경계에서 어둠이 풀어질 거리(칸).
  *
@@ -73,8 +73,6 @@ export class MansionScene extends Phaser.Scene {
   init() {
     this.state = null;
     this.nodes = [];
-    this.nearby = null;
-    this.proximityHint = false;
     this.ended = false;
     this.startFailed = false;
     this.currentRoom = null;
@@ -99,6 +97,7 @@ export class MansionScene extends Phaser.Scene {
     this.player = createPlayer(this, mansionData, this.walls, PLAYER_FRAME);
     // 여기까지가 월드. NPC 는 /start 응답 후에 생기므로 asWorld() 로 따로 등록한다.
     setupCameras(this, mansionData, this.player);
+    this.interact = new InteractionManager(this, this.dialogue);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -315,7 +314,7 @@ export class MansionScene extends Phaser.Scene {
 
     this.dialogue.preload([this.state.escort.id, ...this.state.npcs.map((n) => n.id)]);
     this.#spawnNpcs();
-    this.#syncLabDoor();
+    this.#registerLabDoor();
     this.#updateHud();
     this.#showEscortBriefing();
   }
@@ -328,13 +327,65 @@ export class MansionScene extends Phaser.Scene {
       const label = this.add.text(x, y - 26, npc.name, LABEL_STYLE).setOrigin(0.5);
       this.asWorld(sprite, label);
       this.nodes.push({ npc, sprite, label });
+
+      if (npc.id === this.state.escort.id) {
+        this.interact.register({
+          id: npc.id,
+          type: 'npc',
+          sprite,
+          speaker: `${npc.name} (${npc.role})`,
+          line: npc.line,
+          portrait: npc.id,
+        });
+        return;
+      }
+      this.interact.register({
+        id: npc.id,
+        type: 'choiceNpc',
+        sprite,
+        speaker: npc.name,
+        line: `"${npc.line}"`,
+        portrait: npc.id,
+        choices: [
+          { label: '대화하기', key: 'E' },
+          { label: '그만하기', key: 'Esc' },
+        ],
+        onChoice: (key) => {
+          if (key === 'E') this.#talk(npc);
+          else this.dialogue.hide();
+        },
+      });
     };
 
     place(this.state.escort);
     for (const npc of this.state.npcs) place(npc);
   }
 
-  /** 열쇠를 얻으면 연구실 문을 막던 정적 바디를 걷어내고 열린 문 그림을 덮어 그린다. */
+  /** 실험실 문 — 열쇠가 있어야 [E] 로 연다 (스펙 §2 door). 자동 개방은 제거됐다. */
+  #registerLabDoor() {
+    const door = mansionData.doors.find((d) => d.key === 'lab');
+    if (!door) return;
+    this.interact.register({
+      id: 'lab-door',
+      type: 'door',
+      x: (door.x + door.w / 2) * TILE,
+      y: (door.y + door.h / 2) * TILE,
+      range: 56,
+      bubble: '[E] 열기',
+      isUnlocked: () => Boolean(this.state?.hasKey),
+      lockedText: '잠겨 있다. 열쇠가 필요할 것 같다.',
+      openText: '문이 열렸다.',
+      onOpen: () => {
+        this.#syncLabDoor();
+        this.interact.remove('lab-door');
+      },
+    });
+  }
+
+  /**
+   * 문이 실제로 열릴 때(#registerLabDoor 의 onOpen)만 불린다 — 벽 바디를 걷어내고
+   * 열린 문 그림을 덮어 그린 뒤, 문서 노드를 등록한다(문이 열려야 문서에 닿을 수 있다).
+   */
   #syncLabDoor() {
     if (this.labUnlocked || !this.state?.hasKey) return;
     const door = mansionData.doors.find((d) => d.key === 'lab');
@@ -353,6 +404,15 @@ export class MansionScene extends Phaser.Scene {
       this.add.image(door.x * TILE, door.y * TILE, 'mansion-door-open').setOrigin(0, 0).setDepth(-90),
     );
     this.labUnlocked = true;
+
+    this.interact.register({
+      id: 'document',
+      type: 'document',
+      x: DOCUMENT.col * TILE + TILE,
+      y: DOCUMENT.row * TILE + TILE / 2,
+      bubble: '[E] 열람',
+      onInteract: () => this.#readDocument(),
+    });
   }
 
   #showEscortBriefing() {
@@ -388,58 +448,28 @@ export class MansionScene extends Phaser.Scene {
       return;
     }
 
-    this.#updateProximity();
+    // 말풍선·최근접 노드 갱신 — 대화 중이거나 대기 중이면 레이어가 알아서 감춘다.
+    this.interact.update(this.player, { suppress: typing || this.dialogue.busy });
 
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keyE) && this.nearby) {
-      this.#talk(this.nearby);
+    if (!typing && !this.dialogue.busy && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+      if (this.dialogue.isOpen && !this.dialogue.hasMore && this.dialogue.onChoice) {
+        this.dialogue.onChoice('E');
+      } else if (this.dialogue.isOpen && !this.dialogue.isTyping) {
+        this.dialogue.advance();
+      } else {
+        this.interact.trigger();
+      }
     }
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keySpace) && this.dialogue.isOpen) {
       this.dialogue.advance();
-      if (!this.dialogue.isOpen) this.proximityHint = false;
     }
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && this.dialogue.isOpen) {
       this.dialogue.hide();
-      this.proximityHint = false;
     }
   }
 
-  #updateProximity() {
-    const targets = this.nodes.map(({ npc, sprite }) => ({ value: npc, x: sprite.x, y: sprite.y }));
-    // 문서는 열쇠로 문을 연 뒤에야 집을 수 있다.
-    if (this.state.hasKey && !this.state.cleared) {
-      targets.push({
-        value: DOCUMENT,
-        x: DOCUMENT.col * TILE + TILE,
-        y: DOCUMENT.row * TILE + TILE / 2,
-      });
-    }
-
-    const found = nearestOf(this.player, targets, TALK_RANGE);
-    if (found === this.nearby) return;
-    this.nearby = found;
-
-    if (found && !this.dialogue.isOpen) {
-      const verb = found.id === DOCUMENT.id ? '열람' : '대화';
-      this.dialogue.show(found.name, `${found.name} — [E] ${verb}`, { portrait: found.id });
-      this.proximityHint = true;
-    } else if (!found && this.proximityHint) {
-      this.dialogue.hide();
-      this.proximityHint = false;
-    }
-  }
-
-  /** [E] — 말을 건다 (또는 문서를 연다). */
+  /** 선택지 "대화하기" — 자유 입력을 연다. */
   #talk(npc) {
-    this.proximityHint = false;
-
-    if (npc.id === DOCUMENT.id) {
-      this.#readDocument();
-      return;
-    }
-    if (npc.id === this.state.escort.id) {
-      this.#showEscortBriefing();
-      return;
-    }
     if (npc.halted) {
       this.dialogue.show(
         npc.name,
@@ -449,9 +479,8 @@ export class MansionScene extends Phaser.Scene {
       this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       return;
     }
-
     this.currentNpcId = npc.id;
-    this.dialogue.show(npc.name, `"${npc.line}"`, { portrait: npc.id });
+    this.dialogue.hideChoices();
     this.dialogue.showInput('말을 건넨다...', 'chat');
     this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
   }
@@ -536,8 +565,7 @@ export class MansionScene extends Phaser.Scene {
       // 조각 문구는 서버가 쥔 원문 그대로 붙인다 — 모델이 고쳐 말하면 단서가 흐려진다.
       this.dialogue.append(`\n\n"${piece}"`);
       if (event === 'key') {
-        this.dialogue.append('\n\n[연구실 열쇠를 손에 넣었다. 하인 통로 끝의 문이 열린다.]');
-        this.#syncLabDoor();
+        this.dialogue.append('\n\n[연구실 열쇠를 손에 넣었다. 하인 통로 끝의 문을 열 수 있다.]');
       } else {
         this.dialogue.append(`\n\n[정보 조각 ${this.state.pieces.length}/3]`);
       }
