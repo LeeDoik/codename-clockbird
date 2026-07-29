@@ -86,6 +86,8 @@ export class MansionScene extends Phaser.Scene {
     this.reading = false;
     /** 밀고가 확정됐지만 플레이어가 아직 마지막 대사를 읽는 중 — 창이 닫히면 끝낸다 */
     this.reportedPending = false;
+    /** 조사 요청이 날아가는 중 — 연타로 두 번 보내지 않게 */
+    this.inspecting = false;
   }
 
   create() {
@@ -319,6 +321,7 @@ export class MansionScene extends Phaser.Scene {
     this.dialogue.preload([this.state.escort.id, ...this.state.npcs.map((n) => n.id)]);
     this.#spawnNpcs();
     this.#registerLabDoor();
+    this.#registerObjects();
     this.#updateHud();
     this.#showEscortBriefing();
   }
@@ -363,6 +366,40 @@ export class MansionScene extends Phaser.Scene {
 
     place(this.state.escort);
     for (const npc of this.state.npcs) place(npc);
+  }
+
+  /** 조사 오브젝트 — [E] 조사 → 단서 열람 (종이 패널). 위치는 서버 뷰가 준다. */
+  #registerObjects() {
+    for (const obj of this.state.objects ?? []) {
+      this.interact.register({
+        id: obj.id,
+        type: 'object',
+        x: obj.col * TILE + TILE / 2,
+        y: obj.row * TILE + TILE / 2,
+        bubble: '[E] 조사',
+        onInteract: () => this.#inspect(obj),
+      });
+    }
+  }
+
+  async #inspect(obj) {
+    if (this.inspecting) return;
+    this.inspecting = true;
+    try {
+      const res = await fetch('/api/mansion/inspect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.state.sessionId, objectId: obj.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      this.#syncState(data.state);
+      this.docPanel.open({ title: obj.name, body: data.text });
+    } catch (err) {
+      this.dialogue.show('오류', err.message);
+    } finally {
+      this.inspecting = false;
+    }
   }
 
   /** 실험실 문 — 열쇠가 있어야 [E] 로 연다 (스펙 §2 door). 자동 개방은 제거됐다. */
@@ -555,6 +592,7 @@ export class MansionScene extends Phaser.Scene {
     this.state.hasKey = view.hasKey;
     this.state.cleared = view.cleared;
     this.state.over = view.over;
+    this.state.objects = view.objects;
     for (const n of view.npcs) {
       const cur = this.state.npcs.find((x) => x.id === n.id);
       if (cur) Object.assign(cur, n);

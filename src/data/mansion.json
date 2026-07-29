@@ -127,7 +127,7 @@
     { "id": "obj-planter",  "name": "말라죽은 화분",    "room": "walk",    "col": 43, "row": 30, "npcId": "gardener",
       "topic": "하인 통로의 화분들이 옮겨진 자리만 말라죽었다",
       "text": "통로 끝 화분 세 개가 말라죽어 있다. 옮겨 놓은 지 얼마 안 된 자리다 — 원래 있던 곳에 무엇이 생겼을까." },
-    { "id": "obj-portrait", "name": "가문 초상화",      "room": "hall",    "col": 35, "row": 25, "npcId": "butler",
+    { "id": "obj-portrait", "name": "가문 초상화",      "room": "hall",    "col": 35, "row": 26, "npcId": "butler",
       "topic": "홀 초상화 속 인물이 최근 바뀌어 걸렸다",
       "text": "액자 뒤 벽지만 빛깔이 다르다. 원래 걸려 있던 그림은 더 컸다 — 누군가를 서둘러 내렸다." }
   ],
