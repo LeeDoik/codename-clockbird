@@ -86,6 +86,8 @@ export class TutorialScene extends Phaser.Scene {
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       this.state = data;
       this.startFailed = false;
+      // 브리핑이 바로 이어진다 — 간부 얼굴은 그 전에 받아 둬야 늦게 붙지 않는다.
+      this.dialogue.preload([this.state.officer.id, ...this.state.allies.map((a) => a.id)]);
     } catch (err) {
       this.startFailed = true;
       this.dialogue.show(
@@ -144,6 +146,7 @@ export class TutorialScene extends Phaser.Scene {
         '우리는 서로를 단어로 알아본다. 저기 셋이 같은 것을 두고 각자 다른 단어를 떠올렸다.\n' +
         '셋을 모아 겹치는 것 하나를 찾아내라 — 그게 접선 코드다.\n\n' +
         '[WASD] 로 걷고, 동료 앞에서 [E] 로 말을 건다.\n답을 찾으면 내 앞에서 [F]."',
+      { portrait: this.state.officer.id },
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
@@ -213,11 +216,15 @@ export class TutorialScene extends Phaser.Scene {
     this.nearbyOfficer = officer;
 
     if (ally && !this.dialogue.isOpen) {
-      this.dialogue.show(ally.name, `${ally.name} (${ally.role}) — [E] 대화`);
+      this.dialogue.show(ally.name, `${ally.name} (${ally.role}) — [E] 대화`, {
+        portrait: ally.id,
+      });
       this.proximityHint = true;
     } else if (officer && !ally && !this.dialogue.isOpen) {
       const o = this.state.officer;
-      this.dialogue.show(o.name, `${o.name} (${o.role}) — [E] 대화 · [F] 접선 코드`);
+      this.dialogue.show(o.name, `${o.name} (${o.role}) — [E] 대화 · [F] 접선 코드`, {
+        portrait: o.id,
+      });
       this.proximityHint = true;
     } else if (!ally && !officer && this.proximityHint) {
       this.dialogue.hide();
@@ -230,7 +237,7 @@ export class TutorialScene extends Phaser.Scene {
     this.currentAllyId = ally.id;
     this.proximityHint = false;
     const live = this.state.allies.find((a) => a.id === ally.id) ?? ally;
-    this.dialogue.show(`${live.name} (${live.role})`, `"${live.line}"`);
+    this.dialogue.show(`${live.name} (${live.role})`, `"${live.line}"`, { portrait: live.id });
     this.dialogue.showInput('더 물어본다...', 'chat');
     this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
   }
@@ -245,6 +252,7 @@ export class TutorialScene extends Phaser.Scene {
         '하나는 색을 말하고, 하나는 그것이 무엇으로 분류되는지를 말하고,\n' +
         '하나는 누구나 아는 이야기를 말한다.\n세 갈래가 한 점에서 만난다 — 거기가 코드다.\n\n' +
         '답을 찾았으면 [F]."',
+      { portrait: o.id },
     );
     this.dialogue.setHint('[F] 코드 전달 · [Space] 닫기');
   }
@@ -253,7 +261,7 @@ export class TutorialScene extends Phaser.Scene {
   #offerCode() {
     const o = this.state.officer;
     this.proximityHint = false;
-    this.dialogue.show(`${o.name} (${o.role})`, '"…코드는?"');
+    this.dialogue.show(`${o.name} (${o.role})`, '"…코드는?"', { portrait: o.id });
     this.dialogue.showInput('접선 코드 입력...', 'code');
     this.dialogue.setHint('[Enter] 코드 전달 · [Esc] 취소');
   }
@@ -264,7 +272,7 @@ export class TutorialScene extends Phaser.Scene {
     if (!ally) return;
 
     this.dialogue.setBusy(true);
-    this.dialogue.beginStream(`${ally.name} (${ally.role})`);
+    this.dialogue.beginStream(`${ally.name} (${ally.role})`, { portrait: ally.id });
 
     try {
       const res = await fetch('/api/tutorial/talk', {
@@ -295,7 +303,12 @@ export class TutorialScene extends Phaser.Scene {
     } catch (err) {
       // 자유 대화는 "있으면 좋은 것"이다 — 실패하면 고정 첫 대사로 되돌려 진행을 막지 않는다.
       console.warn('[tutorial/talk]', err.message);
-      this.dialogue.reply(`${ally.name} (${ally.role})`, `"${ally.line}"\n\n(…그 이상은 말이 없다.)`);
+      this.dialogue.reply(
+        `${ally.name} (${ally.role})`,
+        `"${ally.line}"\n\n(…그 이상은 말이 없다.)`,
+        '',
+        { portrait: ally.id },
+      );
     } finally {
       this.dialogue.setBusy(false);
     }
@@ -324,6 +337,8 @@ export class TutorialScene extends Phaser.Scene {
       this.dialogue.reply(
         `${this.state.officer.name} (${this.state.officer.role})`,
         '"…뭐라고? 다시 말해 보게."',
+        '',
+        { portrait: this.state.officer.id },
       );
       return;
     } finally {
@@ -350,6 +365,7 @@ export class TutorialScene extends Phaser.Scene {
           ? '\n\n다시 물어보면, 이번엔 왜 그 단어를 떠올렸는지까지 말해 줄 것이다.'
           : '\n\n동료들에게 다시 물어보고 오너라.'),
       '[Space] / [Esc] 로 닫는다',
+      { portrait: this.state.officer.id },
     );
   }
 
@@ -364,6 +380,7 @@ export class TutorialScene extends Phaser.Scene {
     this.dialogue.show(
       `${this.state.officer.name} (${this.state.officer.role})`,
       `"${officerLine}"`,
+      { portrait: this.state.officer.id },
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
@@ -378,6 +395,7 @@ export class TutorialScene extends Phaser.Scene {
       `${this.state.officer.name} (${this.state.officer.role})`,
       `접선 코드는 「${codeWord}」 였다.\n\n` +
         '"이제 알겠지. 거리에서도 방식은 같다.\n\n가라. 시계 수리공이 기다린다."',
+      { portrait: this.state.officer.id },
     );
     this.time.delayedCall(2600, () => this.#goStage());
   }

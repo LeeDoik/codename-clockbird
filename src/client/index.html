@@ -52,7 +52,14 @@
         width: min(100vw - 32px, calc((100vh - 72px) * 16 / 9));
         aspect-ratio: 16 / 9;
         box-shadow: 0 0 0 1px var(--brass-lo), 0 12px 48px rgba(0, 0, 0, 0.6);
+        container-type: inline-size;
       }
+      /* --s = "1920 기준 1px". DOM 오버레이 치수를 calc(N * var(--s)) 로 적으면
+         캔버스와 같은 비율로 늘고 줄어든다 — 고정 px 로 두면 창 크기에 따라
+         UI 와 게임의 비율이 어긋난다.
+         주의: 컨테이너는 자기 자신을 질의하지 못한다. --s 를 #game-root 에 직접
+         선언하면 바깥 컨테이너(또는 뷰포트) 기준으로 풀려 버리므로 자식에 건다. */
+      #game-root > * { --s: calc(100cqw / 1920); }
       #game-canvas { width: 100%; height: 100%; }
       /* 픽셀 아트 확대가 흐릿해지지 않게 — CSS 업스케일 단계의 보간을 끈다 */
       #game-canvas canvas { display: block; image-rendering: pixelated; }
@@ -93,57 +100,147 @@
       .sp-btn:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4); }
       .sp-btn:disabled { opacity: 0.35; cursor: default; }
 
-      /* 대화창은 DOM 오버레이 — 한글 입력과 스트리밍 표시에 유리하다. */
+      /* ── 대화창 ──────────────────────────────────────────
+         DOM 오버레이인 이유는 한글 IME 와 스트리밍 표시. 구성은 인물이 패널 위로
+         솟는 비주얼 노벨 배치다 — 초상이 #dialogue 의 자식이라 언제나 패널
+         배경보다 앞에 그려진다. 왼쪽 padding 690 이 인물이 서는 자리다. */
       #dialogue {
         position: absolute;
-        left: 16px;
-        right: 16px;
-        bottom: 16px;
-        padding: 14px 18px;
+        left: calc(56 * var(--s));
+        right: calc(56 * var(--s));
+        bottom: calc(40 * var(--s));
+        padding: calc(30 * var(--s)) calc(38 * var(--s)) calc(24 * var(--s)) calc(690 * var(--s));
+        min-height: calc(300 * var(--s));
         display: none;
+        overflow: visible; /* 초상이 패널 밖으로 솟는다 — 자르면 안 된다 */
+        border: 1px solid rgba(201, 162, 39, 0.42);
+        border-radius: calc(6 * var(--s));
+        background:
+          var(--noise),
+          linear-gradient(180deg, rgba(28, 22, 15, 0.93) 0%, rgba(16, 12, 8, 0.95) 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(232, 193, 90, 0.28),
+          0 calc(12 * var(--s)) calc(34 * var(--s)) rgba(0, 0, 0, 0.7);
       }
       #dialogue.visible { display: block; }
-      /* 화자명 — 황동 명판. 음각 느낌의 그림자를 넣는다. */
+      /* 상단 황동 광택선 — .sp-panel 의 리벳 대신. 1800px 폭에서 2px 리벳은 안 보인다. */
+      #dialogue::before {
+        content: '';
+        position: absolute;
+        left: -1px;
+        right: -1px;
+        top: -1px;
+        height: calc(3 * var(--s));
+        border-radius: calc(6 * var(--s)) calc(6 * var(--s)) 0 0;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          var(--brass) 18%,
+          var(--brass-hi) 50%,
+          var(--brass) 82%,
+          transparent 100%
+        );
+      }
+      /* 초상 — public/portraits/<페르소나 id>.png, 896×1344(2:3) 전신 투명 PNG.
+         인물이 프레임을 세로로 꽉 채우므로(머리 0.6~2.5% · 발끝 97.8~99.9%)
+         높이로 세우고 가로는 object-fit 에 맡긴다 — 인물 폭은 그림마다 44~82% 로 다르다.
+         bottom 이 패널 아래로 내려가 화면 바닥을 딛는다. */
+      #dialogue-portrait {
+        position: absolute;
+        left: calc(-16 * var(--s));
+        bottom: calc(-40 * var(--s));
+        width: calc(680 * var(--s));
+        height: calc(1000 * var(--s));
+        object-fit: contain;
+        object-position: bottom;
+        pointer-events: none;
+        filter: drop-shadow(calc(6 * var(--s)) calc(6 * var(--s)) calc(16 * var(--s)) rgba(0, 0, 0, 0.8));
+      }
+      /* 초상 없는 화자(시스템 안내·오류·아직 그림이 없는 인물)는 패널 전체를 본문에 쓴다.
+         그림이 없어도 게임은 돌아간다 — public/intro 와 같은 규약. */
+      #dialogue.no-portrait { padding-left: calc(38 * var(--s)); min-height: calc(240 * var(--s)); }
+      #dialogue.no-portrait #dialogue-portrait { display: none; }
+      #dialogue.no-portrait #dialogue-speaker { left: calc(38 * var(--s)); }
+      /* 화자명 — 패널 상단 모서리에 걸치는 황동 탭 */
       #dialogue-speaker {
-        display: inline-block;
+        position: absolute;
+        left: calc(690 * var(--s));
+        top: 0;
+        transform: translateY(-100%);
         font-family: var(--font-head);
-        font-weight: 600;
-        color: var(--ink);
-        background: linear-gradient(180deg, var(--brass-hi), var(--brass) 60%, var(--brass-lo));
-        border: 1px solid var(--brass-lo);
-        border-radius: 3px;
-        padding: 2px 12px;
-        margin-bottom: 8px;
+        font-weight: 700;
+        font-size: calc(26 * var(--s));
         letter-spacing: 0.08em;
-        text-shadow: 0 1px 0 rgba(232, 193, 90, 0.5);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
-      }
-      #dialogue-text { line-height: 1.6; min-height: 3em; white-space: pre-wrap; }
-      #dialogue-hint { opacity: 0.5; font-size: 0.8rem; margin-top: 8px; }
-      #dialogue-input { display: none; margin-top: 10px; gap: 8px; }
-      #dialogue-input.visible { display: flex; }
-      #dialogue-input input {
-        flex: 1;
-        background: rgba(15, 13, 10, 0.9);
+        white-space: nowrap;
+        color: var(--ink);
+        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 62%, var(--brass-lo) 100%);
         border: 1px solid var(--brass-lo);
-        color: var(--paper);
-        padding: 8px 10px;
-        border-radius: 3px;
-        font-family: var(--font-body);
-        font-size: 1rem;
+        border-bottom: none;
+        border-radius: calc(4 * var(--s)) calc(4 * var(--s)) 0 0;
+        padding: calc(5 * var(--s)) calc(22 * var(--s)) calc(4 * var(--s));
+        text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
+        box-shadow: 0 calc(-2 * var(--s)) calc(8 * var(--s)) rgba(0, 0, 0, 0.5);
       }
-      #dialogue-input input:focus {
+      #dialogue-text {
+        font-size: calc(30 * var(--s));
+        line-height: 1.68;
+        min-height: calc(120 * var(--s));
+        white-space: pre-wrap;
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.85);
+      }
+      #dialogue-input { display: none; margin-top: calc(18 * var(--s)); }
+      #dialogue-input.visible { display: block; }
+      #dialogue-field {
+        width: 100%;
+        background: rgba(8, 7, 5, 0.9);
+        border: 1px solid var(--brass-lo);
+        border-radius: calc(3 * var(--s));
+        color: var(--paper);
+        font-family: var(--font-body);
+        font-size: calc(26 * var(--s));
+        padding: calc(11 * var(--s)) calc(16 * var(--s));
+      }
+      #dialogue-field:focus {
         outline: none;
         border-color: var(--brass);
-        box-shadow: 0 0 6px rgba(201, 162, 39, 0.35);
+        box-shadow: 0 0 calc(8 * var(--s)) rgba(201, 162, 39, 0.35);
       }
-      #dialogue-input input:disabled { opacity: 0.4; }
-      /* 자유 대화는 청동(녹청), 코드 전달은 황동 — 오답의 무게가 색으로 갈린다. */
-      #dialogue-send {
-        background: linear-gradient(180deg, #7fae9c 0%, var(--patina) 45%, #3f5f55 100%);
-        border-color: #3f5f55;
+      #dialogue-field:disabled { opacity: 0.4; }
+      /* 힌트와 버튼을 한 줄에 둔다 — 힌트가 남는 폭을 먹고 버튼이 오른쪽에 붙는다. */
+      #dialogue-actions {
+        display: flex;
+        align-items: center;
+        gap: calc(10 * var(--s));
+        margin-top: calc(18 * var(--s));
+      }
+      #dialogue-hint { flex: 1; opacity: 0.45; font-size: calc(19 * var(--s)); min-height: 1.2em; }
+      /* 키를 버튼 안에 같이 적는다 — 별도 조작 안내 줄이 필요 없어진다. */
+      .dlg-btn {
+        display: inline-flex;
+        align-items: baseline;
+        gap: calc(8 * var(--s));
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(23 * var(--s));
+        padding: calc(9 * var(--s)) calc(20 * var(--s));
+        border-radius: calc(3 * var(--s));
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .dlg-btn .key { font-family: var(--font-body); font-weight: 400; font-size: calc(17 * var(--s)); opacity: 0.62; }
+      .dlg-btn:hover:not(:disabled) { filter: brightness(1.14); }
+      .dlg-btn:active:not(:disabled) { transform: translateY(1px); }
+      .dlg-btn:disabled { opacity: 0.35; cursor: default; }
+      /* 되돌릴 수 없는 행동(코드 전달)만 황동으로 무게를 준다. 나머지는 가라앉힌다. */
+      #dialogue-send { background: rgba(10, 9, 6, 0.9); border: 1px solid var(--patina); color: #9fcbbb; }
+      #dialogue-code {
+        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 45%, var(--brass-lo) 100%);
+        border: 1px solid var(--brass-lo);
         color: var(--ink);
+        text-shadow: 0 1px 0 rgba(255, 240, 200, 0.45);
       }
+      #dialogue-code .key { opacity: 0.55; }
+      #dialogue-close { background: rgba(10, 9, 6, 0.9); border: 1px solid #5a5148; color: var(--paper-dim); }
       header {
         padding: 12px;
         font-family: var(--font-head);
@@ -297,15 +394,21 @@
     <header>코드네임: 태엽새</header>
     <div id="game-root">
       <div id="game-canvas"></div>
-      <div id="dialogue" class="sp-panel">
+      <!-- 초상은 패널 배경보다 앞에 와야 하므로 #dialogue 의 자식이다.
+           대화·코드 버튼은 입력창이 열릴 때만 보인다 (DialogueBox 가 style.display 로 토글). -->
+      <div id="dialogue" class="no-portrait">
+        <img id="dialogue-portrait" alt="" />
         <div id="dialogue-speaker"></div>
         <div id="dialogue-text"></div>
         <div id="dialogue-input">
           <input id="dialogue-field" type="text" placeholder="말을 건넨다..." autocomplete="off" />
-          <button id="dialogue-send" class="sp-btn">대화</button>
-          <button id="dialogue-code" class="sp-btn">접선 코드 전달</button>
         </div>
-        <div id="dialogue-hint">[Enter] 대화 · [Esc] 닫기</div>
+        <div id="dialogue-actions">
+          <div id="dialogue-hint"></div>
+          <button id="dialogue-send" class="dlg-btn" style="display: none">대화 <span class="key">Enter</span></button>
+          <button id="dialogue-code" class="dlg-btn" style="display: none">접선 코드 전달 <span class="key">F</span></button>
+          <button id="dialogue-close" class="dlg-btn">닫기 <span class="key">Esc</span></button>
+        </div>
       </div>
       <div id="minigame">
         <div id="minigame-card" class="sp-panel">

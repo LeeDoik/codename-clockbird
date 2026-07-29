@@ -66,6 +66,8 @@ export class StageScene extends Phaser.Scene {
     this.dialogue = new DialogueBox();
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
+    // 이 판에 나올 얼굴은 정해져 있다 — 첫 접선에서 그림이 늦게 붙지 않게 미리 받는다.
+    this.dialogue.preload([...this.state.allies.map((a) => a.id), this.state.broker.id]);
     this.result = new ResultOverlay();
     this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
     this.minigame = new MinigamePanel();
@@ -582,6 +584,7 @@ export class StageScene extends Phaser.Scene {
             : broker
               ? `${broker.name} (${broker.role}) — [E] 대화 · [F] 코드 전달`
               : `${jailed.name} — 창살 너머에 있다. [R] 구출 (경계 레벨 +1)`,
+          { portrait: target.id },
         );
         this.proximityHint = true;
       } else if (!target && this.proximityHint) {
@@ -596,7 +599,9 @@ export class StageScene extends Phaser.Scene {
   /** E — 자유 대화. 연상 단어는 밝히지 않는다 (단서는 F 접선으로 얻는다). */
   #talk(ally) {
     this.currentAllyId = ally.id;
-    this.dialogue.show(`${ally.name} (${ally.role})`, `${ally.name}에게 말을 건넨다.`);
+    this.dialogue.show(`${ally.name} (${ally.role})`, `${ally.name}에게 말을 건넨다.`, {
+      portrait: ally.id,
+    });
     this.dialogue.showInput('말을 건넨다...', 'chat');
     this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
   }
@@ -606,7 +611,9 @@ export class StageScene extends Phaser.Scene {
     if (this.contacting) return;
     this.contacting = true;
     this.dialogue.setBusy(true);
-    this.dialogue.show(`${ally.name} (${ally.role})`, '조심스럽게 접선을 시도한다...');
+    this.dialogue.show(`${ally.name} (${ally.role})`, '조심스럽게 접선을 시도한다...', {
+      portrait: ally.id,
+    });
 
     let contact;
     try {
@@ -633,6 +640,7 @@ export class StageScene extends Phaser.Scene {
       `${ally.name} (${ally.role})`,
       `"...「${contact.word}」."\n\n그가 흘린 단서다. [C] 단서 수첩에 기록됐다.\n코드를 확신하게 되면 시계 수리공에게 가라.`,
       '[Space] / [Esc] 로 닫는다',
+      { portrait: ally.id },
     );
   }
 
@@ -643,6 +651,7 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.show(
       `${b.name} (${b.role})`,
       '태엽 감는 소리 사이로 짧은 한마디.\n"동료들의 단어에서 겹치는 것을 찾아라. 그게 코드다."',
+      { portrait: b.id },
     );
     this.dialogue.setHint('[F] 코드 전달 · [Space] 닫기');
   }
@@ -654,6 +663,7 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.show(
       `${b.name} (${b.role})`,
       '수리공이 시계에서 눈을 떼지 않은 채 낮게 묻는다.\n"…코드는?"',
+      { portrait: b.id },
     );
     this.dialogue.showInput('접선 코드 입력...', 'code');
     this.dialogue.setHint('[Enter] 코드 전달 · [Esc] 취소');
@@ -716,6 +726,7 @@ export class StageScene extends Phaser.Scene {
         `${ally.name} (${ally.role})`,
         '자물쇠가 잠겨 버렸다. 쇳소리가 복도를 타고 번진다.\n\n' +
           `경계 레벨이 올라갔다. (${this.state.alertLevel})\n다시 시도할 수는 있다.`,
+        { portrait: ally.id },
       );
       this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       return;
@@ -723,7 +734,9 @@ export class StageScene extends Phaser.Scene {
 
     this.rescuing = true;
     this.dialogue.setBusy(true);
-    this.dialogue.show(`${ally.name} (${ally.role})`, '자물쇠가 풀렸다. 창살을 밀어 젖힌다...');
+    this.dialogue.show(`${ally.name} (${ally.role})`, '자물쇠가 풀렸다. 창살을 밀어 젖힌다...', {
+      portrait: ally.id,
+    });
 
     let result;
     try {
@@ -753,6 +766,7 @@ export class StageScene extends Phaser.Scene {
         `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n\n` +
         `[F] 로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
       '[Space] / [Esc] 로 닫는다',
+      { portrait: ally.id },
     );
   }
 
@@ -780,7 +794,7 @@ export class StageScene extends Phaser.Scene {
     if (!ally) return;
 
     this.dialogue.setBusy(true);
-    this.dialogue.beginStream(`${ally.name} (${ally.role})`);
+    this.dialogue.beginStream(`${ally.name} (${ally.role})`, { portrait: ally.id });
 
     try {
       const res = await fetch('/api/stage/talk', {
@@ -837,6 +851,7 @@ export class StageScene extends Phaser.Scene {
         this.dialogue.show(
           '접선 성공',
           `접선 코드는 「${result.codeWord}」 였다.\n\nSTAGE 1 CLEAR`,
+          { portrait: this.state.broker.id },
         );
         this.#endGame('cleared', { delay: 1200 });
         return;
@@ -849,6 +864,8 @@ export class StageScene extends Phaser.Scene {
         '접선 실패',
         `틀렸다. 수리공이 말없이 고개를 젓는다.\n거리에 소문이 샌다 — 경계 레벨 ${this.state.alertLevel}/3.` +
           (maxed ? '\n\n거리가 끓고 있다. 이제 발각되면 검문도 없이 끝난다.' : ''),
+        '',
+        { portrait: this.state.broker.id },
       );
     } catch (err) {
       this.dialogue.reply('오류', err.message);

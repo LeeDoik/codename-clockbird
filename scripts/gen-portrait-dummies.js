@@ -10,7 +10,7 @@
  * 절차적 생성 방식은 scripts/gen-characters.js 를 따른다 (PNG 인코더도 같은 것).
  * 팔레트는 design/style-formula.txt 의 역할별 색 배분.
  *
- * 출력: public/portraits/<id>.png  (640×800, 4:5, 투명 배경) × 10
+ * 출력: public/portraits/<id>.png  (896×1344, 2:3, 전신, 투명 배경) × 10
  *
  * 자리표시자임을 한눈에 알 수 있도록:
  *   - 평면 단색 + 단순 실루엣 (진짜 일러스트와 혼동될 수 없다)
@@ -21,12 +21,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
-// 반신(半身). 레퍼런스(넥슨 계열 VN 대화창)처럼 인물이 화면에 크게 서고 대화 패널이
-// 그 위를 덮는 구성이라, 4:5 흉상으로는 프레임이 안 찬다. 4:7 로 세워 허리 위까지 담는다.
-const W = 640;
-const H = 1120;
+// 전신(全身) 896×1344(2:3) — 실제 일러스트와 같은 규격이다.
+// 실측: 인물이 프레임을 세로로 꽉 채운다(머리끝 0.6~2.5% · 발끝 97.8~99.9%).
+// 가로는 그림마다 44~82% 로 편차가 커서 CSS 가 object-fit:contain 으로 흡수한다.
+const W = 896;
+const H = 1344;
 const SS = 2; // 슈퍼샘플링 배수 — 이 배수로 그린 뒤 축소해 가장자리를 부드럽게 만든다
 const OUTLINE = hex('#241c14'); // 어두운 웜브라운 — 스프라이트와 같은 외곽선 색
+const BOOT = hex('#3a2b1e'); // 장화·허리띠 — 인물별 팔레트를 늘리지 않으려고 공용으로 쓴다
 
 function hex(h) {
   return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -92,12 +94,13 @@ function rect(buf, x0, y0, x1, y1, c, { grow = 0 } = {}) {
 }
 
 /**
- * 어깨 + 몸통. 어깨선은 `run` 거리 안에서 다 벌어지고 그 아래는 수직으로 내려간다 —
- * 끝까지 벌어지게 두면 반신 비율에서 사람이 아니라 원뿔이 된다.
+ * 몸통. 어깨선은 `run` 거리 안에서 다 벌어지고 그 아래는 수직으로 내려간다 —
+ * 끝까지 벌어지게 두면 사람이 아니라 원뿔이 된다. `end` 에서 끊어 밑단을 만든다.
  */
-function shoulders(buf, cx, top, halfTop, halfBottom, c, { grow = 0, run = 300 } = {}) {
+function torso(buf, cx, top, end, halfTop, halfBottom, c, { grow = 0, run = 140 } = {}) {
   const t = S(top - grow);
-  for (let y = t; y < SH; y++) {
+  const e = Math.min(SH, S(end + grow));
+  for (let y = t; y < e; y++) {
     const k = Math.min(1, (y - t) / S(run));
     const half = S(halfTop + grow) + (S(halfBottom + grow) - S(halfTop + grow)) * Math.sqrt(k);
     for (let x = Math.round(S(cx) - half); x <= Math.round(S(cx) + half); x++) put(buf, x, y, c);
@@ -114,13 +117,21 @@ function stroked(buf, fn, fill, w = 5) {
 }
 
 // ── 한 명 그리기 ──────────────────────────────────────────────────
-function drawBust(buf, s) {
-  const cx = 320;
+/**
+ * 약 7등신. 머리 하나(≈192px)를 단위로 잡고 랜드마크를 배치한다.
+ * 뒤에서 앞으로: 다리 → 코트 → 팔 → 목 → 옷깃 → 머리.
+ */
+function drawFigure(buf, s) {
+  const cx = 448;
   const big = s.build === 'big';
-  const headRx = big ? 124 : 116;
-  const headRy = big ? 148 : 142;
-  const headCy = 252;
-  const shoulderTop = 452;
+  const headRx = big ? 84 : 78;
+  const headRy = big ? 102 : 96;
+  const headCy = 152;
+  const chin = headCy + headRy;
+  const shoulderTop = 322;
+  const hip = 760;
+  const ankle = 1268;
+  const sole = 1338; // 발끝이 프레임 바닥에 닿는다 — 실제 일러스트와 같은 프레이밍
 
   const coat = hex(s.coat);
   const collar = hex(s.collar);
@@ -128,23 +139,52 @@ function drawBust(buf, s) {
   const hair = hex(s.hair);
   const accent = hex(s.accent);
 
-  // 어깨 → 목 → 머리 순으로 뒤에서 앞으로 겹쳐 그린다.
-  const halfW = big ? 300 : 272;
-  stroked(buf, (c, g) => shoulders(buf, cx, shoulderTop, big ? 205 : 178, halfW, c, { grow: g }), coat, 6);
+  // 다리 — 바지는 옷깃 색을 재사용한다 (인물당 색을 하나 더 늘리지 않는다)
+  const legHalf = big ? 60 : 54;
+  const legCx = (sx) => cx + sx * (legHalf + 8);
+  for (const sx of [-1, 1]) {
+    stroked(
+      buf,
+      (c, g) => rect(buf, legCx(sx) - legHalf, hip - 40, legCx(sx) + legHalf, ankle, c, { grow: g }),
+      collar,
+      6,
+    );
+  }
+  // 장화
+  for (const sx of [-1, 1]) {
+    stroked(
+      buf,
+      (c, g) => rect(buf, legCx(sx) - legHalf - 9, ankle - 64, legCx(sx) + legHalf + 9, sole, c, { grow: g }),
+      BOOT,
+      6,
+    );
+  }
 
-  // 팔 이음선과 앞여밈 — 반신 비율에서 몸통이 한 덩어리로 보이지 않게 끊어 준다.
-  for (const sx of [-1, 1]) rect(buf, cx + sx * (halfW - 78) - 3, 640, cx + sx * (halfW - 78) + 3, H, OUTLINE);
-  rect(buf, cx - 3, 560, cx + 3, H, OUTLINE);
+  // 코트 — 어깨에서 벌어져 엉덩이 아래 밑단까지
+  const halfW = big ? 178 : 160;
+  stroked(buf, (c, g) => torso(buf, cx, shoulderTop, hip + 50, big ? 132 : 118, halfW, c, { grow: g }), coat, 6);
+
+  // 팔 — 코트와 같은 색이라 외곽선이 이음선 노릇을 한다
+  const armHalf = big ? 40 : 35;
+  for (const sx of [-1, 1]) {
+    const ax = cx + sx * (halfW - armHalf + 5);
+    stroked(buf, (c, g) => rect(buf, ax - armHalf, 396, ax + armHalf, 726, c, { grow: g }), coat, 6);
+    stroked(buf, (c, g) => ellipse(buf, ax, 754, armHalf + 3, 32, c, { grow: g }), skin, 5); // 손
+  }
+
+  // 앞여밈과 허리띠 — 몸통이 한 덩어리로 뭉쳐 보이지 않게 끊어 준다
+  rect(buf, cx - 4, 380, cx + 4, hip + 46, OUTLINE);
+  stroked(buf, (c, g) => rect(buf, cx - halfW + 6, 686, cx + halfW - 6, 726, c, { grow: g }), BOOT, 4);
 
   // 목
-  stroked(buf, (c, g) => rect(buf, cx - 46, 352, cx + 46, 470, c, { grow: g }), skin, 5);
+  stroked(buf, (c, g) => rect(buf, cx - 32, chin - 26, cx + 32, shoulderTop + 22, c, { grow: g }), skin, 5);
 
   // 옷깃 — 목과 코트 사이를 끊어 준다
   stroked(
     buf,
     (c, g) => {
-      rect(buf, cx - 118, shoulderTop - 8, cx - 30, shoulderTop + 96, c, { grow: g });
-      rect(buf, cx + 30, shoulderTop - 8, cx + 118, shoulderTop + 96, c, { grow: g });
+      rect(buf, cx - 82, shoulderTop - 6, cx - 20, shoulderTop + 68, c, { grow: g });
+      rect(buf, cx + 20, shoulderTop - 6, cx + 82, shoulderTop + 68, c, { grow: g });
     },
     collar,
     5,
@@ -152,54 +192,53 @@ function drawBust(buf, s) {
 
   // 머리
   stroked(buf, (c, g) => ellipse(buf, cx, headCy, headRx, headRy, c, { grow: g }), skin, 5);
-
-  // 머리카락 / 모자
   drawHead(buf, s, cx, headCy, headRx, headRy, hair);
 
   // 눈 — 실루엣이 얼굴로 읽히게 하는 최소한의 표시
-  const eyeY = headCy + 12;
-  ellipse(buf, cx - 44, eyeY, 15, 10, OUTLINE);
-  ellipse(buf, cx + 44, eyeY, 15, 10, OUTLINE);
+  const eyeY = headCy + 10;
+  ellipse(buf, cx - 30, eyeY, 11, 7, OUTLINE);
+  ellipse(buf, cx + 30, eyeY, 11, 7, OUTLINE);
 
   drawAccessory(buf, s, cx, headCy, headRx, accent, eyeY);
 
   // 식별용 점 — 가슴에 CAST 순서만큼. 자리표시자 표식이자 대화 중 인물 대조용.
   const n = CAST.findIndex((x) => x.id === s.id) + 1;
   for (let i = 0; i < n; i++) {
-    const px = cx - (n - 1) * 21 + i * 42;
-    stroked(buf, (c, g) => ellipse(buf, px, 980, 13, 13, c, { grow: g }), accent, 4);
+    const px = cx - (n - 1) * 17 + i * 34;
+    stroked(buf, (c, g) => ellipse(buf, px, 540, 11, 11, c, { grow: g }), accent, 4);
   }
 }
 
+/** 머리 장식은 머리 반지름(rx·ry)에 비례시킨다 — 등신을 바꿔도 같이 따라온다. */
 function drawHead(buf, s, cx, cy, rx, ry, hair) {
   const top = cy - ry;
   switch (s.hat) {
     case 'short':
-      stroked(buf, (c, g) => ellipse(buf, cx, cy - 34, rx + 6, ry - 20, c, { grow: g, topOnly: true }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, cy - ry * 0.24, rx + 4, ry - 14, c, { grow: g, topOnly: true }), hair, 5);
       break;
     case 'bun':
-      stroked(buf, (c, g) => ellipse(buf, cx, cy - 24, rx + 12, ry - 10, c, { grow: g, topOnly: true }), hair, 5);
-      stroked(buf, (c, g) => ellipse(buf, cx, top - 26, 46, 46, c, { grow: g }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, cy - ry * 0.17, rx + 8, ry - 7, c, { grow: g, topOnly: true }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, top - 18, 31, 31, c, { grow: g }), hair, 5);
       break;
     case 'cap':
-      stroked(buf, (c, g) => ellipse(buf, cx, cy - 62, rx + 4, 82, c, { grow: g, topOnly: true }), hair, 5);
-      stroked(buf, (c, g) => rect(buf, cx - rx - 26, cy - 66, cx + rx + 26, cy - 46, c, { grow: g }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, cy - ry * 0.44, rx + 3, 55, c, { grow: g, topOnly: true }), hair, 5);
+      stroked(buf, (c, g) => rect(buf, cx - rx - 18, cy - ry * 0.47, cx + rx + 18, cy - ry * 0.32, c, { grow: g }), hair, 5);
       break;
     case 'wide':
-      stroked(buf, (c, g) => ellipse(buf, cx, cy - 76, 96, 74, c, { grow: g, topOnly: true }), hair, 5);
-      stroked(buf, (c, g) => ellipse(buf, cx, cy - 74, rx + 88, 20, c, { grow: g }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, cy - ry * 0.53, 65, 50, c, { grow: g, topOnly: true }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, cy - ry * 0.52, rx + 60, 14, c, { grow: g }), hair, 5);
       break;
     case 'scarf':
       // 머릿수건 — 머리 위를 덮고 양옆으로 흘러내린다
-      stroked(buf, (c, g) => ellipse(buf, cx, cy - 20, rx + 10, ry - 16, c, { grow: g, topOnly: true }), hair, 5);
-      stroked(buf, (c, g) => ellipse(buf, cx - rx + 4, cy + 40, 30, 84, c, { grow: g }), hair, 5);
-      stroked(buf, (c, g) => ellipse(buf, cx + rx - 4, cy + 40, 30, 84, c, { grow: g }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, cy - ry * 0.14, rx + 7, ry - 11, c, { grow: g, topOnly: true }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx - rx + 3, cy + 28, 20, 57, c, { grow: g }), hair, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx + rx - 3, cy + 28, 20, 57, c, { grow: g }), hair, 5);
       break;
     case 'peaked':
       // 정모 — 각진 실루엣으로 간부임이 멀리서도 갈린다
-      stroked(buf, (c, g) => rect(buf, cx - rx - 4, cy - ry - 46, cx + rx + 4, cy - 62, c, { grow: g }), hair, 5);
-      stroked(buf, (c, g) => rect(buf, cx - rx - 10, cy - 66, cx + rx + 10, cy - 40, c, { grow: g }), OUTLINE, 5);
-      stroked(buf, (c, g) => ellipse(buf, cx, cy - 40, rx + 46, 18, c, { grow: g }), hair, 5);
+      stroked(buf, (c, g) => rect(buf, cx - rx - 3, top - 31, cx + rx + 3, cy - ry * 0.43, c, { grow: g }), hair, 5);
+      stroked(buf, (c, g) => rect(buf, cx - rx - 7, cy - ry * 0.46, cx + rx + 7, cy - ry * 0.28, c, { grow: g }), OUTLINE, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, cy - ry * 0.28, rx + 31, 12, c, { grow: g }), hair, 5);
       break;
   }
 }
@@ -207,42 +246,42 @@ function drawHead(buf, s, cx, cy, rx, ry, hair) {
 function drawAccessory(buf, s, cx, cy, rx, accent, eyeY) {
   switch (s.acc) {
     case 'monocle':
-      stroked(buf, (c, g) => ellipse(buf, cx + 44, eyeY, 34, 32, c, { grow: g }), accent, 6);
+      stroked(buf, (c, g) => ellipse(buf, cx + 30, eyeY, 23, 22, c, { grow: g }), accent, 5);
       // 렌즈 안을 다시 피부색으로 비워 테만 남긴다
-      ellipse(buf, cx + 44, eyeY, 26, 24, hex(s.skin));
-      ellipse(buf, cx + 44, eyeY, 15, 10, OUTLINE);
+      ellipse(buf, cx + 30, eyeY, 17, 16, hex(s.skin));
+      ellipse(buf, cx + 30, eyeY, 11, 7, OUTLINE);
       break;
     case 'glasses':
-      for (const sx of [-44, 44]) {
-        stroked(buf, (c, g) => ellipse(buf, cx + sx, eyeY, 34, 30, c, { grow: g }), accent, 5);
-        ellipse(buf, cx + sx, eyeY, 27, 23, hex(s.skin));
-        ellipse(buf, cx + sx, eyeY, 15, 10, OUTLINE);
+      for (const sx of [-30, 30]) {
+        stroked(buf, (c, g) => ellipse(buf, cx + sx, eyeY, 23, 20, c, { grow: g }), accent, 4);
+        ellipse(buf, cx + sx, eyeY, 18, 15, hex(s.skin));
+        ellipse(buf, cx + sx, eyeY, 11, 7, OUTLINE);
       }
-      rect(buf, cx - 12, eyeY - 4, cx + 12, eyeY + 2, accent);
+      rect(buf, cx - 8, eyeY - 3, cx + 8, eyeY + 1, accent);
       break;
     case 'goggles':
-      stroked(buf, (c, g) => rect(buf, cx - rx - 14, cy - 96, cx + rx + 14, cy - 56, c, { grow: g }), accent, 5);
-      ellipse(buf, cx - 52, cy - 76, 26, 18, OUTLINE);
-      ellipse(buf, cx + 52, cy - 76, 26, 18, OUTLINE);
+      stroked(buf, (c, g) => rect(buf, cx - rx - 10, cy - 64, cx + rx + 10, cy - 38, c, { grow: g }), accent, 4);
+      ellipse(buf, cx - 35, cy - 51, 17, 12, OUTLINE);
+      ellipse(buf, cx + 35, cy - 51, 17, 12, OUTLINE);
       break;
     case 'collar':
-      stroked(buf, (c, g) => ellipse(buf, cx, 470, 92, 34, c, { grow: g }), accent, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, 340, 64, 24, c, { grow: g }), accent, 5);
       break;
     case 'scarf':
-      stroked(buf, (c, g) => ellipse(buf, cx, 492, 128, 46, c, { grow: g }), accent, 5);
+      stroked(buf, (c, g) => ellipse(buf, cx, 356, 90, 32, c, { grow: g }), accent, 5);
       break;
     case 'strap':
       // 대각선 가죽끈
       for (let t = 0; t <= 1; t += 0.002) {
-        const x = cx - 190 + t * 340;
-        const y = 500 + t * 300;
-        ellipse(buf, x, y, 20, 20, accent);
+        const x = cx - 150 + t * 300;
+        const y = 380 + t * 300;
+        ellipse(buf, x, y, 15, 15, accent);
       }
       break;
     case 'braid':
-      // 견장 — 어깨 양쪽 계급장
+      // 견장 — 어깨 양쪽 계급장. 코트 실루엣(어깨 아래 폭 ≈159) 안에 들어와야 한다.
       for (const sx of [-1, 1]) {
-        stroked(buf, (c, g) => rect(buf, cx + sx * 196 - 44, 596, cx + sx * 196 + 44, 632, c, { grow: g }), accent, 5);
+        stroked(buf, (c, g) => rect(buf, cx + sx * 115 - 30, 400, cx + sx * 115 + 30, 428, c, { grow: g }), accent, 4);
       }
       break;
   }
@@ -320,18 +359,30 @@ function crc32(buf) {
 }
 
 // ── 실행 ──────────────────────────────────────────────────────────
+// 이미 있는 파일은 건드리지 않는다. 그 자리에 진짜 일러스트가 들어와 있을 수 있고,
+// 이 스크립트가 그걸 조용히 자리표시자로 되돌리면 되돌릴 방법이 없다.
+// 자리표시자를 다시 뽑으려면 --force 로 의사를 밝혀야 한다.
+const force = process.argv.includes('--force');
 const outDir = 'public/portraits';
 fs.mkdirSync(outDir, { recursive: true });
 
+let made = 0;
+let kept = 0;
 for (const s of CAST) {
+  const file = path.join(outDir, `${s.id}.png`);
+  if (!force && fs.existsSync(file)) {
+    console.log(`  ${s.id}.png  건너뜀 (이미 있음)`);
+    kept++;
+    continue;
+  }
   const buf = newBuf();
-  drawBust(buf, s);
+  drawFigure(buf, s);
   light(buf);
   const png = encodePng(W, H, downsample(buf));
-  fs.writeFileSync(path.join(outDir, `${s.id}.png`), png);
+  fs.writeFileSync(file, png);
   console.log(`  ${s.id}.png  ${String(Math.round(png.length / 1024)).padStart(3)}KB  — ${s.who}`);
+  made++;
 }
 
-console.log(`\n${CAST.length}장 생성 완료 → ${outDir}/ (${W}×${H}, 투명 배경)`);
-console.log('※ 자리표시자다. 기획자 일러스트가 도착하면 같은 이름으로 덮어쓰면 된다.');
-console.log('  레이아웃 확인: tools/portrait-preview.html 를 브라우저로 연다.');
+console.log(`\n생성 ${made}장 · 유지 ${kept}장 → ${outDir}/ (${W}×${H}, 2:3 전신, 투명 배경)`);
+if (kept && !force) console.log('※ 기존 파일을 자리표시자로 되돌리려면: node scripts/gen-portrait-dummies.js --force');

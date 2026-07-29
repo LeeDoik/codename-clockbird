@@ -8,6 +8,9 @@
 let instance = null;
 
 export class DialogueBox {
+  /** 이미 받아 둔 초상 id — 같은 그림을 두 번 내려받지 않는다. */
+  #preloaded = new Set();
+
   constructor() {
     // 싱글턴 — scene.restart 로 create() 가 다시 돌 때마다 새 인스턴스를 만들면
     // 같은 DOM 노드에 keydown/click 리스너가 겹겹이 쌓여, 재시작 후에는 Enter 한 번에
@@ -19,12 +22,14 @@ export class DialogueBox {
     instance = this;
 
     this.root = document.getElementById('dialogue');
+    this.portraitEl = document.getElementById('dialogue-portrait');
     this.speakerEl = document.getElementById('dialogue-speaker');
     this.textEl = document.getElementById('dialogue-text');
     this.inputWrap = document.getElementById('dialogue-input');
     this.field = document.getElementById('dialogue-field');
     this.sendBtn = document.getElementById('dialogue-send');
     this.codeBtn = document.getElementById('dialogue-code');
+    this.closeBtn = document.getElementById('dialogue-close');
     this.hintEl = document.getElementById('dialogue-hint');
 
     /** 자유 대화 전송 */
@@ -43,6 +48,13 @@ export class DialogueBox {
 
     this.sendBtn.addEventListener('click', () => this.#fire(this.onSend));
     this.codeBtn.addEventListener('click', () => this.#fire(this.onCode));
+    // Esc 와 같은 일을 한다 — busy 중이면 hide() 가 dismissed 표식을 남긴다.
+    this.closeBtn.addEventListener('click', () => this.hide());
+
+    // 그림이 실제로 도착해야 자리를 내준다. 파일이 없으면 no-portrait 로 남아
+    // 본문이 패널 전체를 쓴다 — 초상 없이도 대화는 성립해야 한다.
+    this.portraitEl.addEventListener('load', () => this.root.classList.remove('no-portrait'));
+    this.portraitEl.addEventListener('error', () => this.root.classList.add('no-portrait'));
 
     this.field.addEventListener('keydown', (e) => {
       // 입력칸이 포커스된 동안에는 stopPropagation 때문에 Phaser 가 키를 못 받는다.
@@ -74,6 +86,7 @@ export class DialogueBox {
     this.field.disabled = false;
     this.sendBtn.disabled = false;
     this.codeBtn.disabled = false;
+    this.root.classList.add('no-portrait');
     this.hide();
   }
 
@@ -82,6 +95,43 @@ export class DialogueBox {
     if (!value || !handler || this.busy) return;
     this.field.value = '';
     handler(value);
+  }
+
+  /**
+   * 화자 초상 교체. id 는 페르소나 id(watchmaker·fixer·t1 …)이고
+   * `public/portraits/<id>.png` 를 가리킨다.
+   *
+   * id 가 없는 화자(시스템 안내·오류)와 파일이 아직 없는 인물은 둘 다 no-portrait 로
+   * 떨어진다. 성공한 load 만 자리를 내주므로, 그림이 없는 채로 배포해도 깨지지 않는다.
+   */
+  #setPortrait(id) {
+    if (!id) {
+      this.root.classList.add('no-portrait');
+      return;
+    }
+    const src = `/portraits/${id}.png`;
+    // src 를 지우지 않고 남겨 둔다 — 시스템 대사를 사이에 끼고 같은 인물이 이어
+    // 말할 때 다시 내려받지 않기 위해서다.
+    if (this.portraitEl.getAttribute('src') === src) {
+      if (this.portraitEl.complete && this.portraitEl.naturalWidth > 0) {
+        this.root.classList.remove('no-portrait');
+      }
+      return;
+    }
+    this.root.classList.add('no-portrait');
+    this.portraitEl.setAttribute('src', src);
+  }
+
+  /**
+   * 곧 쓸 초상을 미리 받아 둔다. 첫 대사에서 그림이 늦게 붙어 판이 한 번
+   * 덜컹이는 것을 막는다 — 실제 일러스트는 장당 1MB 에 가깝다.
+   */
+  preload(ids) {
+    for (const id of ids) {
+      if (!id || this.#preloaded.has(id)) continue;
+      this.#preloaded.add(id);
+      new Image().src = `/portraits/${id}.png`;
+    }
   }
 
   /** 응답 대기 중 입력 잠금 — 중복 전송 방지 */
@@ -93,9 +143,18 @@ export class DialogueBox {
     if (!busy) this.field.focus();
   }
 
-  /** 플레이어의 행동으로 여는 창 — 언제나 뜬다. */
-  show(speaker, text) {
+  /**
+   * 플레이어의 행동으로 여는 창 — 언제나 뜬다.
+   *
+   * 초상은 화자 문자열에서 역으로 알아내지 않고 `opts.portrait` 로 받는다.
+   * 표시 이름은 `이름 (역할)` 처럼 조합되는 데다 튜토리얼과 스테이지의 이름이
+   * 겹칠 수 있어서, 문자열을 되짚는 방식은 조용히 어긋난다.
+   *
+   * @param {{portrait?: string}} [opts] portrait = 페르소나 id
+   */
+  show(speaker, text, opts = {}) {
     this.dismissed = false;
+    this.#setPortrait(opts.portrait);
     this.speakerEl.textContent = speaker;
     this.textEl.textContent = text;
     this.root.classList.add('visible');
@@ -109,16 +168,17 @@ export class DialogueBox {
    *
    * @returns {boolean} 실제로 띄웠는가
    */
-  reply(speaker, text, hint = '') {
+  reply(speaker, text, hint = '', opts = {}) {
     if (this.dismissed) return false;
-    this.show(speaker, text);
+    this.show(speaker, text, opts);
     this.setHint(hint);
     return true;
   }
 
   /** 스트리밍 시작 — 화자만 세우고 본문을 비운다 */
-  beginStream(speaker) {
+  beginStream(speaker, opts = {}) {
     this.dismissed = false;
+    this.#setPortrait(opts.portrait);
     this.speakerEl.textContent = speaker;
     this.textEl.textContent = '';
     this.root.classList.add('visible');
@@ -141,6 +201,10 @@ export class DialogueBox {
 
   hideInput() {
     this.inputWrap.classList.remove('visible');
+    // 두 버튼은 입력창 바깥(#dialogue-actions)에 있다 — 같이 접지 않으면
+    // 대화 중이 아닐 때도 남아 누를 수 있는 것처럼 보인다. [닫기]만 늘 남는다.
+    this.sendBtn.style.display = 'none';
+    this.codeBtn.style.display = 'none';
     this.field.blur();
   }
 
