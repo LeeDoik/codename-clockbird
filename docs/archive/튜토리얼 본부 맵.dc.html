@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0805;color:#e8dcc0;font-family:'Galmuri11','Galmuri9',monospace}
+  a{color:#c9a227;text-decoration:none} a:hover{color:#e8c15a}
+  input{font-family:inherit}
+</style>
+</helmet>
+
+<div style="min-height:100vh;padding:24px 24px 60px;display:flex;flex-direction:column;align-items:center;gap:14px">
+  <div style="width:min(100vw - 48px,1280px);display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:13px;letter-spacing:.24em;color:#c9a227">TUTORIAL · 레지스탕스 본부</div>
+      <div style="font-size:24px;margin-top:6px;color:#e8dcc0">지하 본부 — 한 화면 도트 타일맵</div>
+    </div>
+    <div style="font-size:13px;color:#8a7f6a;text-align:right;line-height:1.7">이동 WASD · 방향키&nbsp;&nbsp;|&nbsp;&nbsp;대화·상호작용 E&nbsp;&nbsp;|&nbsp;&nbsp;선택 1·2·3 · 클릭&nbsp;&nbsp;|&nbsp;&nbsp;닫기 ESC<br />구역 클릭 = 정보 고정 · 경비 없음, 대화와 접선 코드만 익힌다</div>
+  </div>
+
+  <div style="width:min(100vw - 48px,1280px);display:flex;gap:14px;align-items:flex-start">
+  <div style="position:relative;flex:1 1 auto;min-width:0;aspect-ratio:960/544;background:#0b0805;box-shadow:0 0 0 1px #7a5f1a,0 16px 50px rgba(0,0,0,.7)">
+    <canvas ref="{{ canvasRef }}" width="960" height="544" onMouseMove="{{ onMove }}" onClick="{{ onClick }}" onMouseLeave="{{ onLeave }}" style="position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;cursor:crosshair"></canvas>
+
+    <sc-if value="{{ talkOn }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;pointer-events:none">
+        <div style="position:absolute;left:0;right:0;bottom:0;height:52%;background:linear-gradient(180deg,rgba(8,6,4,0),rgba(8,6,4,.55) 42%,rgba(8,6,4,.88))"></div>
+
+        <div style="position:absolute;left:16px;bottom:14px;width:148px;height:252px;border:1px dashed rgba(232,193,90,.45);background:linear-gradient(180deg,rgba(44,32,24,.55),rgba(12,10,7,.8));display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;padding:12px 8px 10px">
+          <div style="font-size:10px;letter-spacing:.16em;color:#8a7f6a">초상 슬롯</div>
+          <div style="font-size:9.5px;color:#7a5f1a">{{ portraitFile }}</div>
+        </div>
+
+        <div style="position:absolute;left:178px;right:154px;bottom:14px;background:#2c2018;padding:5px;box-shadow:inset 3px 3px 0 0 rgba(232,193,90,.28),inset -3px -3px 0 0 rgba(0,0,0,.85),8px 8px 0 0 rgba(0,0,0,.55)">
+          <div style="background:rgba(12,10,7,.92);padding:10px 13px 11px;min-height:96px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+              <span style="font-size:13px;color:{{ talkColor }};letter-spacing:.08em">{{ talkName }}</span>
+              <span style="font-size:10px;color:#8a7f6a;letter-spacing:.1em">{{ talkRole }}</span>
+            </div>
+            <div style="font-size:13px;line-height:1.75;margin-top:7px;color:#e8dcc0;text-wrap:pretty">{{ talkLine }}</div>
+            <sc-if value="{{ codeMode }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:7px;align-items:center;margin-top:10px;pointer-events:auto">
+                <input value="{{ codeInput }}" onChange="{{ onCodeInput }}" onKeyDown="{{ onCodeKey }}" placeholder="접선 코드를 직접 입력" style="flex:1;background:rgba(232,220,192,.07);border:1px solid rgba(232,193,90,.4);color:#f3ead0;padding:8px 10px;font-size:13px;outline:none" />
+                <button onClick="{{ submitCode }}" style="background:linear-gradient(180deg,#f5dc8f,#8a6d18);border:none;color:#1a1712;padding:9px 15px;font-size:12.5px;font-family:inherit;cursor:pointer;box-shadow:inset 2px 2px 0 0 rgba(255,255,255,.25),inset -2px -2px 0 0 rgba(0,0,0,.35)">전달</button>
+              </div>
+            </sc-if>
+            <div style="font-size:11px;margin-top:8px;color:{{ msgColor }};min-height:1.2em">{{ codeMsg }}</div>
+          </div>
+        </div>
+
+        <div style="position:absolute;right:12px;bottom:14px;width:132px;display:flex;flex-direction:column;gap:6px;pointer-events:auto">
+          <sc-for list="{{ menu }}" as="m" hint-placeholder-count="3">
+            <div onClick="{{ m.hit }}" style="background:{{ m.bg }};padding:4px;box-shadow:inset 2px 2px 0 0 rgba(232,193,90,.22),inset -2px -2px 0 0 rgba(0,0,0,.8),4px 4px 0 0 rgba(0,0,0,.45);cursor:{{ m.cursor }}">
+              <div style="padding:7px 8px 8px;display:flex;flex-direction:column;gap:3px">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="width:12px;height:12px;flex:none;background:{{ m.dot }};box-shadow:inset 0 0 0 1px #120c07"></span>
+                  <span style="font-size:12px;color:{{ m.fg }}">{{ m.label }}</span>
+                </div>
+                <div style="font-size:9.5px;color:#8a7f6a;letter-spacing:.04em">{{ m.hint }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ endOn }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,rgba(24,19,13,.92),rgba(4,3,2,.97));display:flex;align-items:center;justify-content:center;padding:24px">
+        <div style="text-align:center">
+          <div style="font-size:13px;letter-spacing:.3em;color:#8a7f6a">TUTORIAL COMPLETE</div>
+          <div style="font-size:32px;letter-spacing:.14em;color:#e8c15a;margin-top:10px">접선 준비 완료</div>
+          <div style="font-size:13.5px;color:#cfc4ab;margin-top:12px;line-height:1.9">접선 코드 「{{ solvedWord }}」 — 간부의 승인이 떨어졌다.<br />계단을 올라 거리로 나간다.</div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:20px">
+            <a href="./스테이지1 거리 맵.dc.html" style="background:linear-gradient(180deg,#f5dc8f,#8a6d18);color:#1a1712;padding:11px 20px;font-size:13.5px;box-shadow:inset 2px 2px 0 0 rgba(255,255,255,.25),inset -2px -2px 0 0 rgba(0,0,0,.35)">스테이지 1 — 거리로</a>
+            <button onClick="{{ restart }}" style="background:#2c2018;border:none;color:#e8c15a;padding:11px 20px;font-size:13.5px;font-family:inherit;cursor:pointer;box-shadow:inset 2px 2px 0 0 rgba(232,193,90,.25),inset -2px -2px 0 0 rgba(0,0,0,.7)">튜토리얼 다시</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="width:252px;flex:none;display:flex;flex-direction:column;gap:12px">
+    <div style="background:#2c2018;padding:4px;box-shadow:inset 3px 3px 0 0 rgba(232,193,90,.28),inset -3px -3px 0 0 rgba(0,0,0,.85),6px 6px 0 0 rgba(0,0,0,.5)">
+      <div style="padding:8px 10px 10px;display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-size:10px;letter-spacing:.18em;color:#8a7f6a">클리어 조건</span>
+          <span style="font-size:10px;color:#c9a227">{{ doneCount }}/4</span>
+        </div>
+        <sc-for list="{{ checklist }}" as="c" hint-placeholder-count="4">
+          <div style="display:flex;gap:7px;align-items:baseline;font-size:11.5px;line-height:1.5;color:{{ c.fg }}">
+            <span style="flex:none;color:{{ c.mfg }}">{{ c.mark }}</span><span>{{ c.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="background:#2c2018;padding:4px;box-shadow:inset 3px 3px 0 0 rgba(232,193,90,.28),inset -3px -3px 0 0 rgba(0,0,0,.85),6px 6px 0 0 rgba(0,0,0,.5)">
+      <div style="padding:8px 10px 10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-size:10px;letter-spacing:.18em;color:#8a7f6a">수집한 단어</span>
+          <span style="font-size:10px;color:#c9a227">{{ wordCount }}/3</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+          <sc-for list="{{ wordRows }}" as="w" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:10px;color:#8a7f6a;letter-spacing:.1em;width:30px;flex:none">{{ w.kind }}</span>
+              <span style="flex:1;background:{{ w.bg }};color:{{ w.fg }};font-size:12px;padding:4px 7px 5px;box-shadow:inset 0 0 0 1px #120c07">{{ w.text }}</span>
+              <span style="font-size:10px;color:{{ w.tfg }};flex:none">{{ w.trust }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:10px;color:#8a7f6a;margin-top:9px;line-height:1.65">세 단어가 가리키는 물건 하나가 접선 코드다 · 우측은 NPC별 신뢰도</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ hasCard }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#2c2018;padding:5px;box-shadow:inset 3px 3px 0 0 rgba(232,193,90,.28),inset -3px -3px 0 0 rgba(0,0,0,.85),8px 8px 0 0 rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,#f5dc8f,#8a6d18);color:#1a1712;padding:6px 9px 4px;box-shadow:inset 2px 2px 0 0 rgba(255,255,255,.25),inset -2px -2px 0 0 rgba(0,0,0,.3)">
+          <span style="font-size:14px;letter-spacing:.1em">{{ cardName }}</span>
+          <span style="font-size:10px;letter-spacing:.1em">{{ cardTag }}</span>
+        </div>
+        <div style="padding:9px 10px 9px">
+          <div style="font-size:11.5px;color:#c9a227;letter-spacing:.06em;min-height:1em">{{ cardOcc }}</div>
+          <div style="font-size:12px;color:#e8dcc0;line-height:1.8;margin-top:6px">{{ cardDesc }}</div>
+          <sc-if value="{{ cardPinned }}"><div style="font-size:10px;color:#8a7f6a;margin-top:7px">📌 고정됨 — 다시 클릭하면 해제</div></sc-if>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+  </div>
+
+  <div style="width:min(100vw - 48px,1280px);display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:12px;color:#8a7f6a">
+    <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;background:#5e8b7e"></span>플레이어</span>
+    <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;background:#a03325"></span>간부 (정해진 대사만)</span>
+    <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;background:#c9a227"></span>동료 3명 (단어 힌트 · 신뢰도 2)</span>
+    <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;background:#e8c15a"></span>가스등 · 따뜻한 실내 광원</span>
+    <span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;background:#8d8b83"></span>계단 = 스테이지 1 진입구</span>
+  </div>
+
+  <section style="width:min(100vw - 48px,1280px);border:1px solid #3a332a;background:linear-gradient(180deg,rgba(44,32,24,.5),rgba(12,10,7,.6));padding:16px 20px;margin-top:4px">
+    <div style="font-size:12.5px;letter-spacing:.2em;color:#c9a227">맵 명세</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-top:10px;font-size:13px;line-height:1.7;color:#cfc4ab">
+      <div style="display:flex;gap:10px"><span style="color:#7a5f1a;flex:none">■</span><span>34×20 타일 · 타일 16px · 실내 탑뷰. 튜토리얼이므로 카메라 이동 없이 <b>한 화면</b>에 다 들어온다(p.6) — 무기고 · 지휘 테이블 · 작전 게시판 · 취사 구석 · 계단, 다섯 구역이 두꺼운 석벽으로 나뉜다. 줌을 올리면 카메라가 플레이어를 따라간다.</span></div>
+      <div style="display:flex;gap:10px"><span style="color:#7a5f1a;flex:none">■</span><span>아트 규칙 — 거리·저택 맵과 같은 5단 램프 문법(외곽선 + 상단 하이라이트 + 바닥 그림자, 광원 좌상단). 다만 조명은 <b>따뜻한 톤</b>으로 깔아 바깥의 차가운 강철 세계와 대비시킨다(p.6). 화덕과 배관에서 증기가 오른다.</span></div>
+      <div style="display:flex;gap:10px"><span style="color:#7a5f1a;flex:none">■</span><span>배치 — 간부는 중앙 지휘 테이블 앞에 고정되어 동선을 유도하고, 동료 3명은 무기고 · 게시판 · 취사 구석에 흩어져 있다. 동료는 각자 <b>색상 · 분류 · 대중적 특징</b> 힌트를 하나씩 준다(p.10).</span></div>
+      <div style="display:flex;gap:10px"><span style="color:#7a5f1a;flex:none">■</span><span>대화 UI — NPC 근접 시 머리 위 상호작용 표시, 대화 시 좌측 하단 초상 슬롯 + 하단 대사 바 + 우측 세로 선택지(대화하기 / 접선 코드 / 닫기)(p.7). 접선 코드는 자유 입력. NPC별 신뢰도 2, 2회 틀리면 그 동료가 단어를 떠올린 이유를 말하고 코드 접수를 멈춘다. 셋 다 0이면 간부 앞으로 자동 이동 → 새 접선 코드로 재시작(p.11).</span></div>
+    </div>
+  </section>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:1000},&quot;zoom&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1.7,&quot;min&quot;:1.4,&quot;max&quot;:2.8,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;카메라&quot;},&quot;startCode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;사과&quot;,&quot;options&quot;:[&quot;사과&quot;,&quot;까마귀&quot;,&quot;등불&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;난이도&quot;},&quot;lightOn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;연출&quot;},&quot;showLabels&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;연출&quot;}}">
+class Component extends DCLogic {
+  state = { hover:null, pinned:null, talk:null, code:'', msg:'', msgKind:'bad',
+            trust:{ a1:2, a2:2, a3:2 }, met:{ a1:false, a2:false, a3:false },
+            heard:{ a1:false, a2:false, a3:false },
+            briefed:false, codeIdx:0, solved:false, end:false, tick:0 };
+
+  R = {
+    oak:   ['#8a6a3f','#6d5230','#553f24','#3f2e1a','#241a0f'],
+    wal:   ['#7a5330','#5f3f24','#48301b','#342212','#1d1209'],
+    rug:   ['#c04a33','#9a3524','#7a2619','#571a11','#33100a'],
+    brass: ['#f5dc8f','#e8c15a','#c9a227','#8a6d18','#4d3c0d'],
+    steel: ['#8d8b83','#6b6961','#4e4c45','#37352f','#1f1e1a'],
+    stone: ['#7d766a','#5f5951','#48433c','#33302a','#1c1a17'],
+    tileF: ['#cfc3a4','#a89b7e','#7e735c','#544b3b','#2e281f'],
+    green: ['#8fc4ac','#5e8b7e','#3f6459','#2a423b','#16221e'],
+    leaf:  ['#79a05a','#547a3e','#3d5b2c','#2a3f1e','#182611'],
+    red:   ['#d4614a','#a03325','#78231a','#4d1610','#280b08'],
+    cream: ['#f3ead0','#d8c9a5','#ab9d7c','#786d54','#413a2c'],
+    brick: ['#c8734a','#a8552f','#833d21','#5c2915','#33170c'],
+    wall:  ['#6b503a','#523c2a','#3d2c1e','#2a1e14','#160f0a']
+  };
+  P = { void1:'#0a0705', void2:'#120d08', paper:'#f3ead0', wax:'#a03325' };
+  T = 16; GW = 34; GH = 20;
+
+  zones = [
+    { id:0, name:'무기고',      x:2, y:2, w:9, h:10, occ:'동료 1 · 정비병 레나', desc:'자석 수류탄 상자와 공구벽. 여기 것들이 거리에서 목숨을 대신한다.' },
+    { id:1, name:'지휘 테이블', x:12,y:2, w:12,h:10, occ:'간부 콘라트 · 작전 지도', desc:'간부는 테이블 앞에 붙박이다. 브리핑을 듣고 나서야 동료들이 입을 연다.' },
+    { id:2, name:'작전 게시판', x:25,y:2, w:7, h:10, occ:'동료 2 · 기록계 미아', desc:'붉은 실로 이어 붙인 전단과 도시 지도. 검열을 통과한 전보만 여기 걸린다.' },
+    { id:3, name:'취사 구석',   x:2, y:13,w:13,h:5,  occ:'동료 3 · 오토', desc:'화덕과 긴 식탁. 본부에서 가장 따뜻한 자리 — 바깥의 강철과 대비되는 구역.' },
+    { id:4, name:'계단 · 출구', x:16,y:13,w:16,h:5,  occ:'거리로 나가는 문', desc:'접선 코드를 맞추고 간부의 승인을 받으면 이 계단으로 스테이지 1로 나간다.' }
+  ];
+  parts = [ {x:11,y:2,w:1,h:7}, {x:24,y:2,w:1,h:7}, {x:2,y:12,w:8,h:1},
+            {x:15,y:12,w:12,h:1}, {x:29,y:12,w:3,h:1}, {x:15,y:13,w:1,h:5} ];
+  lamps = [[5,4],[5,10],[16,3],[16,10],[21,5],[28,4],[28,10],[6,14],[11,16],[19,14],[24,16],[30,13]];
+
+  codes = [
+    { word:'사과', hints:{ c:'빨강', k:'과일', f:'떨어지는 걸 보고 법칙을 찾아낸 사람이 있다더군' },
+      reasons:{ c:'…좋아, 말해주지. 이것의 색이 빨강이야.', k:'이건 과일로 분류돼. 거기까지야.', f:'나무에서 떨어지는 걸 보고 법칙을 찾아냈다는 그것 말이야.' } },
+    { word:'까마귀', hints:{ c:'검정', k:'새', f:'우리 쪽 쪽지를 물고 오는 놈' },
+      reasons:{ c:'이것의 색이 검정이야.', k:'분류는 새. 더는 못 말해.', f:'쪽지를 물고 오는 그 놈이라고.' } },
+    { word:'등불', hints:{ c:'주황', k:'도구', f:'어둠 속에서 길을 알려주지' },
+      reasons:{ c:'이것의 색이 주황이야.', k:'도구로 분류돼.', f:'어둠 속에서 길을 알려주는 그것.' } }
+  ];
+
+  chief = { id:'chief', name:'간부 콘라트', role:'간부 · 정해진 대사', x:17.8, y:4.5, reach:3.6, ramp:'red', hat:'top', portrait:'portraits/konrad.png' };
+  allies = [
+    { id:'a1', name:'레나 (정비병)', role:'동료 1 · 색상 힌트', x:5.5,  y:7.5,  ramp:'brass', hat:'band', portrait:'portraits/lena.png',
+      base:'이번에 임무를 간다면서? 내가 주는 건 색이야.', kind:'c' },
+    { id:'a2', name:'미아 (기록계)', role:'동료 2 · 분류 힌트', x:28.5, y:6.5,  ramp:'brass', hat:'none', portrait:'portraits/mia.png',
+      base:'강철보다 단단한 신념으로! …나는 분류를 맡았어.', kind:'k' },
+    { id:'a3', name:'오토 (취사)',   role:'동료 3 · 특징 힌트', x:5.5,  y:16.5, ramp:'brass', hat:'cap',  portrait:'portraits/otto.png',
+      base:'내가 주는 단어는 도움이 많이 될 거야. 실전에서는 이렇게 쉽지 않으니 각오 단단히 해.', kind:'f' }
+  ];
+  chiefBrief = [
+    '브루주아 대저택에 심상치 않은 일이 있다는 소식이다.',
+    '거리의 동료들이 잠입 방법을 준비해 뒀다고 한다. 동료를 만나 접선 코드를 말하고 합류해라.',
+    '동료들이 말하는 단어들을 조합해서 접선 코드를 유추해라. 로봇들은 알 수 없는 방법이지.',
+    '준비되어 있는지 한번 확인해볼까? 여기 동료들과 대화로 코드를 유추해 봐.'
+  ];
+
+  componentDidMount() {
+    const ci = this.codes.findIndex(c => c.word === (this.props.startCode ?? '사과'));
+    this.player = { x:17.8, y:8.1, face:-1, walk:0 };
+    this.keys = {}; this.fade = 0; this.fading = null;
+    this.buildGrid(); this.bake();
+    if (ci > 0) this.setState({ codeIdx:ci });
+    this.onKey = e => {
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const k = e.key.toLowerCase();
+      const map = { arrowup:'u', w:'u', arrowdown:'d', s:'d', arrowleft:'l', a:'l', arrowright:'r', d:'r' };
+      if (map[k] !== undefined) { this.keys[map[k]] = e.type === 'keydown'; e.preventDefault(); return; }
+      if (e.type !== 'keydown') return;
+      if (k === 'e') this.interact();
+      else if (k === 'escape') this.setState({ talk:null, code:'', msg:'' });
+      else if (k === '1' || k === '2' || k === '3') this.pickMenu(+k - 1);
+    };
+    window.addEventListener('keydown', this.onKey);
+    window.addEventListener('keyup', this.onKey);
+    this.last = performance.now();
+    const loop = t => { this.step(Math.min(.05, (t - this.last) / 1000), t / 1000); this.last = t; this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+    this.step(0, 0);
+    // 탭이 백그라운드면 rAF 가 멈춘다 — 정지 화면이라도 유지되도록 저주기 폴백
+    this.hiddenTick = setInterval(() => {
+      if (!document.hidden) return;
+      const now = performance.now();
+      this.step(Math.min(.05, (now - this.last) / 1000), now / 1000); this.last = now;
+    }, 220);
+    if (document.fonts && document.fonts.load) document.fonts.load('9px Galmuri9').then(() => this.bake());
+    // 시작 연출 — 간부 브리핑부터 열린다 (p.9)
+    this.setState({ talk:{ id:'chief', lines:this.chiefBrief, i:0, kind:'brief' } });
+  }
+  componentWillUnmount() {
+    cancelAnimationFrame(this.raf); clearInterval(this.hiddenTick);
+    window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('keyup', this.onKey);
+  }
+
+  seeded(s) { let x = s; return () => { x = (x * 1664525 + 1013904223) % 4294967296; return x / 4294967296; }; }
+  cur() { return this.codes[this.state.codeIdx % this.codes.length]; }
+  npcById(id) { return id === 'chief' ? this.chief : this.allies.find(a => a.id === id); }
+
+  buildGrid() {
+    const g = Array.from({ length:this.GH }, () => new Array(this.GW).fill(0));
+    for (let y = 2; y <= 17; y++) for (let x = 2; x <= 31; x++) g[y][x] = 1;
+    this.parts.forEach(r => { for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) g[y][x] = 0; });
+    this.grid = g; this.blocked = new Set();
+  }
+  zoneAt(tx, ty) {
+    const hit = this.zones.find(z => tx >= z.x && tx < z.x + z.w && ty >= z.y && ty < z.y + z.h);
+    if (hit) return hit;
+    let best = null, bd = 1e9;
+    this.zones.forEach(z => {
+      const dx = Math.max(z.x - tx, 0, tx - (z.x + z.w - 1)), dy = Math.max(z.y - ty, 0, ty - (z.y + z.h - 1));
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = z; }
+    });
+    return best;
+  }
+  walkable(x, y) {
+    const tx = Math.floor(x), ty = Math.floor(y);
+    if (tx < 0 || ty < 0 || tx >= this.GW || ty >= this.GH) return false;
+    return this.grid[ty][tx] === 1 && !this.blocked.has(tx + ',' + ty);
+  }
+
+  bake() {
+    const { T, GW, GH, P, R } = this;
+    const c = document.createElement('canvas'); c.width = GW * T; c.height = GH * T;
+    const x = c.getContext('2d');
+    const rnd = this.seeded(7331);
+    const OL = '#120c07';
+    this.blocked.clear(); this.steam = [];
+    x.fillStyle = P.void1; x.fillRect(0, 0, c.width, c.height);
+
+    const floorOf = (tx, ty) => {
+      const z = this.zones.find(q => tx >= q.x && tx < q.x + q.w && ty >= q.y && ty < q.y + q.h);
+      if (!z) return 'stone';
+      if (z.id === 1) return 'parquet';
+      if (z.id === 2) return 'wood';
+      if (z.id === 3) return 'tile';
+      return 'stone';
+    };
+    // ── 바닥 ──
+    for (let ty = 0; ty < GH; ty++) for (let tx = 0; tx < GW; tx++) {
+      if (this.grid[ty][tx] !== 1) continue;
+      const px = tx * T, py = ty * T, f = floorOf(tx, ty);
+      if (f === 'parquet') {
+        for (let by = 0; by < 2; by++) for (let bx = 0; bx < 2; bx++) {
+          const hx = px + bx * 8, hy = py + by * 8, horiz = (tx * 2 + bx + ty * 2 + by) % 2;
+          const ramp = ((tx + bx + ty + by) % 2) ? R.oak : R.wal;
+          x.fillStyle = ramp[1]; x.fillRect(hx, hy, 8, 8);
+          x.fillStyle = ramp[0];
+          if (horiz) { x.fillRect(hx, hy, 8, 1); x.fillRect(hx, hy + 4, 8, 1); } else { x.fillRect(hx, hy, 1, 8); x.fillRect(hx + 4, hy, 1, 8); }
+          x.fillStyle = ramp[3];
+          if (horiz) { x.fillRect(hx, hy + 3, 8, 1); x.fillRect(hx, hy + 7, 8, 1); } else { x.fillRect(hx + 3, hy, 1, 8); x.fillRect(hx + 7, hy, 1, 8); }
+        }
+      } else if (f === 'wood') {
+        for (let pl = 0; pl < 2; pl++) {
+          const ramp = ((tx + ty) % 3 === 0) ? R.wal : R.oak, sh = (tx * 3 + (ty * 2 + pl) * 5) % 3;
+          x.fillStyle = ramp[1 + (sh === 2 ? 1 : 0)]; x.fillRect(px, py + pl * 8, T, 8);
+          x.fillStyle = ramp[0]; x.fillRect(px, py + pl * 8, T, 1);
+          x.fillStyle = ramp[3]; x.fillRect(px, py + pl * 8 + 7, T, 1);
+          x.fillStyle = ramp[4]; x.fillRect(px + (tx * 13 + (ty * 2 + pl) * 29) % 16, py + pl * 8, 1, 8);
+        }
+      } else if (f === 'tile') {
+        for (let by = 0; by < 2; by++) for (let bx = 0; bx < 2; bx++) {
+          const hx = px + bx * 8, hy = py + by * 8, dark = (tx * 2 + bx + ty * 2 + by) % 2;
+          x.fillStyle = dark ? R.tileF[3] : R.tileF[1]; x.fillRect(hx, hy, 8, 8);
+          x.fillStyle = dark ? R.tileF[2] : R.tileF[0]; x.fillRect(hx + 1, hy + 1, 6, 1); x.fillRect(hx + 1, hy + 1, 1, 6);
+          x.fillStyle = R.tileF[4]; x.fillRect(hx, hy, 8, 1); x.fillRect(hx, hy, 1, 8);
+        }
+      } else {
+        const off = (ty % 2) * 8, v = (tx * 7 + ty * 13) % 5;
+        x.fillStyle = R.stone[1 + (v % 3 === 0 ? 1 : 0)]; x.fillRect(px, py, T, T);
+        x.fillStyle = R.stone[0]; x.fillRect(px, py, T, 1);
+        x.fillStyle = R.stone[3]; x.fillRect(px, py + T - 1, T, 1); x.fillRect(px + off, py, 1, T);
+        if (rnd() < .16) { x.fillStyle = R.stone[3]; x.fillRect(px + 3 + ((rnd() * 8) | 0), py + 4 + ((rnd() * 7) | 0), 2, 1); }
+      }
+    }
+    // 지휘실 카펫
+    (() => {
+      const rx = 13 * T, ry = 4 * T, rw = 10 * T, rh = 7 * T;
+      x.fillStyle = R.rug[2]; x.fillRect(rx, ry, rw, rh);
+      x.fillStyle = R.rug[1]; x.fillRect(rx + 4, ry + 4, rw - 8, rh - 8);
+      x.fillStyle = R.rug[3]; x.fillRect(rx, ry, rw, 3); x.fillRect(rx, ry + rh - 3, rw, 3);
+      x.fillStyle = R.rug[0];
+      for (let i = 0; i < rw; i += 12) { x.fillRect(rx + i, ry + 6, 6, 1); x.fillRect(rx + i, ry + rh - 7, 6, 1); }
+      x.fillStyle = R.brass[3];
+      for (let i = 8; i < rw - 8; i += 22) { x.fillRect(rx + i, ry + rh / 2 - 3, 5, 5); }
+      x.fillStyle = 'rgba(0,0,0,.22)'; x.fillRect(rx, ry, rw, 2); x.fillRect(rx, ry, 2, rh);
+    })();
+
+    // ── 벽 ──
+    const wallTile = (tx, ty) => tx >= 0 && ty >= 0 && tx < GW && ty < GH && this.grid[ty][tx] !== 1;
+    for (let ty = 0; ty < GH; ty++) for (let tx = 0; tx < GW; tx++) {
+      if (!wallTile(tx, ty)) continue;
+      const px = tx * T, py = ty * T;
+      const nearFloor = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1]].some(([a, b]) => !wallTile(tx + a, ty + b) && this.grid[ty + b] && this.grid[ty + b][tx + a] === 1);
+      if (!nearFloor && (tx < 1 || ty < 1 || tx > GW - 2 || ty > GH - 2)) { x.fillStyle = P.void2; x.fillRect(px, py, T, T); continue; }
+      x.fillStyle = R.wall[2]; x.fillRect(px, py, T, T);
+      x.fillStyle = R.wall[1]; x.fillRect(px, py, T, 3);
+      x.fillStyle = R.wall[3];
+      for (let yy = 4; yy < T; yy += 6) { x.fillRect(px, py + yy, T, 1); for (let xx = ((yy / 6) % 2) * 8; xx < T; xx += 16) x.fillRect(px + xx, py + yy, 1, 6); }
+      if (rnd() < .3) { x.fillStyle = R.wall[0]; x.fillRect(px + 2 + ((rnd() * 10) | 0), py + 5 + ((rnd() * 8) | 0), 3, 2); }
+      // 남쪽이 바닥이면 3/4 앞면 + 바닥 그림자
+      if (this.grid[ty + 1] && this.grid[ty + 1][tx] === 1) {
+        x.fillStyle = R.wal[3]; x.fillRect(px, py + 9, T, 7);
+        x.fillStyle = R.wal[2]; x.fillRect(px, py + 9, T, 2);
+        x.fillStyle = R.brass[3]; x.fillRect(px, py + 12, T, 1);
+        x.fillStyle = OL; x.fillRect(px, py + T - 1, T, 1);
+        x.fillStyle = 'rgba(0,0,0,.34)'; x.fillRect(px, py + T, T, 5);
+      }
+      if (this.grid[ty] && this.grid[ty][tx + 1] === 1) { x.fillStyle = 'rgba(0,0,0,.26)'; x.fillRect(px + T, py, 4, T); }
+      if (this.grid[ty] && this.grid[ty][tx - 1] === 1) { x.fillStyle = 'rgba(0,0,0,.2)'; x.fillRect(px - 3, py, 3, T); }
+    }
+
+    // ── 벽 장식 (배관 · 현수막 · 지도 · 계기) ──
+    x.fillStyle = R.steel[2]; x.fillRect(2 * T, 1 * T + 3, 30 * T, 5);
+    x.fillStyle = R.steel[1]; x.fillRect(2 * T, 1 * T + 3, 30 * T, 2);
+    for (let tx = 3; tx < 31; tx += 5) { x.fillStyle = R.brass[3]; x.fillRect(tx * T, 1 * T + 1, 5, 9); x.fillStyle = R.brass[2]; x.fillRect(tx * T, 1 * T + 1, 5, 2); }
+    this.steam.push({ x:8.3, y:1.6 }, { x:23.3, y:1.6 });
+    (() => { // 현수막
+      [[13, R.red], [21, R.green]].forEach(([tx, ramp]) => {
+        const px = tx * T, py = 4;
+        x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(px + 3, py + 3, 24, 24);
+        x.fillStyle = OL; x.fillRect(px - 1, py - 1, 26, 26);
+        x.fillStyle = ramp[2]; x.fillRect(px, py, 24, 25);
+        x.fillStyle = ramp[1]; x.fillRect(px, py, 24, 4);
+        x.fillStyle = R.brass[2]; x.beginPath(); x.arc(px + 12, py + 13, 6, 0, 7); x.fill();
+        x.fillStyle = ramp[3]; x.beginPath(); x.arc(px + 12, py + 13, 3, 0, 7); x.fill();
+        x.fillStyle = ramp[3]; x.beginPath(); x.moveTo(px, py + 25); x.lineTo(px + 12, py + 31); x.lineTo(px + 24, py + 25); x.closePath(); x.fill();
+      });
+    })();
+    (() => { // 도시 지도 (게시판 구역 벽)
+      const px = 16 * T, py = 3;
+      x.fillStyle = OL; x.fillRect(px - 1, py - 1, 66, 28);
+      x.fillStyle = R.cream[2]; x.fillRect(px, py, 64, 26);
+      x.fillStyle = R.cream[1]; x.fillRect(px, py, 64, 3);
+      x.strokeStyle = R.wal[2]; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(px + 4, py + 16); x.lineTo(px + 26, py + 8); x.lineTo(px + 46, py + 20); x.lineTo(px + 60, py + 12); x.stroke();
+      x.fillStyle = P.wax; x.fillRect(px + 24, py + 6, 3, 3); x.fillRect(px + 44, py + 18, 3, 3);
+      x.fillStyle = R.brass[3]; x.fillRect(px, py, 64, 1); x.fillRect(px, py + 25, 64, 1);
+    })();
+    [[26, 1], [29, 1]].forEach(([tx, ty], i) => { // 압력 계기
+      const px = tx * T + 4, py = ty * T + 2;
+      x.fillStyle = OL; x.beginPath(); x.arc(px + 6, py + 6, 8, 0, 7); x.fill();
+      x.fillStyle = R.brass[3]; x.beginPath(); x.arc(px + 6, py + 6, 7, 0, 7); x.fill();
+      x.fillStyle = R.cream[1]; x.beginPath(); x.arc(px + 6, py + 6, 5, 0, 7); x.fill();
+      x.strokeStyle = P.wax; x.beginPath(); x.moveTo(px + 6, py + 6); x.lineTo(px + 6 + (i ? 4 : -3), py + 2); x.stroke();
+    });
+
+    const shade = (px, py, w, h) => { x.fillStyle = 'rgba(0,0,0,.34)'; x.fillRect(px + 3, py + h, w - 3, 4); };
+    const block = (tx, ty, w, h) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.blocked.add((tx + i) + ',' + (ty + j)); };
+    const prop = (tx, ty, w, h, draw) => { block(tx, ty, w, h); draw(tx * T, ty * T, w * T, h * T); };
+    const wood = (px, py, w, h, ramp, top) => {
+      shade(px, py, w, h);
+      x.fillStyle = OL; x.fillRect(px - 1, py - 1, w + 2, h + 2);
+      x.fillStyle = ramp[2]; x.fillRect(px, py, w, h);
+      x.fillStyle = ramp[1]; x.fillRect(px, py, w, top);
+      x.fillStyle = ramp[0]; x.fillRect(px, py, w, 1); x.fillRect(px, py, 1, top);
+      x.fillStyle = ramp[3]; x.fillRect(px, py + top, w, 1); x.fillRect(px, py + h - 3, w, 3);
+    };
+
+    // ── 지휘 테이블 ──
+    prop(15, 5, 6, 2, (px, py, w, h) => {
+      wood(px, py, w, h, R.oak, h - 12);
+      x.fillStyle = R.cream[1]; x.fillRect(px + 10, py + 5, w - 34, h - 22);
+      x.fillStyle = R.cream[0]; x.fillRect(px + 10, py + 5, w - 34, 2);
+      x.strokeStyle = R.wal[2]; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(px + 14, py + 14); x.lineTo(px + 30, py + 9); x.lineTo(px + 48, py + 17); x.stroke();
+      x.fillStyle = P.wax; x.fillRect(px + 28, py + 8, 3, 3); x.fillRect(px + 45, py + 15, 3, 3);
+      x.fillStyle = R.brass[2]; x.beginPath(); x.arc(px + w - 16, py + 10, 5, 0, 7); x.fill();
+      x.fillStyle = R.brass[0]; x.beginPath(); x.arc(px + w - 16, py + 10, 2, 0, 7); x.fill();
+      x.fillStyle = R.cream[0]; x.fillRect(px + w - 30, py + 6, 4, 9);
+      x.fillStyle = R.brass[0]; x.fillRect(px + w - 30, py + 3, 4, 3);
+      x.fillStyle = R.steel[2]; x.fillRect(px + 6, py + h - 16, 10, 5);
+      x.fillStyle = R.steel[1]; x.fillRect(px + 6, py + h - 16, 10, 2);
+    });
+    const stool = (px, py) => {
+      shade(px + 2, py + 4, 11, 8);
+      x.fillStyle = OL; x.beginPath(); x.arc(px + 8, py + 8, 7, 0, 7); x.fill();
+      x.fillStyle = R.wal[2]; x.beginPath(); x.arc(px + 8, py + 8, 6, 0, 7); x.fill();
+      x.fillStyle = R.wal[1]; x.beginPath(); x.arc(px + 7, py + 7, 4, 0, 7); x.fill();
+      x.fillStyle = R.brass[3]; x.fillRect(px + 6, py + 12, 5, 3);
+    };
+    prop(14, 9, 1, 1, stool); prop(21, 9, 1, 1, stool); prop(13, 6, 1, 1, stool);
+    prop(22, 3, 1, 2, (px, py, w, h) => { // 지도 캐비닛
+      wood(px, py, w, h, R.wal, 8);
+      for (let i = 0; i < 3; i++) { x.fillStyle = R.wal[3]; x.fillRect(px + 2, py + 10 + i * 7, w - 4, 5); x.fillStyle = R.brass[2]; x.fillRect(px + w / 2 - 3, py + 12 + i * 7, 6, 2); }
+    });
+
+    // ── 무기고 ──
+    prop(3, 3, 4, 2, (px, py, w, h) => { // 작업대
+      wood(px, py, w, h, R.oak, h - 12);
+      x.fillStyle = R.steel[2]; x.fillRect(px + 6, py + 6, 12, 6);
+      x.fillStyle = R.steel[1]; x.fillRect(px + 6, py + 6, 12, 2);
+      x.fillStyle = R.brass[2]; x.fillRect(px + 24, py + 7, 14, 4); x.fillRect(px + 28, py + 4, 5, 3);
+      x.fillStyle = R.brass[0]; x.fillRect(px + 24, py + 7, 14, 1);
+      x.fillStyle = R.steel[3]; x.fillRect(px + 44, py + 5, 4, 12); x.fillRect(px + 40, py + 14, 12, 3);
+      x.fillStyle = R.green[1]; x.fillRect(px + w - 14, py + 6, 8, 8);
+      x.fillStyle = R.green[0]; x.fillRect(px + w - 14, py + 6, 8, 2);
+    });
+    prop(8, 3, 1, 4, (px, py, w, h) => { // 공구 · 수류탄 랙
+      shade(px, py, w, h);
+      x.fillStyle = OL; x.fillRect(px - 1, py - 1, w + 2, h + 2);
+      x.fillStyle = R.wal[3]; x.fillRect(px, py, w, h);
+      x.fillStyle = R.wal[2]; x.fillRect(px, py, w, 3);
+      for (let i = 0; i < 5; i++) {
+        const oy = py + 5 + i * 12;
+        x.fillStyle = R.steel[2]; x.fillRect(px + 3, oy, 4, 9);
+        x.fillStyle = R.steel[1]; x.fillRect(px + 3, oy, 4, 2);
+        x.fillStyle = R.brass[2]; x.fillRect(px + 9, oy + 1, 5, 7);
+        x.fillStyle = R.brass[0]; x.fillRect(px + 9, oy + 1, 5, 2);
+      }
+    });
+    const crate = (px, py) => {
+      shade(px + 1, py + 1, 14, 13);
+      x.fillStyle = OL; x.fillRect(px, py, 16, 15);
+      x.fillStyle = R.oak[2]; x.fillRect(px + 1, py + 1, 14, 13);
+      x.fillStyle = R.oak[1]; x.fillRect(px + 1, py + 1, 14, 4);
+      x.strokeStyle = R.oak[3]; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(px + 1, py + 1); x.lineTo(px + 15, py + 14); x.moveTo(px + 15, py + 1); x.lineTo(px + 1, py + 14); x.stroke();
+      x.fillStyle = R.brass[3]; x.fillRect(px + 5, py + 6, 6, 3);
+    };
+    const barrel = (px, py) => {
+      shade(px + 2, py + 2, 12, 11);
+      x.fillStyle = OL; x.beginPath(); x.arc(px + 8, py + 8, 8, 0, 7); x.fill();
+      x.fillStyle = R.wal[2]; x.beginPath(); x.arc(px + 8, py + 8, 7, 0, 7); x.fill();
+      x.fillStyle = R.wal[1]; x.beginPath(); x.arc(px + 7, py + 7, 5, 0, 7); x.fill();
+      x.strokeStyle = R.brass[2]; x.lineWidth = 1.5; x.beginPath(); x.arc(px + 8, py + 8, 6, 0, 7); x.stroke();
+      x.strokeStyle = R.brass[1]; x.beginPath(); x.arc(px + 8, py + 8, 3, 0, 7); x.stroke();
+    };
+    [[3,9],[4,9],[3,10]].forEach(([tx, ty]) => prop(tx, ty, 1, 1, crate));
+    [[9,9],[9,5],[9,10]].forEach(([tx, ty]) => prop(tx, ty, 1, 1, barrel));
+    prop(6, 10, 1, 1, (px, py) => { // 모루
+      shade(px + 1, py + 5, 14, 8);
+      x.fillStyle = OL; x.fillRect(px + 1, py + 4, 14, 10);
+      x.fillStyle = R.steel[2]; x.fillRect(px + 2, py + 5, 12, 4);
+      x.fillStyle = R.steel[1]; x.fillRect(px + 2, py + 5, 12, 1);
+      x.fillStyle = R.steel[3]; x.fillRect(px + 5, py + 9, 6, 4);
+    });
+
+    // ── 작전 게시판 구역 ──
+    prop(26, 3, 4, 1, (px, py, w, h) => { // 서 있는 게시판
+      shade(px, py, w, h + 6);
+      x.fillStyle = OL; x.fillRect(px - 1, py - 1, w + 2, h + 8);
+      x.fillStyle = R.wal[3]; x.fillRect(px, py, w, h + 6);
+      x.fillStyle = R.wal[2]; x.fillRect(px, py, w, 3);
+      const notes = [[4,4],[18,3],[32,5],[46,4]];
+      notes.forEach(([ox, oy], i) => {
+        x.fillStyle = i % 2 ? R.cream[1] : R.cream[0]; x.fillRect(px + ox, py + oy, 12, 11);
+        x.fillStyle = R.cream[3]; x.fillRect(px + ox + 2, py + oy + 3, 8, 1); x.fillRect(px + ox + 2, py + oy + 6, 6, 1);
+        x.fillStyle = P.wax; x.fillRect(px + ox + 5, py + oy - 1, 2, 2);
+      });
+      x.strokeStyle = 'rgba(160,51,37,.8)'; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(px + 10, py + 9); x.lineTo(px + 24, py + 8); x.lineTo(px + 38, py + 10); x.lineTo(px + 52, py + 9); x.stroke();
+      x.fillStyle = R.oak[3]; x.fillRect(px + 4, py + h + 6, 4, 5); x.fillRect(px + w - 8, py + h + 6, 4, 5);
+    });
+    prop(26, 8, 3, 2, (px, py, w, h) => { // 기록 책상 + 타자기
+      wood(px, py, w, h, R.oak, h - 12);
+      x.fillStyle = OL; x.fillRect(px + 8, py + 3, 20, 14);
+      x.fillStyle = R.steel[2]; x.fillRect(px + 9, py + 4, 18, 12);
+      x.fillStyle = R.steel[1]; x.fillRect(px + 9, py + 4, 18, 3);
+      x.fillStyle = R.cream[0]; x.fillRect(px + 13, py, 10, 6);
+      for (let i = 0; i < 3; i++) { x.fillStyle = R.brass[2]; x.fillRect(px + 11 + i * 6, py + 12, 4, 2); }
+      x.fillStyle = R.cream[1]; x.fillRect(px + w - 20, py + 6, 14, 10);
+      x.fillStyle = R.cream[3]; x.fillRect(px + w - 18, py + 9, 9, 1); x.fillRect(px + w - 18, py + 12, 7, 1);
+    });
+    prop(30, 4, 1, 3, (px, py, w, h) => { // 서류 선반
+      wood(px, py, w, h, R.wal, 6);
+      for (let i = 0; i < 3; i++) {
+        x.fillStyle = R.wal[4]; x.fillRect(px + 2, py + 8 + i * 13, w - 4, 11);
+        for (let j = 0; j < 3; j++) { x.fillStyle = j % 2 ? R.cream[1] : R.cream[2]; x.fillRect(px + 3 + j * 4, py + 9 + i * 13, 3, 9); }
+      }
+    });
+
+    // ── 취사 구석 ──
+    prop(3, 13, 2, 2, (px, py, w, h) => { // 화덕
+      shade(px, py, w, h);
+      x.fillStyle = OL; x.fillRect(px - 1, py - 1, w + 2, h + 2);
+      x.fillStyle = R.steel[3]; x.fillRect(px, py, w, h);
+      x.fillStyle = R.steel[2]; x.fillRect(px, py, w, 5);
+      x.fillStyle = R.brick[3]; x.fillRect(px + 4, py + 12, w - 8, h - 18);
+      x.fillStyle = '#ff8a3c'; x.fillRect(px + 7, py + 15, w - 14, 6);
+      x.fillStyle = '#ffd08a'; x.fillRect(px + 9, py + 17, w - 18, 2);
+      x.fillStyle = R.steel[1]; x.fillRect(px + 3, py + 3, 10, 4); x.fillRect(px + w - 14, py + 3, 10, 4);
+      x.fillStyle = R.brass[2]; x.fillRect(px + w / 2 - 6, py - 6, 12, 8);
+      x.fillStyle = R.brass[1]; x.fillRect(px + w / 2 - 6, py - 6, 12, 2);
+      x.fillStyle = R.brass[3]; x.fillRect(px + w / 2 + 5, py - 4, 5, 2);
+    });
+    this.steam.push({ x:4, y:12.6 });
+    prop(6, 14, 5, 2, (px, py, w, h) => { // 긴 식탁
+      wood(px, py, w, h, R.oak, h - 12);
+      for (let i = 0; i < 4; i++) {
+        const ox = px + 8 + i * 18;
+        x.fillStyle = R.cream[1]; x.fillRect(ox, py + 6, 8, 7);
+        x.fillStyle = R.cream[0]; x.fillRect(ox, py + 6, 8, 2);
+        x.fillStyle = R.brass[3]; x.fillRect(ox + 8, py + 8, 3, 3);
+      }
+      x.fillStyle = R.leaf[2]; x.fillRect(px + w - 26, py + 5, 12, 6);
+      x.fillStyle = R.leaf[1]; x.fillRect(px + w - 26, py + 5, 12, 2);
+    });
+    [[6,16],[8,16],[10,16],[6,13],[9,13]].forEach(([tx, ty]) => prop(tx, ty, 1, 1, stool));
+    prop(13, 13, 1, 2, (px, py, w, h) => { // 그릇 선반
+      wood(px, py, w, h, R.wal, 6);
+      for (let i = 0; i < 2; i++) {
+        x.fillStyle = R.wal[4]; x.fillRect(px + 2, py + 8 + i * 12, w - 4, 10);
+        x.fillStyle = R.cream[1]; x.fillRect(px + 3, py + 10 + i * 12, 4, 6); x.fillRect(px + 8, py + 10 + i * 12, 4, 6);
+        x.fillStyle = R.green[1]; x.fillRect(px + 3, py + 10 + i * 12, 4, 2);
+      }
+    });
+
+    // ── 계단 구역 ──
+    prop(17, 13, 2, 1, (px, py, w, h) => { // 사물함
+      wood(px, py, w, h + 6, R.steel, 6);
+      for (let i = 0; i < 2; i++) { x.fillStyle = R.steel[3]; x.fillRect(px + 3 + i * 15, py + 8, 12, 11); x.fillStyle = R.brass[2]; x.fillRect(px + 12 + i * 15, py + 12, 3, 3); }
+    });
+    [[20,16],[22,16]].forEach(([tx, ty]) => prop(tx, ty, 1, 1, crate));
+    prop(23, 14, 1, 1, barrel);
+    prop(28, 15, 4, 3, (px, py, w, h) => { // 계단 + 출입문
+      x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(px - 4, py, 4, h);
+      x.fillStyle = OL; x.fillRect(px - 1, py - 1, w + 2, h + 2);
+      for (let i = 0; i < 5; i++) {
+        const sy = py + h - 10 - i * 8;
+        x.fillStyle = R.stone[2 - (i % 2)]; x.fillRect(px + i * 4, sy, w - i * 4, 8);
+        x.fillStyle = R.stone[0]; x.fillRect(px + i * 4, sy, w - i * 4, 1);
+        x.fillStyle = R.stone[4]; x.fillRect(px + i * 4, sy + 7, w - i * 4, 1);
+      }
+      x.fillStyle = OL; x.fillRect(px + 20, py - 2, 30, 16);
+      x.fillStyle = R.wal[2]; x.fillRect(px + 21, py - 1, 28, 14);
+      x.fillStyle = R.wal[1]; x.fillRect(px + 21, py - 1, 28, 3);
+      x.fillStyle = R.brass[2]; x.fillRect(px + 42, py + 5, 5, 4);
+      x.fillStyle = R.brass[3]; x.fillRect(px + 26, py + 3, 12, 3);
+      x.fillStyle = R.brass[1]; x.fillRect(px + 26, py + 3, 12, 1);
+    });
+    this.stairs = { x:28.4, y:14.3 };
+
+    // ── 가스등 (천장 등) ──
+    this.lamps.forEach(([tx, ty]) => {
+      const px = tx * T + 4, py = ty * T - 2;
+      x.fillStyle = R.steel[3]; x.fillRect(px + 3, py - 12, 2, 10);
+      x.fillStyle = OL; x.fillRect(px - 2, py - 3, 13, 9);
+      x.fillStyle = R.brass[3]; x.fillRect(px - 1, py - 2, 11, 4);
+      x.fillStyle = R.brass[2]; x.fillRect(px - 1, py - 2, 11, 2);
+      x.fillStyle = '#fff0c0'; x.fillRect(px + 2, py + 2, 5, 4);
+      x.fillStyle = R.brass[1]; x.fillRect(px + 1, py + 2, 7, 1);
+    });
+
+    this.staticLayer = c;
+  }
+
+  frozen() { return !!(this.state.talk || this.state.end || this.fading); }
+
+  step(dt, t) {
+    if (!this.cv || !this.staticLayer) return;
+    const p = this.player;
+    if (!this.frozen()) {
+      let dx = (this.keys.r ? 1 : 0) - (this.keys.l ? 1 : 0);
+      let dy = (this.keys.d ? 1 : 0) - (this.keys.u ? 1 : 0);
+      if (dx || dy) { const m = Math.hypot(dx, dy); dx /= m; dy /= m; p.face = dx < 0 ? -1 : dx > 0 ? 1 : p.face; p.walk += dt * 9; }
+      const sp = 5.2 * dt, rad = .34;
+      const nx = p.x + dx * sp, ny = p.y + dy * sp;
+      if (this.walkable(nx - rad, p.y - rad) && this.walkable(nx + rad, p.y - rad) && this.walkable(nx - rad, p.y + rad) && this.walkable(nx + rad, p.y + rad)) p.x = nx;
+      if (this.walkable(p.x - rad, ny - rad) && this.walkable(p.x + rad, ny - rad) && this.walkable(p.x - rad, ny + rad) && this.walkable(p.x + rad, ny + rad)) p.y = ny;
+    }
+    if (this.fading === 'out') {
+      this.fade = Math.min(1, this.fade + dt * 1.8);
+      if (this.fade >= 1) { this.fading = 'in'; this.arriveChief(); }
+    } else if (this.fading === 'in') {
+      this.fade = Math.max(0, this.fade - dt * 1.4);
+      if (this.fade <= 0) this.fading = null;
+    }
+    this.draw(t);
+  }
+
+  nearNpc() {
+    const p = this.player;
+    let best = null, bd = 1e9;
+    [this.chief].concat(this.allies).forEach(n => { const d = Math.hypot(n.x - p.x, n.y - p.y); if (d < (n.reach || 2.1) && d < bd) { bd = d; best = n; } });
+    return best;
+  }
+  interact() {
+    if (this.state.end || this.fading) return;
+    if (this.state.talk) { this.advance(); return; }
+    const p = this.player;
+    if (this.stairs && Math.hypot(this.stairs.x - p.x, this.stairs.y - p.y) < 2.2) {
+      if (this.state.solved && this.state.briefed) this.setState({ end:true });
+      else this.setState({ talk:{ id:'chief', lines:['(문은 안쪽에서 잠겨 있다. 간부의 승인 없이는 거리로 나갈 수 없다.)'], i:0, kind:'sys' } });
+      return;
+    }
+    const n = this.nearNpc();
+    if (!n) return;
+    if (n.id === 'chief') { this.openChief(); return; }
+    const met = Object.assign({}, this.state.met); met[n.id] = true;
+    const heard = Object.assign({}, this.state.heard);
+    if (this.state.briefed) heard[n.id] = true;
+    this.setState({ met:met, heard:heard, code:'', msg:'', talk:{ id:n.id, lines:this.allyLines(n), i:0, kind:'ally' } });
+  }
+  allyLines(n) {
+    const c = this.cur();
+    if (!this.state.briefed) return [n.base, '간부 브리핑부터 듣고 와. 순서는 지켜야지.'];
+    if (this.state.trust[n.id] <= 0) return [n.base, c.reasons[n.kind]];
+    return [n.base, '내가 떠올린 단어는 「' + c.hints[n.kind] + '」. ' + (n.kind === 'f' ? c.hints.f : '여기까지가 내 몫이야.')];
+  }
+  openChief() {
+    const s = this.state;
+    if (!s.briefed) { this.setState({ code:'', msg:'', talk:{ id:'chief', lines:this.chiefBrief, i:0, kind:'brief' } }); return; }
+    if (s.solved) { this.setState({ code:'', msg:'', talk:{ id:'chief', lines:['좋아! 동료들을 만날 준비가 된 것 같군. 무운을 빈다.'], i:0, kind:'clear' } }); return; }
+    this.setState({ code:'', msg:'', talk:{ id:'chief', lines:['나한테 물어봐도 뭐 없어. 머리를 써서 유추해.'], i:0, kind:'mid' } });
+  }
+  advance() {
+    const tk = this.state.talk;
+    if (!tk) return;
+    if (tk.i < tk.lines.length - 1) { this.setState({ talk:Object.assign({}, tk, { i:tk.i + 1 }), msg:'' }); return; }
+    if (tk.kind === 'brief') { this.setState({ briefed:true, talk:null, msg:'' }); return; }
+    if (tk.kind === 'clear') { this.setState({ talk:null, end:true }); return; }
+    this.setState({ talk:null, code:'', msg:'' });
+  }
+  pickMenu(i) {
+    const tk = this.state.talk;
+    if (!tk) return;
+    const items = this.menuFor(tk);
+    if (items[i] && items[i].on) items[i].on();
+  }
+  menuFor(tk) {
+    if (tk.kind !== 'ally') return [{ label:'다음', hint:'E · 클릭', on:() => this.advance() }, { label:'닫기', hint:'ESC', on:() => this.setState({ talk:null, code:'', msg:'' }) }];
+    const t0 = this.state.trust[tk.id];
+    return [
+      { label:'대화하기', hint:'기본 대사 · 힌트', on:() => this.advance() },
+      { label:'접선 코드', hint:t0 > 0 ? '직접 입력 · 신뢰도 ' + t0 : '신뢰도 0 — 접수 불가', dim:t0 <= 0,
+        on:() => { if (t0 > 0) this.setState({ talk:Object.assign({}, tk, { code:true }), msg:'' }); } },
+      { label:'닫기', hint:'ESC', on:() => this.setState({ talk:null, code:'', msg:'' }) }
+    ];
+  }
+  submit() {
+    const tk = this.state.talk;
+    if (!tk || tk.kind !== 'ally') return;
+    const guess = (this.state.code || '').replace(/\s/g, '');
+    if (!guess) return;
+    if (guess === this.cur().word) {
+      this.pendChief = 'clear';
+      this.setState({ solved:true, talk:null, code:'', msg:'' });
+      this.fading = 'out';
+      return;
+    }
+    const trust = Object.assign({}, this.state.trust);
+    trust[tk.id] = Math.max(0, trust[tk.id] - 1);
+    const n = this.npcById(tk.id);
+    if (trust[tk.id] <= 0) {
+      const allZero = this.allies.every(a => trust[a.id] <= 0);
+      if (allZero) { this.pendChief = 'fail'; this.setState({ trust:trust, talk:null, code:'', msg:'' }); this.fading = 'out'; return; }
+      this.setState({ trust:trust, code:'',
+        talk:{ id:tk.id, lines:[this.cur().reasons[n.kind], '이제 내 쪽으로는 코드를 못 넘겨. 다른 동료를 찾아가.'], i:0, kind:'ally' },
+        msg:'신뢰도 0 — ' + n.name + '은 더 이상 코드를 접수하지 않는다.', msgKind:'bad' });
+      return;
+    }
+    this.setState({ trust:trust, code:'', msg:'틀렸다. 남은 신뢰도 ' + trust[tk.id] + ' — 세 단어를 다시 맞춰봐.', msgKind:'bad' });
+  }
+  arriveChief() {
+    const kind = this.pendChief;
+    this.player.x = 17.8; this.player.y = 8.2; this.player.face = 1;
+    if (kind === 'clear') {
+      this.setState({ talk:{ id:'chief', lines:['(접선 코드가 통했다. 발이 저절로 간부 앞으로 향한다.)', '좋아! 동료들을 만날 준비가 된 것 같군. 무운을 빈다.'], i:0, kind:'clear' } });
+    } else {
+      const next = (this.state.codeIdx + 1) % this.codes.length;
+      this.setState({ codeIdx:next, trust:{ a1:2, a2:2, a3:2 }, heard:{ a1:false, a2:false, a3:false },
+        talk:{ id:'chief', lines:['(동료 셋 모두 입을 닫았다. 간부 앞으로 끌려왔다.)', '이대로는 임무에 투입될 수 없어! 접선 코드를 바꿨다. 다시 해봐!'], i:0, kind:'mid' } });
+    }
+    this.pendChief = null;
+  }
+  reset() {
+    this.player = { x:17.8, y:8.1, face:-1, walk:0 };
+    this.fade = 0; this.fading = null;
+    this.setState({ talk:null, code:'', msg:'', trust:{ a1:2, a2:2, a3:2 }, met:{ a1:false, a2:false, a3:false },
+                    heard:{ a1:false, a2:false, a3:false }, briefed:false, solved:false, end:false, codeIdx:0 });
+  }
+
+  draw(t) {
+    const { T, P, R } = this;
+    const x = this.cv.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    const Z = this.props.zoom ?? 1.7;
+    const vw = this.cv.width / Z, vh = this.cv.height / Z;
+    const mw = this.GW * T, mh = this.GH * T;
+    const p0 = this.player;
+    if (!this.cam) this.cam = { x:0, y:0 };
+    const tgx = mw <= vw ? (mw - vw) / 2 : Math.max(0, Math.min(mw - vw, p0.x * T - vw / 2));
+    const tgy = mh <= vh ? (mh - vh) / 2 : Math.max(0, Math.min(mh - vh, p0.y * T - vh / 2));
+    this.cam.x += (tgx - this.cam.x) * .14; this.cam.y += (tgy - this.cam.y) * .14;
+    const camX = Math.round(this.cam.x * Z) / Z, camY = Math.round(this.cam.y * Z) / Z;
+
+    x.fillStyle = P.void1; x.fillRect(0, 0, this.cv.width, this.cv.height);
+    x.save(); x.scale(Z, Z); x.translate(-camX, -camY);
+    x.drawImage(this.staticLayer, 0, 0);
+
+    (this.steam || []).forEach((s, i) => {
+      for (let k = 0; k < 4; k++) {
+        const ph = (t * .34 + k * .27 + i * .43) % 1, sz = 2 + ph * 6;
+        x.fillStyle = 'rgba(226,208,174,' + (.24 * (1 - ph)).toFixed(2) + ')';
+        x.fillRect(Math.round(s.x * T + Math.sin((ph * 5 + k) * 2) * 5 - sz / 2), Math.round(s.y * T - 6 - ph * 30), sz, sz);
+      }
+    });
+
+    const ents = [];
+    [this.chief].concat(this.allies).forEach(n => ents.push({ y:n.y, f:() => this.drawDude(x, n.x * T, n.y * T, R[n.ramp], n.hat, n.id === 'chief' ? 0 : (n.x > p0.x ? -1 : 1), -1) }));
+    ents.push({ y:p0.y, f:() => this.drawDude(x, p0.x * T, p0.y * T, R.green, 'none', p0.face, (this.keys.u || this.keys.d || this.keys.l || this.keys.r) && !this.frozen() ? p0.walk : -1) });
+    ents.sort((a, b) => a.y - b.y).forEach(e => e.f());
+
+    // 따뜻한 실내 조명
+    if (this.props.lightOn ?? true) {
+      const lc = this._lc || (this._lc = document.createElement('canvas'));
+      lc.width = mw; lc.height = mh;
+      const lx = lc.getContext('2d');
+      lx.clearRect(0, 0, mw, mh);
+      lx.fillStyle = 'rgba(22,13,6,.5)'; lx.fillRect(0, 0, mw, mh);
+      lx.globalCompositeOperation = 'destination-out';
+      this.lamps.forEach(([tx2, ty2], i) => {
+        const f = .84 + .16 * Math.abs(Math.sin(t * 1.7 + i * 1.3));
+        const cx = tx2 * T + 8, cy = ty2 * T + 2, r = 74 * f;
+        const gr = lx.createRadialGradient(cx, cy, 4, cx, cy, r);
+        gr.addColorStop(0, 'rgba(0,0,0,.95)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        lx.fillStyle = gr; lx.beginPath(); lx.arc(cx, cy, r, 0, 7); lx.fill();
+      });
+      lx.globalCompositeOperation = 'source-over';
+      x.drawImage(lc, 0, 0);
+      x.globalCompositeOperation = 'lighter';
+      this.lamps.forEach(([tx2, ty2], i) => {
+        const f = .62 + .38 * Math.abs(Math.sin(t * 1.7 + i * 1.3));
+        const cx = tx2 * T + 8, cy = ty2 * T + 2;
+        const gr = x.createRadialGradient(cx, cy, 2, cx, cy, 36);
+        gr.addColorStop(0, 'rgba(245,220,143,' + (.2 * f).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(245,220,143,0)');
+        x.fillStyle = gr; x.beginPath(); x.arc(cx, cy, 36, 0, 7); x.fill();
+      });
+      const sg = x.createRadialGradient(4 * T + 8, 13.6 * T, 3, 4 * T + 8, 13.6 * T, 48);
+      sg.addColorStop(0, 'rgba(255,138,60,.24)'); sg.addColorStop(1, 'rgba(255,138,60,0)');
+      x.fillStyle = sg; x.beginPath(); x.arc(4 * T + 8, 13.6 * T, 48, 0, 7); x.fill();
+      x.globalCompositeOperation = 'source-over';
+    }
+
+    x.font = '9px Galmuri9'; x.textAlign = 'center';
+    const nn = this.nearNpc();
+    const plate = (cx, cy, label, col) => {
+      const tw = x.measureText(label).width + 8;
+      x.fillStyle = '#120c07'; x.fillRect(cx - tw / 2 - 1, cy - 1, tw + 2, 13);
+      x.fillStyle = 'rgba(26,23,18,.95)'; x.fillRect(cx - tw / 2, cy, tw, 11);
+      x.fillStyle = col; x.fillText(label, cx, cy + 9);
+    };
+    [this.chief].concat(this.allies).forEach(n => {
+      const d = Math.hypot(n.x - p0.x, n.y - p0.y);
+      if (d > 4.2) return;
+      const got = n.id !== 'chief' && this.state.met[n.id];
+      plate(n.x * T, n.y * T - 36, n.name + (nn === n ? '  [E]' : '') + (got ? '  ✓' : ''), n.id === 'chief' ? R.red[0] : R.brass[0]);
+      if (nn === n && !this.frozen()) {
+        const bob = Math.sin(t * 4) * 2;
+        x.fillStyle = R.brass[0]; x.fillRect(n.x * T - 2, n.y * T - 48 + bob, 4, 6);
+        x.fillStyle = R.brass[2]; x.fillRect(n.x * T - 4, n.y * T - 42 + bob, 8, 2);
+      }
+    });
+    if (this.stairs && Math.hypot(this.stairs.x - p0.x, this.stairs.y - p0.y) < 2.2 && !this.frozen()) {
+      plate(this.stairs.x * T + 8, this.stairs.y * T - 22, this.state.solved ? '거리로 나간다 [E]' : '잠긴 문 [E]', this.state.solved ? R.brass[0] : R.steel[0]);
+    }
+    if (this.props.showLabels ?? true) {
+      this.zones.forEach(z => {
+        const cx = (z.x + z.w / 2) * T, cy = (z.y + .8) * T;
+        x.fillStyle = 'rgba(243,234,208,.34)'; x.fillText(z.name, cx, cy);
+      });
+    }
+    x.restore();
+
+    if (this.fade > 0) { x.fillStyle = 'rgba(4,3,2,' + this.fade.toFixed(3) + ')'; x.fillRect(0, 0, this.cv.width, this.cv.height); }
+    const vg = x.createRadialGradient(this.cv.width / 2, this.cv.height / 2, this.cv.height * .4, this.cv.width / 2, this.cv.height / 2, this.cv.height * .95);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.58)');
+    x.fillStyle = vg; x.fillRect(0, 0, this.cv.width, this.cv.height);
+  }
+
+  drawDude(x, px, py, ramp, hat, face, walkT) {
+    const R = this.R, OL = '#120c07';
+    const step = walkT >= 0 ? Math.sin(walkT) * 2 : 0;
+    x.fillStyle = 'rgba(0,0,0,.4)'; x.beginPath(); x.ellipse(px, py, 6, 2.5, 0, 0, 7); x.fill();
+    x.fillStyle = OL; x.fillRect(px - 5, py - 9, 4, 8); x.fillRect(px + 1, py - 9, 4, 8);
+    x.fillStyle = R.wal[3]; x.fillRect(px - 4, py - 8 + Math.abs(step) * .3, 3, 6 + step);
+    x.fillRect(px + 2, py - 8 + Math.abs(step) * .3, 3, 6 - step);
+    x.fillStyle = OL; x.fillRect(px - 6, py - 18, 12, 12);
+    x.fillStyle = ramp[1]; x.fillRect(px - 5, py - 17, 10, 10);
+    x.fillStyle = ramp[0]; x.fillRect(px - 5, py - 17, 10, 2); x.fillRect(px - 5, py - 17, 2, 10);
+    x.fillStyle = ramp[3]; x.fillRect(px + (face < 0 ? -5 : 3), py - 15, 2, 8); x.fillRect(px - 5, py - 8, 10, 1);
+    x.fillStyle = OL; x.fillRect(px - 4, py - 24, 9, 8);
+    x.fillStyle = '#e0b892'; x.fillRect(px - 3, py - 23, 7, 6);
+    x.fillStyle = '#c49a72'; x.fillRect(px - 3, py - 18, 7, 1);
+    x.fillStyle = OL; x.fillRect(px + (face < 0 ? -2 : 1), py - 21, 1, 2); x.fillRect(px + (face < 0 ? 0 : 3), py - 21, 1, 2);
+    if (hat === 'cap') { x.fillStyle = OL; x.fillRect(px - 5, py - 26, 11, 4); x.fillStyle = R.wal[2]; x.fillRect(px - 4, py - 25, 9, 3); x.fillStyle = R.wal[3]; x.fillRect(px + (face < 0 ? -7 : 4), py - 23, 4, 1); }
+    if (hat === 'top') { x.fillStyle = OL; x.fillRect(px - 5, py - 31, 11, 9); x.fillStyle = '#1e1a14'; x.fillRect(px - 4, py - 25, 9, 2); x.fillRect(px - 3, py - 30, 7, 5); x.fillStyle = R.brass[2]; x.fillRect(px - 3, py - 26, 7, 1); }
+    if (hat === 'band') { x.fillStyle = OL; x.fillRect(px - 4, py - 25, 9, 3); x.fillStyle = R.red[1]; x.fillRect(px - 3, py - 24, 7, 2); }
+  }
+
+  tileFromEvent(e) {
+    const r = this.cv.getBoundingClientRect();
+    const Z = this.props.zoom ?? 1.7;
+    const cx = this.cam ? this.cam.x : 0, cy = this.cam ? this.cam.y : 0;
+    const sx = (e.clientX - r.left) / r.width * this.cv.width;
+    const sy = (e.clientY - r.top) / r.height * this.cv.height;
+    return [Math.floor((sx / Z + cx) / this.T), Math.floor((sy / Z + cy) / this.T)];
+  }
+
+  renderVals() {
+    const s = this.state;
+    const c = this.cur();
+    const tk = s.talk;
+    const npc = tk ? this.npcById(tk.id) : null;
+    const metCount = this.allies.filter(a => s.met[a.id]).length;
+    const items = tk ? this.menuFor(tk) : [];
+    const kindLabel = { c:'색상', k:'분류', f:'특징' };
+    const done = [s.briefed, metCount >= 3, s.solved, s.end];
+    return {
+      canvasRef: el => { this.cv = el; },
+      onMove: e => { if (!this.cv) return; const [tx, ty] = this.tileFromEvent(e); const inMap = tx >= 0 && ty >= 0 && tx < this.GW && ty < this.GH; const z = inMap ? this.zoneAt(tx, ty) : null; const id = z ? z.id : null; if (id !== s.hover) this.setState({ hover:id }); },
+      onLeave: () => this.setState({ hover:null }),
+      onClick: e => { const [tx, ty] = this.tileFromEvent(e); const inMap = tx >= 0 && ty >= 0 && tx < this.GW && ty < this.GH; const z = inMap ? this.zoneAt(tx, ty) : null; this.setState(st => ({ pinned: z && st.pinned !== z.id ? z.id : null })); },
+
+      doneCount: done.filter(Boolean).length,
+      checklist: [
+        { label:'간부와 대화 — 진행 방식 안내', done:done[0] },
+        { label:'동료 3명과 대화 (' + metCount + '/3)', done:done[1] },
+        { label:'접선 코드 입력 성공', done:done[2] },
+        { label:'간부 재대화 → 스테이지 1', done:done[3] }
+      ].map(q => ({ label:q.label, mark:q.done ? '✓' : '□', mfg:q.done ? '#e8c15a' : '#5a5040', fg:q.done ? '#e8dcc0' : '#8a7f6a' })),
+
+      wordCount: this.allies.filter(a => s.heard[a.id]).length,
+      wordRows: this.allies.map(a => {
+        const got = s.heard[a.id];
+        return { kind:kindLabel[a.kind], text:got ? c.hints[a.kind] : '? ? ?',
+          bg:got ? '#3a3122' : '#1a1712', fg:got ? '#f5dc8f' : '#5a5040',
+          trust:s.trust[a.id] > 0 ? '●'.repeat(s.trust[a.id]) : '○',
+          tfg:s.trust[a.id] > 0 ? '#c9a227' : '#a03325' };
+      }),
+
+      hasCard: !!(s.pinned !== null || s.hover !== null),
+      cardName: (() => { const z = this.zones.find(q => q.id === (s.pinned !== null ? s.pinned : s.hover)); return z ? z.name : ''; })(),
+      cardTag: (() => { const id = s.pinned !== null ? s.pinned : s.hover; return id === null ? '' : '구역 ' + (id + 1) + '/5'; })(),
+      cardOcc: (() => { const z = this.zones.find(q => q.id === (s.pinned !== null ? s.pinned : s.hover)); return z ? z.occ : ''; })(),
+      cardDesc: (() => { const z = this.zones.find(q => q.id === (s.pinned !== null ? s.pinned : s.hover)); return z ? z.desc : ''; })(),
+      cardPinned: s.pinned !== null,
+
+      talkOn: !!tk,
+      talkName: tk && tk.kind === 'sys' ? '시스템 메시지' : npc ? npc.name : '',
+      talkRole: tk && tk.kind === 'sys' ? '본부 안내' : npc ? npc.role : '',
+      talkColor: tk && tk.kind === 'sys' ? '#8fc4ac' : tk && tk.id === 'chief' ? '#d4614a' : '#e8c15a',
+      talkLine: tk ? tk.lines[tk.i] : '',
+      portraitFile: tk && tk.kind === 'sys' ? '초상 없음' : npc ? npc.portrait : '',
+      codeMode: !!(tk && tk.code),
+      codeInput: s.code,
+      onCodeInput: e => this.setState({ code:e.target.value }),
+      onCodeKey: e => { if (e.key === 'Enter') this.submit(); if (e.key === 'Escape') this.setState({ talk:null, code:'', msg:'' }); },
+      submitCode: () => this.submit(),
+      codeMsg: s.msg || (tk && tk.code ? '세 단어가 가리키는 물건 하나 — 로봇은 이해할 수 없는 방식이다.' : ''),
+      msgColor: s.msg ? (s.msgKind === 'bad' ? '#d4614a' : '#8fc4ac') : '#8a7f6a',
+      menu: items.map((m, i) => ({
+        label: (i + 1) + '. ' + m.label, hint:m.hint,
+        bg: m.dim ? '#241c14' : '#2c2018',
+        fg: m.dim ? '#5a5040' : '#e8dcc0',
+        dot: m.dim ? '#3a3122' : i === 0 ? '#5e8b7e' : i === 1 ? '#c9a227' : '#78231a',
+        cursor: m.dim ? 'default' : 'pointer',
+        hit: () => { if (m.on) m.on(); }
+      })),
+
+      endOn: s.end,
+      solvedWord: c.word,
+      restart: () => this.reset()
+    };
+  }
+}
+
+</script>
+</body>
+</html>
