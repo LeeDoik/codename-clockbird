@@ -83,6 +83,8 @@ export class MansionScene extends Phaser.Scene {
     this.currentNpcId = null;
     /** 문서 열람 요청이 날아가는 중 — 연타로 두 번 보내지 않게 */
     this.reading = false;
+    /** 밀고가 확정됐지만 플레이어가 아직 마지막 대사를 읽는 중 — 창이 닫히면 끝낸다 */
+    this.reportedPending = false;
   }
 
   create() {
@@ -425,6 +427,12 @@ export class MansionScene extends Phaser.Scene {
   update() {
     if (this.ended) return;
 
+    // 밀고 확정 후 창이 닫힌 순간 판을 끝낸다 (#chat 의 reportedPending 참고).
+    if (this.reportedPending && !this.dialogue.isOpen) {
+      this.#endGame('reported');
+      return;
+    }
+
     const typing = this.dialogue.isTyping;
     if (typing) this.player.body.setVelocity(0, 0);
     else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
@@ -527,7 +535,10 @@ export class MansionScene extends Phaser.Scene {
 
     if (pending) this.#applyEvent(pending);
     this.dialogue.endStream('[Space] 다음 · [Esc] 닫기');
-    if (pending?.event === 'reported') this.#endGame('reported');
+    // 밀고는 즉시 끝내지 않는다 — 즉시 ended 를 세우면 update() 가 멈춰 [Space] 페이지
+    // 넘김이 죽고, 플레이어가 진 이유를 읽기 전에 결과 화면이 덮는다.
+    // 창이 닫히는 순간(다 읽고 넘겼든, Esc 로 닫았든, 대기 중 이미 닫아 뒀든) 끝낸다.
+    if (pending?.event === 'reported') this.reportedPending = true;
   }
 
   /** 서버가 알려준 상태를 기존 객체에 덮어쓴다 — 노드가 쥔 참조를 살려 두기 위해서. */
