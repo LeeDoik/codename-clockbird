@@ -208,6 +208,9 @@ export class DialogueBox {
    * @returns {boolean} 창이 계속 열려 있는가
    */
   advance() {
+    // 응답 대기("…") 중의 [Space]는 페이지 넘김이 아니다 — 여기서 hide 로 흐르면
+    // busy 규약이 dismissed 를 세워 도착할 응답이 통째로 버려진다. Esc(명시적 취소)만 남긴다.
+    if (this.busy) return true;
     if (this.hasMore) {
       this.pageIdx += 1;
       this.#renderPage();

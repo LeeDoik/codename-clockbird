@@ -466,6 +466,12 @@ export class MansionScene extends Phaser.Scene {
   update() {
     if (this.ended) return;
 
+    // 키 상태는 어떤 조기 return 보다 먼저 매 프레임 소비한다 — 단락 평가로 건너뛰면
+    // 눌린 채 남은 플래그가 패널이 닫히거나 응답이 도착한 프레임에 뒤늦게 발동한다.
+    const pressedTalk = Phaser.Input.Keyboard.JustDown(this.keyE);
+    const pressedSpace = Phaser.Input.Keyboard.JustDown(this.keySpace);
+    const pressedEsc = Phaser.Input.Keyboard.JustDown(this.keyEsc);
+
     // 밀고 확정 후 창이 닫힌 순간 판을 끝낸다 (#chat 의 reportedPending 참고).
     if (this.reportedPending && !this.dialogue.isOpen) {
       this.#endGame('reported');
@@ -494,7 +500,7 @@ export class MansionScene extends Phaser.Scene {
 
     if (!this.state) {
       // /start 가 실패했다면 [Space] 는 창을 닫는 대신 재시도다.
-      if (this.startFailed && Phaser.Input.Keyboard.JustDown(this.keySpace)) {
+      if (this.startFailed && pressedSpace) {
         this.startFailed = false;
         this.#start();
       }
@@ -504,7 +510,7 @@ export class MansionScene extends Phaser.Scene {
     // 말풍선·최근접 노드 갱신 — 대화 중이거나 대기 중이면 레이어가 알아서 감춘다.
     this.interact.update(this.player, { suppress: typing || this.dialogue.busy });
 
-    if (!typing && !this.dialogue.busy && Phaser.Input.Keyboard.JustDown(this.keyE)) {
+    if (!typing && !this.dialogue.busy && pressedTalk) {
       if (this.dialogue.isOpen && !this.dialogue.hasMore && this.dialogue.onChoice) {
         this.dialogue.onChoice('E');
       } else if (this.dialogue.isOpen && !this.dialogue.isTyping) {
@@ -513,10 +519,10 @@ export class MansionScene extends Phaser.Scene {
         this.interact.trigger();
       }
     }
-    if (!typing && Phaser.Input.Keyboard.JustDown(this.keySpace) && this.dialogue.isOpen) {
+    if (!typing && pressedSpace && this.dialogue.isOpen) {
       this.dialogue.advance();
     }
-    if (Phaser.Input.Keyboard.JustDown(this.keyEsc) && this.dialogue.isOpen) {
+    if (pressedEsc && this.dialogue.isOpen) {
       this.dialogue.hide();
     }
   }

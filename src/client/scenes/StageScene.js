@@ -574,9 +574,19 @@ export class StageScene extends Phaser.Scene {
         this.interact.trigger();
       }
     }
-    // F — 선택지에 "암호 말하기"가 떠 있을 때만 (접선책 앞. Task 14 에서 전 동료로 확대)
-    if (!waiting && pressedContact && this.dialogue.isOpen && this.dialogue.onChoice) {
-      this.dialogue.onChoice('F');
+    // F — 선택지가 떠 있으면 "암호 말하기" 선택, 아니면 (튜토리얼과 같은 조작으로)
+    // 코드를 받는 상대 앞에서 바로 입력창을 연다.
+    if (!waiting && pressedContact) {
+      if (this.dialogue.isOpen && this.dialogue.onChoice) {
+        this.dialogue.onChoice('F');
+      } else if (!this.dialogue.isOpen && this.interact.current) {
+        const cur = this.interact.current;
+        const target =
+          cur.id === 'broker'
+            ? this.state.broker
+            : this.state.allies.find((a) => a.id === cur.id && !a.arrested);
+        if (target) this.#offerCode(target);
+      }
     }
     // R — 감옥의 동료 구출. 대상이 없어도 눌리게 둔다 (어디로 가야 하는지 알려주기 위해).
     if (!waiting && pressedRescue) {
