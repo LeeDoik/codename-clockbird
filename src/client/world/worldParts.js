@@ -13,9 +13,11 @@ import Phaser from 'phaser';
  * map.json 의 layout 을 깔고, solid 타일은 정적 물리 바디로 만들어 플레이어를 막는다.
  * 정적 그룹의 create 는 보이는 스프라이트와 정적 바디를 한 번에 만든다.
  *
+ * @param {string} textureKey BootScene 이 로드한 스프라이트시트 키.
+ *   거리·본부는 'tiles', 저택은 'mansion' — layout 의 인덱스가 그 시트의 프레임 번호다.
  * @returns {Phaser.Physics.Arcade.StaticGroup} 벽 그룹 (충돌 등록에 쓴다)
  */
-export function buildTilemap(scene, mapData) {
+export function buildTilemap(scene, mapData, textureKey = 'tiles') {
   const TILE = mapData.tileSize;
   const walls = scene.physics.add.staticGroup();
   const { layout, tiles, rows, cols } = mapData;
@@ -25,11 +27,44 @@ export function buildTilemap(scene, mapData) {
       const f = layout[r][c];
       if (f < 0) continue; // 빈칸
       if (tiles[f].solid) {
-        walls.create(c * TILE + TILE / 2, r * TILE + TILE / 2, 'tiles', f);
+        walls.create(c * TILE + TILE / 2, r * TILE + TILE / 2, textureKey, f);
       } else {
-        scene.add.image(c * TILE, r * TILE, 'tiles', f).setOrigin(0, 0);
+        scene.add.image(c * TILE, r * TILE, textureKey, f).setOrigin(0, 0);
       }
     }
+  }
+
+  return walls;
+}
+
+/**
+ * 보이지 않는 충돌만 세운다 — 그림은 이미 배경 한 장에 구워져 있는 맵용.
+ *
+ * 저택(스테이지 2)은 바닥·벽·가구·조명을 통째로 구운 이미지를 깔기 때문에 타일을
+ * 한 칸씩 그릴 필요가 없다. 그래도 벽은 막아야 하므로 렌더와 충돌을 갈라 놓는다.
+ *
+ * @param {Array<[number, number]>} blocked 가구가 막는 칸 (바닥 위에 놓인 것들)
+ * @returns {Phaser.Physics.Arcade.StaticGroup}
+ */
+export function buildColliders(scene, mapData, blocked = []) {
+  const TILE = mapData.tileSize;
+  const { layout, tiles, rows, cols } = mapData;
+  const walls = scene.physics.add.staticGroup();
+
+  const add = (c, r) => {
+    // Zone 은 그려지지 않는 사각형이다 — 정적 바디를 얹으면 보이지 않는 벽이 된다.
+    const zone = scene.add.zone(c * TILE + TILE / 2, r * TILE + TILE / 2, TILE, TILE);
+    scene.physics.add.existing(zone, true);
+    walls.add(zone);
+    return zone;
+  };
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) if (tiles[layout[r][c]].solid) add(c, r);
+  }
+  // 가구는 벽 위에 겹칠 수 있다 (벽에 붙인 책장 등) — 이미 막힌 칸은 건너뛴다.
+  for (const [c, r] of blocked) {
+    if (r >= 0 && r < rows && c >= 0 && c < cols && !tiles[layout[r][c]].solid) add(c, r);
   }
 
   return walls;
