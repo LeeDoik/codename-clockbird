@@ -13,9 +13,18 @@ import mapData from '../assets/map.json';
  */
 const SPEED_BASE = 60;
 const SPEED_PER_LEVEL = 15;
-const RADIUS_BASE = 70;
-const RADIUS_PER_LEVEL = 12;
-const CONE_HALF_ANGLE = Phaser.Math.DegToRad(35);
+/**
+ * 감지 반경.
+ *
+ * 로봇은 눈이 아니라 **감지기**로 사람을 찾는다 — 그래서 앞뒤를 가리지 않는 원이다.
+ * 부채꼴이던 때는 뒤로 돌아가면 코앞에서도 안 걸려, 로봇을 피하는 것이 아니라
+ * 등 뒤에 붙어 따라다니는 것이 최적 전략이 됐다.
+ *
+ * 맵이 30×18 에서 60×48 로 넓어져 반경도 같이 키웠다. 예전 값(70)은 새 거리에서
+ * 타일 두 칸 남짓이라 그냥 지나쳐도 안 걸렸다.
+ */
+const RADIUS_BASE = 150;
+const RADIUS_PER_LEVEL = 26;
 /** 경계 레벨이 아무리 올라도 이 이상 빨라지지 않는다 (min(alert, MAX_LEVEL)). 레벨 3 은 발각 즉사 단계다. */
 const MAX_LEVEL = 3;
 /** 웨이포인트 도착 판정 반경 (px) */
@@ -28,15 +37,20 @@ const TILE = mapData.tileSize;
 const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 });
 
 /**
- * 순찰 경로.
- *  - corridor: 중앙 복도(행 7~10)를 도는 상주 1기. 경계 0 에서도 항상 있다.
- *  - lowerHall: 하부 홀(행 12~16) 증원. 경계 2(증원 단계) 이상에서만 배치된다 —
- *    코드 오답·구출·자물쇠 소동이 쌓여야 순찰이 깨어나는 구조라, 조용히 푸는
- *    판에서는 검증된 기존 동선이 그대로 보존된다.
+ * 순찰 경로 — 거리 맵(60×48)의 큰 축을 따라 왕복한다.
+ *
+ * 좌표는 docs/archive/스테이지1 거리 맵.dc.html 의 baseGuards 를 옮긴 것이다.
+ * 세 축이 시가지를 열십자로 가르므로 어느 구역에 있든 한 번은 마주치게 된다.
+ *
+ * 상주 셋 + 증원 하나로 나눈 이유: 맵이 넓어져 한 기로는 존재감이 없고, 그렇다고
+ * 처음부터 넷을 돌리면 조용히 푸는 판에서도 검문이 잦아진다. 넷째는 경계 2
+ * (증원 단계)부터 붙어, 소동을 일으킨 판에서만 축이 하나 더 생긴다.
  */
 export const PATROL_ROUTES = {
-  corridor: [at(3, 8), at(24, 8), at(24, 10), at(3, 10)],
-  lowerHall: [at(3, 13), at(24, 13), at(24, 16), at(3, 16)],
+  avenue: [at(19, 6), at(19, 42)], // 세로 축 — 중앙 대로를 오르내린다
+  crossing: [at(6, 15), at(54, 15)], // 가로 축 — 시가지를 가로지른다
+  wharf: [at(52, 31), at(24, 31)], // 아래쪽 가로 축 — 부두 방면
+  reinforce: [at(39, 8), at(39, 40)], // 증원 — 경계 2 이상에서만
 };
 
 /** 하부 홀 증원이 붙는 경계 레벨 (스토리보드: 레벨 2 = 증원) */
@@ -130,27 +144,21 @@ export class Patrol {
   #drawCone(alertLevel) {
     const r = this.radius(alertLevel);
     // 경계가 오를수록 진해진다 — 위험도가 숫자가 아니라 화면으로 보여야 한다.
-    const alpha = 0.10 + 0.05 * clampLevel(alertLevel);
+    const alpha = 0.1 + 0.05 * clampLevel(alertLevel);
+    const a = this.halted ? alpha * 0.4 : alpha;
     this.cone.clear();
-    this.cone.fillStyle(0xc25b4a, this.halted ? alpha * 0.4 : alpha);
-    this.cone.slice(
-      this.sprite.x, this.sprite.y, r,
-      this.facing - CONE_HALF_ANGLE, this.facing + CONE_HALF_ANGLE,
-      false,
-    );
-    this.cone.fillPath();
+    // 감지 원 — 안쪽을 옅게 채우고 가장자리를 한 겹 진하게 둘러, 경계가 어디까지인지
+    // 눈으로 재게 한다. 채우기만 하면 어디서부터 걸리는지 알 수 없다.
+    this.cone.fillStyle(0xc25b4a, a);
+    this.cone.fillCircle(this.sprite.x, this.sprite.y, r);
+    this.cone.lineStyle(2, 0xc25b4a, Math.min(0.75, a * 3.4));
+    this.cone.strokeCircle(this.sprite.x, this.sprite.y, r);
   }
 
-  /** 대상이 시야 콘 안에 있고, 그 사이를 벽이 막지 않는가. */
+  /** 대상이 감지 반경 안에 있고, 그 사이를 벽이 막지 않는가. */
   sees(target, alertLevel) {
-    const dx = target.x - this.sprite.x;
-    const dy = target.y - this.sprite.y;
-    const dist = Math.hypot(dx, dy);
+    const dist = Math.hypot(target.x - this.sprite.x, target.y - this.sprite.y);
     if (dist > this.radius(alertLevel)) return false;
-
-    const angle = Math.atan2(dy, dx);
-    if (Math.abs(Phaser.Math.Angle.Wrap(angle - this.facing)) > CONE_HALF_ANGLE) return false;
-
     return this.#hasLineOfSight(target);
   }
 
