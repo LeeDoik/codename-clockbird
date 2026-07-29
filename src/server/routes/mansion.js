@@ -37,6 +37,7 @@ router.post('/start', async (req, res, next) => {
       escort: data.escort,
       npcs: data.npcs,
       rewards: data.rewards,
+      objects: data.objects,
     });
     const session = getMansionSession(sessionId);
 
@@ -89,9 +90,10 @@ router.post('/talk', async (req, res) => {
 
   // 대화 응답보다 먼저 쏘아 두고 뒤에서 익힌다. 판정이 죽어도 대화는 계속돼야 하므로
   // 여기서 잡아 neutral 로 떨어뜨린다 — LLM 장애가 판을 끝내는 일은 없어야 한다.
-  const stancePromise = judgeStance({ message: text }).catch((err) => {
+  const foundClues = session.objects.filter((o) => o.found).map((o) => ({ id: o.id, topic: o.topic }));
+  const stancePromise = judgeStance({ message: text, clues: foundClues }).catch((err) => {
     console.warn('[mansion/stance]', err.message);
-    return { stance: 'neutral', reason: '판정 실패' };
+    return { stance: 'neutral', reason: '판정 실패', usedClueId: null };
   });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -102,9 +104,11 @@ router.post('/talk', async (req, res) => {
   const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
   try {
+    const npcClue = session.objects.find((o) => o.npcId === npc.id && o.found);
     const reply = await streamMansionReply({
       npc,
       room: npc.room,
+      clueTopic: npcClue?.topic ?? null,
       history: npc.history,
       userMessage: text,
       onText: (delta) => send({ type: 'text', text: delta }),
@@ -114,8 +118,8 @@ router.post('/talk', async (req, res) => {
     pushMansionDialogue(session, npcId, 'user', text);
     pushMansionDialogue(session, npcId, 'assistant', reply);
 
-    const { stance, reason } = await stancePromise;
-    const { event, piece } = applyStance(session, npc, stance);
+    const { stance, reason, usedClueId } = await stancePromise;
+    const { event, piece } = applyStance(session, npc, stance, usedClueId);
     console.log(
       `[mansion] ${npc.name} ← ${stance} (${reason})` +
         ` · 호감 ${npc.favor} 의심 ${npc.suspicion}${event ? ` → ${event}` : ''}`,
@@ -131,6 +135,24 @@ router.post('/talk', async (req, res) => {
   } finally {
     res.end();
   }
+});
+
+/**
+ * POST /api/mansion/inspect  { sessionId, objectId }
+ * 조사 오브젝트 열람 — 단서 원문을 주고 세션에 발견 표식을 남긴다.
+ * 단서 본문(text)은 이 응답으로만 나간다 — /start 뷰에 실으면 조사 전에 다 읽힌다.
+ */
+router.post('/inspect', (req, res) => {
+  const { sessionId, objectId } = req.body ?? {};
+  const session = getMansionSession(sessionId);
+  if (!session) return res.status(404).json({ error: '세션을 찾을 수 없습니다.' });
+  if (session.over || session.cleared) return res.status(409).json({ error: '이미 끝난 세션입니다.' });
+
+  const obj = session.objects.find((o) => o.id === objectId);
+  if (!obj) return res.status(404).json({ error: '조사할 대상이 없습니다.' });
+
+  obj.found = true;
+  res.json({ text: obj.text, state: toMansionView(session) });
 });
 
 /**

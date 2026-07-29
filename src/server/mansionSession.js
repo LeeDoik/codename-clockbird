@@ -20,7 +20,7 @@ export const SUSPICION_MAX = 3;
 /** 정보 조각을 이만큼 모으면 연구실 열쇠가 나온다 */
 export const PIECES_FOR_KEY = 3;
 
-export function createMansionSession({ escort, npcs, rewards }) {
+export function createMansionSession({ escort, npcs, rewards, objects = [] }) {
   const id = randomUUID();
   sessions.set(id, {
     id,
@@ -34,8 +34,12 @@ export function createMansionSession({ escort, npcs, rewards }) {
       halted: false,
       /** 정보 조각을 이미 줬는가 */
       gave: false,
+      /** 이 NPC 에게 이미 써먹은 단서 id — 같은 단서로 반복 파밍하지 못하게 */
+      usedClues: [],
       history: [],
     })),
+    /** 조사 오브젝트 — found 는 서버가 쥔다 */
+    objects: objects.map((o) => ({ ...o, found: false })),
     pieces: [],
     hasKey: false,
     cleared: false,
@@ -79,6 +83,9 @@ export function toMansionView(session) {
       halted: n.halted,
       gave: n.gave,
     })),
+    objects: session.objects.map((o) => ({
+      id: o.id, name: o.name, col: o.col, row: o.row, room: o.room, found: o.found,
+    })),
     pieces: session.pieces,
     hasKey: session.hasKey,
     cleared: session.cleared,
@@ -90,9 +97,10 @@ export function toMansionView(session) {
  * 성향 판정 결과를 상태에 반영한다.
  *
  * @param {'anti'|'pro'|'neutral'} stance
+ * @param {string|null} usedClueId 이번 발언이 실질적으로 꺼낸 단서 id (judgeStance 가 판정)
  * @returns {{event: string|null, piece: string|null}} 클라이언트가 연출할 사건
  */
-export function applyStance(session, npc, stance) {
+export function applyStance(session, npc, stance, usedClueId = null) {
   // 다른 NPC 와 대화했으니 굳어 있던 동료들이 풀린다 (수정안 p.22 [확정]).
   for (const other of session.npcs) {
     if (other.id !== npc.id && other.halted) {
@@ -108,6 +116,12 @@ export function applyStance(session, npc, stance) {
   if (npc.kind === 'ally') {
     if (stance === 'anti') npc.favor += 1;
     else if (stance === 'pro') npc.suspicion += 1;
+    // 조사로 얻은 단서를 화제로 꺼내면 호감도 보너스 — 단서당·NPC당 1회 (스펙 §5.3)
+    const clue = usedClueId && session.objects.find((o) => o.id === usedClueId);
+    if (clue && clue.found && clue.npcId === npc.id && !npc.usedClues.includes(usedClueId)) {
+      npc.usedClues.push(usedClueId);
+      npc.favor += 1;
+    }
   } else if (npc.kind === 'civ') {
     // 민간인에게 반브루주아 발언은 그대로 위험이다. 친브루주아·중립은 무해하다.
     if (stance === 'anti') npc.suspicion += 1;

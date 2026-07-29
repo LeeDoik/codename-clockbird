@@ -165,5 +165,25 @@ if (halted) {
   ok(again.event?.event !== 'halted', '곧바로 다시 굳지 않는다', again.event?.event ?? '변화 없음');
 }
 
+// ── 6. 조사 오브젝트 — inspect 열람 · 표식 · 비유출 ────────────────
+console.log('\n[6] 조사 오브젝트 (obj-ledger) inspect');
+const d = await start();
+const objInView = d.view.objects?.find((o) => o.id === 'obj-ledger');
+ok(Boolean(objInView), 'obj-ledger 가 /start 뷰에 있다');
+ok(objInView?.found === false, 'found 초기값 false', String(objInView?.found));
+for (const word of ['topic', 'npcId', 'text']) {
+  ok(!d.raw.includes(`"${word}"`), `objects 에서 '${word}' 미유출`);
+}
+
+const insRes = await fetch(`${BASE}/api/mansion/inspect`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ sessionId: d.view.sessionId, objectId: 'obj-ledger' }),
+});
+const ins = await insRes.json();
+ok(insRes.ok, 'inspect 200', String(insRes.status));
+ok(Boolean(ins.text?.includes('배급 장부')), 'inspect 본문에 단서 원문');
+ok(ins.state?.objects?.find((o) => o.id === 'obj-ledger')?.found === true, 'inspect 후 found 반영');
+
 console.log(failures ? `\n실패 ${failures}건\n` : '\n전부 통과\n');
 process.exit(failures ? 1 : 0);

@@ -113,14 +113,35 @@ const SUSPICION_WORDS = [
 ];
 const pick = (words, n) => words[Math.min(n, words.length - 1)];
 
-export async function streamMansionReply({ npc, room, history, userMessage, onText, promptOverride }) {
+export async function streamMansionReply({
+  npc,
+  room,
+  clueTopic = null,
+  history,
+  userMessage,
+  onText,
+  promptOverride,
+}) {
   const kindBlock = await renderPrompt(npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ', {
     mood: npc.kind === 'ally' ? pick(FAVOR_WORDS, npc.favor) : pick(SUSPICION_WORDS, npc.suspicion),
   });
 
+  // 플레이어가 이 NPC 관련 단서를 조사로 찾았으면, 그 화제를 프롬프트에 얹어 반응하게 한다.
+  const clueBlock = clueTopic
+    ? `\n[상대가 아는 것]\n상대는 저택을 둘러보다 이런 것을 보았다: ${clueTopic}.\n상대가 그 화제를 꺼내면 너는 뜨끔한다 — 모르는 척하지 말고, 그 얘기에 실제로 반응하라.`
+    : '';
+
   const system = await renderPrompt(
     'mansion-dialogue',
-    { name: npc.name, role: npc.name, backstory: npc.backstory, personality: npc.personality, room, kindBlock },
+    {
+      name: npc.name,
+      role: npc.name,
+      backstory: npc.backstory,
+      personality: npc.personality,
+      room,
+      kindBlock,
+      clueBlock,
+    },
     promptOverride,
   );
 
