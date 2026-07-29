@@ -398,6 +398,46 @@
       #minigame-verdict.ok { color: var(--patina); }
       #minigame-verdict.fail { color: var(--wax); }
 
+      /* 문서 열람 — 대화창이 아니라 "종이를 읽는" 연출 (스펙 §2 document) */
+      #docpanel {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 9, 7, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 4;
+      }
+      #docpanel.visible { display: flex; }
+      #docpanel-paper {
+        width: calc(880 * var(--s));
+        max-height: 78%;
+        overflow-y: auto;
+        padding: calc(48 * var(--s)) calc(56 * var(--s));
+        background:
+          var(--noise),
+          linear-gradient(174deg, #efe3c4 0%, #e2d3ac 60%, #d3c096 100%);
+        color: var(--ink);
+        border: 1px solid #b9a878;
+        box-shadow: 0 calc(18 * var(--s)) calc(48 * var(--s)) rgba(0, 0, 0, 0.75);
+        transform: rotate(-0.5deg);
+      }
+      #docpanel-title {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(34 * var(--s));
+        letter-spacing: 0.06em;
+        border-bottom: 2px solid rgba(26, 23, 18, 0.35);
+        padding-bottom: calc(12 * var(--s));
+      }
+      #docpanel-body {
+        margin-top: calc(22 * var(--s));
+        font-size: calc(27 * var(--s));
+        line-height: 1.8;
+        white-space: pre-wrap;
+      }
+      #docpanel-hint { margin-top: calc(26 * var(--s)); opacity: 0.5; font-size: calc(19 * var(--s)); text-align: right; }
+
       /* 미니게임 부품 — 퍼즐과 타이밍 게임이 함께 쓴다. */
       .mg-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
       .mg-row + .mg-row { margin-top: 12px; }
@@ -525,6 +565,13 @@
           <div id="minigame-content"></div>
           <div id="minigame-hint"></div>
           <div id="minigame-verdict"></div>
+        </div>
+      </div>
+      <div id="docpanel">
+        <div id="docpanel-paper">
+          <div id="docpanel-title"></div>
+          <div id="docpanel-body"></div>
+          <div id="docpanel-hint">[Space] / [Esc] 로 덮는다</div>
         </div>
       </div>
       <div id="result">

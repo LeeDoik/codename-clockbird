@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { DocumentPanel } from '../ui/DocumentPanel.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
 import { buildColliders, createPlayer, applyMovement, setupCameras } from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
@@ -90,6 +91,7 @@ export class MansionScene extends Phaser.Scene {
   create() {
     this.dialogue = new DialogueBox();
     this.dialogue.onSend = (message) => this.#chat(message);
+    this.docPanel = new DocumentPanel();
     this.result = new ResultOverlay();
     this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
 
@@ -433,6 +435,12 @@ export class MansionScene extends Phaser.Scene {
       return;
     }
 
+    // 문서 열람 중 세계는 정지한다 — 월드 카메라 키입력도 먹히지 않는다.
+    if (this.docPanel?.isOpen) {
+      this.player.body.setVelocity(0, 0);
+      return;
+    }
+
     const typing = this.dialogue.isTyping;
     if (typing) this.player.body.setVelocity(0, 0);
     else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
@@ -591,12 +599,14 @@ export class MansionScene extends Phaser.Scene {
   async #readDocument() {
     if (this.reading || this.state.cleared) return;
     this.reading = true;
-    this.dialogue.hideInput();
-    this.dialogue.show(
-      DOCUMENT.name,
-      '받침대 위에 도면과 기록이 펼쳐져 있다.\n\n"…신형은 명령 없이도 판단한다. 통제는 더 이상 유효하지 않다."',
-    );
-    this.dialogue.setHint('');
+    this.dialogue.hide();
+    this.docPanel.open({
+      title: DOCUMENT.name,
+      body:
+        '받침대 위에 도면과 기록이 펼쳐져 있다.\n\n' +
+        '"…신형은 명령 없이도 판단한다. 통제는 더 이상 유효하지 않다."',
+    });
+    // (fetch 이하 기존 코드 그대로 — 성공 시 this.#endGame('document'))
 
     try {
       const res = await fetch('/api/mansion/document', {
@@ -609,6 +619,7 @@ export class MansionScene extends Phaser.Scene {
       this.#syncState(data.state);
     } catch (err) {
       this.reading = false;
+      this.docPanel.close();
       this.dialogue.reply('오류', err.message);
       return;
     }
