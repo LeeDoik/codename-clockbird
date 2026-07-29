@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CSS, FONTS } from '../ui/theme.js';
+import { IntroVideo } from '../ui/IntroVideo.js';
 
 /**
  * 오프닝 시네마틱 — "HEART OF STEEL" 스토리보드 10컷을 재생하고 첫 접선(튜토리얼)로 넘긴다.
@@ -71,8 +72,42 @@ export class IntroScene extends Phaser.Scene {
     this.currentImg = null;
     this.beatTimer = null;
     this.titleParts = [];
+    this.video = null;
 
     this.cameras.main.setBackgroundColor('#000000');
+    this.#bindSkip();
+    this.#startOpening();
+  }
+
+  /**
+   * 오프닝을 연다 — **영상이 있으면 영상이 오프닝이다.**
+   *
+   * 없거나 못 열면 아래 패널 컷으로 돌아간다. 그림이 없어도 게임이 돌아가야 한다는
+   * public/intro 의 규약을 영상에도 그대로 적용한 것이라, 배포본에서 영상 하나가
+   * 빠져도 오프닝이 검은 화면이 되지 않는다.
+   */
+  async #startOpening() {
+    this.video = new IntroVideo();
+    const playing = await this.video.start('/intro/opening.mp4');
+
+    // 여는 동안 플레이어가 건너뛰었을 수 있다.
+    if (this.done) {
+      this.video.hide();
+      return;
+    }
+    if (playing) {
+      this.video.onEnded(() => this.#finish());
+      this.video.onSkip(() => this.#skip());
+      return;
+    }
+
+    this.video.hide();
+    this.video = null;
+    this.#buildPanelIntro();
+  }
+
+  /** 영상이 없을 때의 오프닝 — 스토리보드 10컷을 엔진이 직접 그린다. */
+  #buildPanelIntro() {
     this.cameras.main.fadeIn(600, 0, 0, 0);
 
     // 하단 자막 스크림 — 어떤 그림 위에서도 글자가 읽히도록 항상 깔아둔다.
@@ -99,7 +134,6 @@ export class IntroScene extends Phaser.Scene {
       .setDepth(20);
 
     this.#playMusic();
-    this.#bindSkip();
     this.#playBeat(0);
   }
 
@@ -305,6 +339,8 @@ export class IntroScene extends Phaser.Scene {
       this.beatTimer = null;
     }
     if (this.music) this.music.stop();
+    // 영상은 캔버스 위에 있으므로 먼저 걷어야 아래의 암전이 보인다.
+    this.video?.hide();
 
     // 자체 검은 오버레이로 덮는다(카메라 페이드는 이후 추가한 대기 문구까지 가려 버린다).
     // fillAlpha 는 1 로 두고 GameObject alpha 만 0→1 로 올린다 — 둘 다 0 이면 곱해져 안 보인다.
