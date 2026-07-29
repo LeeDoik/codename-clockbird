@@ -606,7 +606,6 @@ export class MansionScene extends Phaser.Scene {
         '받침대 위에 도면과 기록이 펼쳐져 있다.\n\n' +
         '"…신형은 명령 없이도 판단한다. 통제는 더 이상 유효하지 않다."',
     });
-    // (fetch 이하 기존 코드 그대로 — 성공 시 this.#endGame('document'))
 
     try {
       const res = await fetch('/api/mansion/document', {
@@ -633,6 +632,9 @@ export class MansionScene extends Phaser.Scene {
     this.player.body.setVelocity(0, 0);
 
     this.time.delayedCall(2000, () => {
+      // 문서를 읽는 2초의 여운은 그대로 두고, 결과 화면이 뜨는 순간 종이를 접는다
+      // — #docpanel 은 z-index 를 가져 결과 화면(#result)을 덮기 때문이다.
+      this.docPanel?.close();
       this.result.show({
         outcome,
         codeWord: null,
