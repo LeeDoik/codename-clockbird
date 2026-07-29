@@ -59,7 +59,7 @@ router.get('/data', async (req, res, next) => {
 });
 
 /**
- * PUT /api/studio/personas  { allies: [{id,name,role,persona}] }
+ * PUT /api/studio/personas  { allies: [{id,name,role,backstory,personality}] }
  * id 집합은 기존과 동일해야 한다 (구조 파괴 방지). spawn 등 나머지 필드는 보존.
  */
 router.put('/personas', async (req, res, next) => {

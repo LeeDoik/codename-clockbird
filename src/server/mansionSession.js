@@ -9,7 +9,10 @@ import { randomUUID } from 'node:crypto';
  * 이 파일이 쥐고 클라이언트로 내보내지 않는 것:
  *   - `kind` (동료냐 민간인이냐) — 알아내는 것이 이 스테이지의 퍼즐이다
  *   - `favor` / `suspicion` — 수치 비노출, 대화 뉘앙스로만 유추한다 (계획서 §4.4)
- *   - `persona` / `rewards` — 프롬프트 재료와 아직 안 준 보상
+ *   - `backstory` / `personality` / `rewards` — 프롬프트 재료와 아직 안 준 보상
+ *   - `objects` 의 `npcId`·`topic`·`text` — 단서와 인물을 잇는 연결과 그 본문
+ *     (text 는 /inspect 로 열람했을 때만 나간다)
+ *   - `usedClues` — 단서 보너스를 이미 써서 소진했는지 기록한 목록
  */
 const sessions = new Map();
 
