@@ -1,6 +1,12 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
-import { buildColliders, createPlayer, applyMovement, setupCameras } from '../world/worldParts.js';
+import {
+  buildColliders,
+  createPlayer,
+  createPlayerVisual,
+  applyMovement,
+  setupCameras,
+} from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
@@ -44,6 +50,19 @@ const ALLY_ORIGIN_Y = 216 / ALLY_FRAME;
 const ALLY_CONTENT_TOP = { t1: 26, t2: 58, t3: 26 };
 const ALLY_ANIM = { t1: 't1Idle', t2: 't2Idle', t3: 't3Idle' };
 
+// 플레이어(튜토리얼 전용 외형): 256×256 프레임, 인물은 y[0,176] 영역(실측) —
+// 정수리가 프레임 맨 위에 닿아 있어 발-정수리 높이가 곧 인물 높이(176px)다.
+// 다른 캐릭터와 같은 1.75타일(56px)로 맞춘다.
+const PLAYER_ANIM = {
+  idle: 'tutorialPlayerIdle',
+  walkDown: 'tutorialPlayerWalkDown',
+  walkUp: 'tutorialPlayerWalkUp',
+  walkLeft: 'tutorialPlayerWalkLeft',
+};
+const PLAYER_ORIGIN_Y = 176 / 256;
+const PLAYER_CONTENT_HEIGHT = 176;
+const PLAYER_HEIGHT = 56;
+
 const LABEL_STYLE = {
   fontFamily: FONTS.body,
   fontSize: '11px',
@@ -73,6 +92,17 @@ export class TutorialScene extends Phaser.Scene {
     this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
     this.walls = buildColliders(this, hqData, hqProps.blocked);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
+    // 충돌 판정은 이 안 보이는 스프라이트가 그대로 맡고, 화면에는 방향 애니메이션이
+    // 있는 별도 그림(playerVisual)을 얹어 위치만 따라가게 한다.
+    this.player.setVisible(false);
+    this.playerVisual = createPlayerVisual(
+      this,
+      this.player,
+      PLAYER_ANIM,
+      PLAYER_ORIGIN_Y,
+      PLAYER_CONTENT_HEIGHT,
+      PLAYER_HEIGHT,
+    );
     // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
     setupCameras(this, hqData, this.player, CAMERA_ZOOM);
     // 방 전체가 한 화면에 들어오므로 따라다닐 필요가 없다 — 방 한가운데 고정한다.
@@ -238,6 +268,7 @@ export class TutorialScene extends Phaser.Scene {
     const typing = this.dialogue.isTyping;
     if (typing) this.player.body.setVelocity(0, 0);
     else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    this.playerVisual.update();
 
     // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운
     // 다른 대사 위에 그대로 이어붙는다 (setBusy 가 입력칸을 blur 시켜 typing 이 풀리기 때문).

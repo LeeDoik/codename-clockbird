@@ -132,6 +132,63 @@ export function createPlayer(scene, mapData, walls, frame = 0) {
   return player;
 }
 
+/**
+ * 방향 애니메이션이 있는 플레이어 그림 — 충돌 바디(player)와는 별개의 스프라이트다.
+ * 매 프레임 위치만 따라가므로, 그림의 배율·원점을 얼마로 잡든 body.setSize/setOffset
+ * (createPlayer 가 이미 세운 발밑 판정)에는 영향이 없다.
+ *
+ * 오른쪽 방향 그림은 따로 없다 — 왼쪽 걷기 프레임을 좌우 반전(flipX)해서 쓴다.
+ * createPlayer 직후, setupCameras 이전에 불러야 별도로 asWorld 등록할 필요가 없다.
+ *
+ * @param {{idle: string, walkDown: string, walkUp: string, walkLeft: string}} anims 애니메이션 키
+ * @param {number} originY 발 위치(0~1, 프레임 높이 기준 — 프레임마다 인물 배치가 달라 실측해야 한다)
+ * @param {number} contentHeight 프레임 안 인물의 실제 높이(px, 정수리~발)
+ * @param {number} displayHeight 화면에 표시할 발-정수리 높이(world px)
+ * @param {number} [frameSize] 텍스처의 정사각 프레임 한 변(px)
+ */
+export function createPlayerVisual(
+  scene,
+  player,
+  { idle, walkDown, walkUp, walkLeft },
+  originY,
+  contentHeight,
+  displayHeight,
+  frameSize = 256,
+) {
+  const scale = displayHeight / contentHeight;
+  const visual = scene.add
+    .sprite(player.x, player.y, idle, 0)
+    .setOrigin(0.5, originY)
+    .setDisplaySize(frameSize * scale, frameSize * scale)
+    .play(idle);
+
+  let current = idle;
+  const play = (key) => {
+    if (current === key) return;
+    current = key;
+    visual.play(key);
+  };
+
+  return {
+    node: visual,
+    /** 씬의 update() 에서 매 프레임 부른다 — 위치를 따라가고, 속도로 방향을 고른다. */
+    update() {
+      visual.setPosition(player.x, player.y);
+      const { x: vx, y: vy } = player.body.velocity;
+      if (vx === 0 && vy === 0) {
+        play(idle);
+        return;
+      }
+      if (Math.abs(vx) > Math.abs(vy)) {
+        visual.setFlipX(vx > 0);
+        play(walkLeft);
+      } else {
+        play(vy > 0 ? walkDown : walkUp);
+      }
+    },
+  };
+}
+
 /** 방향키 + WASD → 속도. 대화 입력 중 정지는 호출하는 씬이 판단한다. */
 export function applyMovement(player, { cursors, wasd, speed = 200 }) {
   const left = cursors.left.isDown || wasd.A.isDown;

@@ -11,6 +11,10 @@ import officerIdleUrl from '../assets/npc/officer-idle.png';
 import t1IdleUrl from '../assets/npc/t1-idle.png';
 import t2IdleUrl from '../assets/npc/t2-idle.png';
 import t3IdleUrl from '../assets/npc/t3-idle.png';
+import tutorialPlayerIdleUrl from '../assets/player/tutorial-idle.png';
+import tutorialPlayerWalkUrl from '../assets/player/tutorial-walk.png';
+import stage1PlayerIdleUrl from '../assets/player/stage1-idle.png';
+import stage1PlayerWalkUrl from '../assets/player/stage1-walk.png';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -46,6 +50,24 @@ export class BootScene extends Phaser.Scene {
     this.load.spritesheet('t1Idle', t1IdleUrl, { frameWidth: 256, frameHeight: 256 });
     this.load.spritesheet('t2Idle', t2IdleUrl, { frameWidth: 256, frameHeight: 256 });
     this.load.spritesheet('t3Idle', t3IdleUrl, { frameWidth: 256, frameHeight: 256 });
+    // 플레이어(튜토리얼·스테이지1 전용 외형) — idle 12프레임(1행), walk 44프레임
+    // (아래 0-21·위 22-27·왼쪽 28-43 — 오른쪽은 왼쪽을 좌우 반전해서 쓴다. 실측).
+    this.load.spritesheet('tutorialPlayerIdle', tutorialPlayerIdleUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
+    this.load.spritesheet('tutorialPlayerWalk', tutorialPlayerWalkUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
+    this.load.spritesheet('stage1PlayerIdle', stage1PlayerIdleUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
+    this.load.spritesheet('stage1PlayerWalk', stage1PlayerWalkUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
   }
 
   create() {
@@ -58,6 +80,35 @@ export class BootScene extends Phaser.Scene {
         frameRate: 6,
         repeat: -1,
       });
+    }
+
+    // 플레이어 걷기 — 방향마다 프레임 수가 달라(아래 22·위 6·왼쪽 16) 그대로 같은
+    // frameRate 를 쓰면 방향별 체감 속도가 달라진다. 한 바퀴가 같은 시간(0.6초)
+    // 걸리도록 프레임 수에 맞춰 frameRate 를 방향마다 역산한다.
+    const CYCLE_SECONDS = 0.6;
+    const WALK_RANGES = { Down: [0, 21], Up: [22, 27], Left: [28, 43] };
+    for (const prefix of ['tutorial', 'stage1']) {
+      const idleKey = `${prefix}PlayerIdle`;
+      if (!this.anims.exists(idleKey)) {
+        this.anims.create({
+          key: idleKey,
+          frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 11 }),
+          frameRate: 6,
+          repeat: -1,
+        });
+      }
+      const walkKey = `${prefix}PlayerWalk`;
+      for (const [dir, [start, end]] of Object.entries(WALK_RANGES)) {
+        const key = `${prefix}PlayerWalk${dir}`;
+        if (this.anims.exists(key)) continue;
+        const count = end - start + 1;
+        this.anims.create({
+          key,
+          frames: this.anims.generateFrameNumbers(walkKey, { start, end }),
+          frameRate: Math.round(count / CYCLE_SECONDS),
+          repeat: -1,
+        });
+      }
     }
 
     const params = new URLSearchParams(window.location.search);

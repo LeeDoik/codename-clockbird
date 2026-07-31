@@ -6,7 +6,13 @@ import { runLockPuzzle } from '../minigames/lockPuzzle.js';
 import { runTimingLock } from '../minigames/timingLock.js';
 import { runInterrogation } from '../minigames/interrogation.js';
 import { Patrol, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
-import { buildColliders, createPlayer, applyMovement, setupCameras } from '../world/worldParts.js';
+import {
+  buildColliders,
+  createPlayer,
+  createPlayerVisual,
+  applyMovement,
+  setupCameras,
+} from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS, drawOrnateFrame } from '../ui/theme.js';
@@ -34,6 +40,18 @@ const PLAYER_FRAME = 0;
 const CITIZEN_FRAME = 6;
 // 접선책은 시민과 같은 프레임을 쓴다 — 전용 스프라이트는 에셋 확장 때 교체한다.
 const BROKER_FRAME = 6;
+
+// 플레이어(스테이지1 전용 외형): 256×256 프레임, 인물은 y[26,216] 영역(실측).
+// 다른 NPC(chars.png, 32px 무배율)와 같은 크기로 맞춰 이 씬의 기존 스케일을 지킨다.
+const PLAYER_ANIM = {
+  idle: 'stage1PlayerIdle',
+  walkDown: 'stage1PlayerWalkDown',
+  walkUp: 'stage1PlayerWalkUp',
+  walkLeft: 'stage1PlayerWalkLeft',
+};
+const PLAYER_ORIGIN_Y = 216 / 256;
+const PLAYER_CONTENT_HEIGHT = 190;
+const PLAYER_HEIGHT = 32;
 
 export class StageScene extends Phaser.Scene {
   constructor() {
@@ -78,6 +96,17 @@ export class StageScene extends Phaser.Scene {
     this.#buildMap();
 
     this.player = createPlayer(this, mapData, this.walls, PLAYER_FRAME);
+    // 충돌 판정은 이 안 보이는 스프라이트가 그대로 맡고, 화면에는 방향 애니메이션이
+    // 있는 별도 그림(playerVisual)을 얹어 위치만 따라가게 한다.
+    this.player.setVisible(false);
+    this.playerVisual = createPlayerVisual(
+      this,
+      this.player,
+      PLAYER_ANIM,
+      PLAYER_ORIGIN_Y,
+      PLAYER_CONTENT_HEIGHT,
+      PLAYER_HEIGHT,
+    );
 
     // 동료 NPC — 위치는 맵의 스폰 포인트를 순서대로 따른다 (없으면 서버 spawn 으로 폴백).
     // 체포된 동료는 감옥 구역에 배치한다.
@@ -529,11 +558,13 @@ export class StageScene extends Phaser.Scene {
     // 새 입력을 못 받지만, 패널이 열리기 직전에 눌려 있던 키는 그대로 눌린 상태로 남는다.
     if (this.minigame.isOpen) {
       this.player.body.setVelocity(0, 0);
+      this.playerVisual.update();
       return;
     }
 
     if (this.#updatePatrols(delta)) {
       this.player.body.setVelocity(0, 0);
+      this.playerVisual.update();
       this.#startCheckpoint();
       return;
     }
@@ -546,6 +577,7 @@ export class StageScene extends Phaser.Scene {
     } else {
       applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
     }
+    this.playerVisual.update();
 
     // 등불은 인물을 그대로 따라간다 (물리 바디가 아니라 표시용이라 매 프레임 위치만 맞춘다).
     this.playerLight?.setPosition(this.player.x, this.player.y);
