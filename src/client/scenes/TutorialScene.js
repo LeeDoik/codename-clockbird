@@ -46,7 +46,8 @@ const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
 // 동료 3인(레나·미아·오토) 아이들 모션: 256×256 프레임. 발 위치(216px)는 셋 다
 // 같지만 인물 키(정수리 위치)는 캐릭터마다 달라 실측치로 따로 잡는다.
 const ALLY_FRAME = 256;
-const ALLY_ORIGIN_Y = 216 / ALLY_FRAME;
+const ALLY_CONTENT_BOTTOM = 216;
+const ALLY_ORIGIN_Y = ALLY_CONTENT_BOTTOM / ALLY_FRAME;
 const ALLY_CONTENT_TOP = { t1: 26, t2: 58, t3: 26 };
 const ALLY_ANIM = { t1: 't1Idle', t2: 't2Idle', t3: 't3Idle' };
 
@@ -179,7 +180,7 @@ export class TutorialScene extends Phaser.Scene {
       const x = sp.col * TILE + TILE / 2;
       const y = sp.row * TILE + TILE / 2;
 
-      const contentHeight = ALLY_FRAME - ALLY_CONTENT_TOP[ally.id];
+      const contentHeight = ALLY_CONTENT_BOTTOM - ALLY_CONTENT_TOP[ally.id];
       const scale = OFFICER_HEIGHT / contentHeight;
       const node = this.add
         .sprite(x, y, ALLY_ANIM[ally.id], 0)
