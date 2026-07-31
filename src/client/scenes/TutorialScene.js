@@ -21,13 +21,22 @@ const TUTOR_FRAME = { t1: 2, t2: 5, t3: 3 };
 // 32→9.6으로 같은 비율로 줄여 가구·충돌 칸 인덱스는 그대로 유지), 캐릭터(고정
 // 픽셀 크기)는 손대지 않아 상대적으로 커 보이게 한다.
 const BG_SCALE = 0.3;
-// 배경이 작아진 만큼 방도 화면보다 작아지므로, 기본 줌(2)으로는 화면에 여백이
-// 크게 남는다 — 방이 화면을 꽉 채우도록 그만큼 확대해서 본다.
-const CAMERA_ZOOM = 4;
+// 방이 작아서 스크롤이 필요 없다 — 방 전체 높이(rows*TILE)가 내부 해상도
+// 1080px 에 꼭 맞는 배율로 고정해 카메라가 플레이어를 따라다니지 않고
+// 방 전체를 계속 보여주게 한다(세로 기준: 가로 1920 에 맞추면 위아래가
+// 잘린다 — 방 가로세로비가 화면보다 좁아서 좌우에 약간의 여백이 남는 대신
+// 위아래는 절대 안 잘리는 쪽을 택했다).
+const CAMERA_ZOOM = 1080 / (hqData.rows * hqData.tileSize);
 
-// 브란트(간부) 스탠딩 컷: 982×1472, 여백 없이 꽉 차게 잘라둔 정지 이미지라
-// 원점을 그대로 발밑(1.0)에 맞추면 된다. 발-정수리 높이가 1.75타일(56px)이 되게 축소.
+// 브란트(간부) 아이들 모션: 432×432 프레임, 인물은 그 안의 대략 x[66,360]·
+// y[18,426] 영역을 차지한다(대표 프레임 실측 — 프레임마다 자세가 살짝 달라
+// ±수 px 흔들리는 건 아이들 모션 자체다). 발-정수리 높이가 1.75타일(56px)이
+// 되도록, 인물 실제 높이(408px) 기준으로 프레임 전체를 함께 축소한다.
+const OFFICER_FRAME = 432;
+const OFFICER_CONTENT_HEIGHT = 408;
 const OFFICER_HEIGHT = 56;
+const OFFICER_SCALE = OFFICER_HEIGHT / OFFICER_CONTENT_HEIGHT;
+const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
 
 const LABEL_STYLE = {
   fontFamily: FONTS.body,
@@ -60,6 +69,9 @@ export class TutorialScene extends Phaser.Scene {
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
     setupCameras(this, hqData, this.player, CAMERA_ZOOM);
+    // 방 전체가 한 화면에 들어오므로 따라다닐 필요가 없다 — 방 한가운데 고정한다.
+    this.cameras.main.stopFollow();
+    this.cameras.main.centerOn((hqData.cols * hqData.tileSize) / 2, (hqData.rows * hqData.tileSize) / 2);
     this.interact = new InteractionManager(this, this.dialogue);
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -116,12 +128,11 @@ export class TutorialScene extends Phaser.Scene {
     const os = hqData.spawns.officer;
     const ox = os.col * TILE + TILE / 2;
     const oy = os.row * TILE + TILE / 2;
-    const officerTex = this.textures.get('officer').getSourceImage();
-    const officerAspect = officerTex.width / officerTex.height;
     this.officerNode = this.add
-      .image(ox, oy, 'officer')
-      .setOrigin(0.5, 1)
-      .setDisplaySize(OFFICER_HEIGHT * officerAspect, OFFICER_HEIGHT);
+      .sprite(ox, oy, 'officerIdle', 0)
+      .setOrigin(0.5, OFFICER_ORIGIN_Y)
+      .setDisplaySize(OFFICER_FRAME * OFFICER_SCALE, OFFICER_FRAME * OFFICER_SCALE)
+      .play('officerIdle');
     const officerLabel = this.add
       .text(ox, oy - 64, `${this.state.officer.name} (${this.state.officer.role})`, LABEL_STYLE)
       .setOrigin(0.5);

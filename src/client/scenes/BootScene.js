@@ -7,7 +7,7 @@ import streetBgUrl from '../assets/street-bg.png';
 import mansionBgUrl from '../assets/mansion-bg.png';
 import mansionDoorUrl from '../assets/mansion-door-open.png';
 import charsUrl from '../assets/chars.png';
-import officerUrl from '../assets/npc/officer.png';
+import officerIdleUrl from '../assets/npc/officer-idle.png';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -37,11 +37,20 @@ export class BootScene extends Phaser.Scene {
     this.load.image('mansion-door-open', mansionDoorUrl);
     // 캐릭터 8프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민 / 7 순찰 로봇
     this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });
-    // 브란트(간부) — 배경과 같은 탑다운 픽셀아트 시점의 정지 스탠딩 컷 (모션 프레임 없음).
-    this.load.image('officer', officerUrl);
+    // 브란트(간부) 아이들 모션 — 432×432 프레임 6×2, 여백 없이 딱 맞물린 시트.
+    this.load.spritesheet('officerIdle', officerIdleUrl, { frameWidth: 432, frameHeight: 432 });
   }
 
   create() {
+    if (!this.anims.exists('officerIdle')) {
+      this.anims.create({
+        key: 'officerIdle',
+        frames: this.anims.generateFrameNumbers('officerIdle', { start: 0, end: 11 }),
+        frameRate: 6,
+        repeat: -1,
+      });
+    }
+
     const params = new URLSearchParams(window.location.search);
     const noIntro = params.has('nointro');
 
