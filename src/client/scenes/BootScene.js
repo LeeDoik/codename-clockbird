@@ -7,6 +7,7 @@ import streetBgUrl from '../assets/street-bg.png';
 import mansionBgUrl from '../assets/mansion-bg.png';
 import mansionDoorUrl from '../assets/mansion-door-open.png';
 import charsUrl from '../assets/chars.png';
+import officerUrl from '../assets/npc/officer.png';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -36,6 +37,8 @@ export class BootScene extends Phaser.Scene {
     this.load.image('mansion-door-open', mansionDoorUrl);
     // 캐릭터 8프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민 / 7 순찰 로봇
     this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });
+    // 브란트(간부) — 배경과 같은 탑다운 픽셀아트 시점의 정지 스탠딩 컷 (모션 프레임 없음).
+    this.load.image('officer', officerUrl);
   }
 
   create() {

@@ -15,9 +15,19 @@ import hqProps from '../assets/hq-props.json';
  */
 const TILE = hqData.tileSize;
 const PLAYER_FRAME = 0;
-// 간부·동료 전용 스프라이트는 아직 없다 — chars.png 의 기존 프레임을 빌려 쓴다 (아트는 W3).
-const OFFICER_FRAME = 6;
 const TUTOR_FRAME = { t1: 2, t2: 5, t3: 3 };
+
+// 배경 가구가 캐릭터 대비 크다 — 그림을 0.3배로 줄여 깔고(hq.json 의 tileSize 도
+// 32→9.6으로 같은 비율로 줄여 가구·충돌 칸 인덱스는 그대로 유지), 캐릭터(고정
+// 픽셀 크기)는 손대지 않아 상대적으로 커 보이게 한다.
+const BG_SCALE = 0.3;
+// 배경이 작아진 만큼 방도 화면보다 작아지므로, 기본 줌(2)으로는 화면에 여백이
+// 크게 남는다 — 방이 화면을 꽉 채우도록 그만큼 확대해서 본다.
+const CAMERA_ZOOM = 4;
+
+// 브란트(간부) 스탠딩 컷: 982×1472, 여백 없이 꽉 차게 잘라둔 정지 이미지라
+// 원점을 그대로 발밑(1.0)에 맞추면 된다. 발-정수리 높이가 1.75타일(56px)이 되게 축소.
+const OFFICER_HEIGHT = 56;
 
 const LABEL_STYLE = {
   fontFamily: FONTS.body,
@@ -45,11 +55,11 @@ export class TutorialScene extends Phaser.Scene {
 
     // 거리·저택과 같은 방식 — 바닥·벽·가구·조명을 한 장에 구운 배경을 깔고
     // 충돌만 따로 세운다 (scripts/gen-hq-art.js).
-    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setDepth(-100);
+    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
     this.walls = buildColliders(this, hqData, hqProps.blocked);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
-    setupCameras(this, hqData, this.player);
+    setupCameras(this, hqData, this.player, CAMERA_ZOOM);
     this.interact = new InteractionManager(this, this.dialogue);
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -106,9 +116,14 @@ export class TutorialScene extends Phaser.Scene {
     const os = hqData.spawns.officer;
     const ox = os.col * TILE + TILE / 2;
     const oy = os.row * TILE + TILE / 2;
-    this.officerNode = this.add.sprite(ox, oy, 'chars', OFFICER_FRAME);
+    const officerTex = this.textures.get('officer').getSourceImage();
+    const officerAspect = officerTex.width / officerTex.height;
+    this.officerNode = this.add
+      .image(ox, oy, 'officer')
+      .setOrigin(0.5, 1)
+      .setDisplaySize(OFFICER_HEIGHT * officerAspect, OFFICER_HEIGHT);
     const officerLabel = this.add
-      .text(ox, oy - 24, `${this.state.officer.name} (${this.state.officer.role})`, LABEL_STYLE)
+      .text(ox, oy - 64, `${this.state.officer.name} (${this.state.officer.role})`, LABEL_STYLE)
       .setOrigin(0.5);
     this.asWorld(this.officerNode, officerLabel);
 

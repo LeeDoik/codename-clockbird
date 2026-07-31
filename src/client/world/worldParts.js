@@ -87,8 +87,12 @@ export const WORLD_ZOOM = 2;
  * 전에 부른다 — 그 시점까지의 자식은 전부 월드로 분류된다. 이후에 만드는 오브젝트는
  * scene.asWorld(...) / scene.asUi(...) 로 소속을 밝혀야 한다. 밝히지 않으면 양쪽
  * 카메라에 이중으로 그려진다 (UI 카메라 쪽에는 줌 없이 좌상단에 작게 나타난다).
+ *
+ * @param {number} [zoom] 기본은 WORLD_ZOOM(2). 타일 크기가 다른 맵(예: 배경 그림을
+ *   축소해 깐 본부)은 화면에 보이는 칸 수를 맞추려면 다른 배율이 필요할 수 있다 —
+ *   그때만 넘긴다. 정수를 써야 픽셀 아트가 뭉개지지 않는다(WORLD_ZOOM 주석 참고).
  */
-export function setupCameras(scene, mapData, player) {
+export function setupCameras(scene, mapData, player, zoom = WORLD_ZOOM) {
   const TILE = mapData.tileSize;
   const w = mapData.cols * TILE;
   const h = mapData.rows * TILE;
@@ -98,7 +102,7 @@ export function setupCameras(scene, mapData, player) {
   scene.physics.world.setBounds(0, 0, w, h);
 
   const main = scene.cameras.main;
-  main.setZoom(WORLD_ZOOM);
+  main.setZoom(zoom);
   main.setBounds(0, 0, w, h);
   main.startFollow(player, true, 0.15, 0.15);
 
