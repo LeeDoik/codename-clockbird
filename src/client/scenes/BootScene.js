@@ -8,6 +8,9 @@ import mansionBgUrl from '../assets/mansion-bg.png';
 import mansionDoorUrl from '../assets/mansion-door-open.png';
 import charsUrl from '../assets/chars.png';
 import officerIdleUrl from '../assets/npc/officer-idle.png';
+import t1IdleUrl from '../assets/npc/t1-idle.png';
+import t2IdleUrl from '../assets/npc/t2-idle.png';
+import t3IdleUrl from '../assets/npc/t3-idle.png';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -39,13 +42,19 @@ export class BootScene extends Phaser.Scene {
     this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });
     // 브란트(간부) 아이들 모션 — 432×432 프레임 6×2, 여백 없이 딱 맞물린 시트.
     this.load.spritesheet('officerIdle', officerIdleUrl, { frameWidth: 432, frameHeight: 432 });
+    // 튜토리얼 동료 3인(레나/미아/오토) 아이들 모션 — 256×256 프레임 6×2.
+    this.load.spritesheet('t1Idle', t1IdleUrl, { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet('t2Idle', t2IdleUrl, { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet('t3Idle', t3IdleUrl, { frameWidth: 256, frameHeight: 256 });
   }
 
   create() {
-    if (!this.anims.exists('officerIdle')) {
+    // 6x2, 12프레임 아이들 시트 공통 등록 — 시트마다 프레임 수·크기는 같고 키만 다르다.
+    for (const key of ['officerIdle', 't1Idle', 't2Idle', 't3Idle']) {
+      if (this.anims.exists(key)) continue;
       this.anims.create({
-        key: 'officerIdle',
-        frames: this.anims.generateFrameNumbers('officerIdle', { start: 0, end: 11 }),
+        key,
+        frames: this.anims.generateFrameNumbers(key, { start: 0, end: 11 }),
         frameRate: 6,
         repeat: -1,
       });

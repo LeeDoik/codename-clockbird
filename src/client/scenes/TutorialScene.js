@@ -15,7 +15,6 @@ import hqProps from '../assets/hq-props.json';
  */
 const TILE = hqData.tileSize;
 const PLAYER_FRAME = 0;
-const TUTOR_FRAME = { t1: 2, t2: 5, t3: 3 };
 
 // 배경 가구가 캐릭터 대비 크다 — 그림을 0.3배로 줄여 깔고(hq.json 의 tileSize 도
 // 32→9.6으로 같은 비율로 줄여 가구·충돌 칸 인덱스는 그대로 유지), 캐릭터(고정
@@ -37,6 +36,13 @@ const OFFICER_CONTENT_HEIGHT = 408;
 const OFFICER_HEIGHT = 56;
 const OFFICER_SCALE = OFFICER_HEIGHT / OFFICER_CONTENT_HEIGHT;
 const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
+
+// 동료 3인(레나·미아·오토) 아이들 모션: 256×256 프레임. 발 위치(216px)는 셋 다
+// 같지만 인물 키(정수리 위치)는 캐릭터마다 달라 실측치로 따로 잡는다.
+const ALLY_FRAME = 256;
+const ALLY_ORIGIN_Y = 216 / ALLY_FRAME;
+const ALLY_CONTENT_TOP = { t1: 26, t2: 58, t3: 26 };
+const ALLY_ANIM = { t1: 't1Idle', t2: 't2Idle', t3: 't3Idle' };
 
 const LABEL_STYLE = {
   fontFamily: FONTS.body,
@@ -143,11 +149,17 @@ export class TutorialScene extends Phaser.Scene {
       const x = sp.col * TILE + TILE / 2;
       const y = sp.row * TILE + TILE / 2;
 
-      const node = this.add.sprite(x, y, 'chars', TUTOR_FRAME[ally.id] ?? i + 1);
-      const label = this.add.text(x, y - 24, ally.name, LABEL_STYLE).setOrigin(0.5);
+      const contentHeight = ALLY_FRAME - ALLY_CONTENT_TOP[ally.id];
+      const scale = OFFICER_HEIGHT / contentHeight;
+      const node = this.add
+        .sprite(x, y, ALLY_ANIM[ally.id], 0)
+        .setOrigin(0.5, ALLY_ORIGIN_Y)
+        .setDisplaySize(ALLY_FRAME * scale, ALLY_FRAME * scale)
+        .play(ALLY_ANIM[ally.id]);
+      const label = this.add.text(x, y - 64, ally.name, LABEL_STYLE).setOrigin(0.5);
       // 신뢰도는 튜토리얼에만 있는 규칙이라 여기서만 화면에 세운다.
       const trust = this.add
-        .text(x, y - 38, '', { ...LABEL_STYLE, fontSize: '12px', color: CSS.brass })
+        .text(x, y - 78, '', { ...LABEL_STYLE, fontSize: '12px', color: CSS.brass })
         .setOrigin(0.5);
       this.asWorld(node, label, trust);
 
