@@ -84,20 +84,26 @@ router.post('/interrogation/question', async (req, res, next) => {
     if (session.outcome) return res.status(409).json({ error: '이미 끝난 심문입니다.' });
     if (session.asked >= QUESTION_MAX) return res.status(409).json({ error: '질문이 끝났습니다.' });
 
-    // 멱등성 — 이미 대기 중인 질문이 있으면 새로 만들지 않고 그대로 돌려준다.
-    // 재시도나 중복 호출로 pending 이 갈아치워지면 화면에 뜬 질문과 실제로 채점될
-    // 질문이 어긋나는데, 그 어긋남은 플레이어에게 전혀 보이지 않는다.
-    if (session.pendingQuestion) {
-      return res.json({ question: session.pendingQuestion, state: toEscapeView(session) });
-    }
-
-    const { question } = await generateRobotQuestion({
+    // 멱등성 — 값이 아니라 "진행 중인 호출" 을 캐시한다. `??=` 는 await 전에
+    // 동기적으로 대입되므로, 2.5초짜리 LLM 왕복이 끝나기 전에 겹쳐 들어온 두 번째
+    // 요청(동시 호출)도 새로 생성하지 않고 같은 프로미스를 받는다. 값만 캐시하면
+    // 순차 재호출은 막아도 두 요청이 동시에 "아직 비어 있다" 를 보고 각자 새로
+    // 생성해 버려, 나중에 끝난 쪽이 덮어써 화면의 질문과 채점되는 질문이 다시
+    // 어긋난다.
+    // generateRobotQuestion 은 fail-open 이라 절대 reject 하지 않는다 — 그래서
+    // 이 캐시가 거절된 프로미스로 눌러앉아 세션을 영영 막는 일은 없다. 이 전제가
+    // 깨지면(예: 나중에 throw 하도록 바뀌면) 이 캐시도 같이 손봐야 한다.
+    session.pendingQuestionPromise ??= generateRobotQuestion({
       history: session.history,
       asked: session.asked,
       questionMax: QUESTION_MAX,
+    }).then(({ question }) => {
+      // 답변 심사에 같은 질문을 써야 하므로 여기 보관한다.
+      session.pendingQuestion = question;
+      return question;
     });
-    // 답변 심사에 같은 질문을 써야 하므로 여기 보관한다.
-    session.pendingQuestion = question;
+
+    const question = await session.pendingQuestionPromise;
     res.json({ question, state: toEscapeView(session) });
   } catch (err) {
     next(err);
@@ -133,6 +139,9 @@ router.post('/interrogation/answer', async (req, res, next) => {
 
     pushEscapeTurn(session, question, text);
     session.pendingQuestion = null;
+    // 프로미스 캐시도 같이 비운다 — 안 비우면 다음 /question 호출이 ??= 에 걸려
+    // 이번 턴 질문을 계속 돌려받는다.
+    session.pendingQuestionPromise = null;
 
     const { events } = applyVerdict(session, {
       lie: sys.lie,
