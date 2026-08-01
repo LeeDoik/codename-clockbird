@@ -125,4 +125,7 @@ ok(
 );
 
 console.log(failures ? `\n실패 ${failures}건\n` : '\n전부 통과\n');
-process.exit(failures ? 1 : 0);
+// process.exit() 을 부르면 이 PC(Node v24 + Windows) 에서 fetch 이후
+// "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)" 로 강제 종료돼
+// 통과해도 종료 코드가 127 로 찍힌다. exitCode 만 세우고 자연 종료시킨다.
+process.exitCode = failures ? 1 : 0;
