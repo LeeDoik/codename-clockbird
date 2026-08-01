@@ -1,0 +1,21 @@
+{
+  "_comment": "스테이지 3 신분 연기 심문. 단어는 '연기할 수 있는 직업·역할'로만 한정한다 — 선택 단어와 어긋난 거짓 판정이 성립하려면 단어가 연기의 대상이어야 하기 때문이다.",
+  "identities": [
+    { "id": "courier", "word": "배달부" },
+    { "id": "mechanic", "word": "정비공" },
+    { "id": "cleaner", "word": "청소부" },
+    { "id": "cook", "word": "요리사" },
+    { "id": "gardener", "word": "정원사" },
+    { "id": "washer", "word": "세탁부" },
+    { "id": "coachman", "word": "마부" },
+    { "id": "porter", "word": "짐꾼" },
+    { "id": "tailor", "word": "재봉사" },
+    { "id": "lamplighter", "word": "점등원" },
+    { "id": "stoker", "word": "화부" },
+    { "id": "scribe", "word": "필경사" }
+  ],
+  "child": {
+    "greet": "\"…아저씨, 여기서 뭐 해요?\"\n\n아이가 통로 끝에 서 있다. 이 시각에, 이런 곳에.",
+    "reveal": "\"아, 놀랐어요? 미안해요.\"\n\n아이가 고개를 살짝 기울인다.\n\n\"사실 나는 로봇이야. 그런데 아저씨는… 진짜 사람 맞아요?\""
+  }
+}
