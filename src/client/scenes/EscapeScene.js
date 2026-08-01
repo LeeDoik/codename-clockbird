@@ -11,6 +11,8 @@ import { Sentry } from '../entities/Sentry.js';
 import { makeBlockedLookup } from '../world/los.js';
 // 좌표·상수의 단일 출처. 씬은 여기서만 읽는다 — 씬 안에 좌표를 다시 적지 않는다.
 import { CHECKPOINTS, CHILD, SENTRY_ROUTES, TILE, at } from '../world/escapeLayout.js';
+import { MinigamePanel } from '../ui/MinigamePanel.js';
+import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
 
 /**
  * 스테이지 3 — 저택 탈출.
@@ -105,6 +107,10 @@ export class EscapeScene extends Phaser.Scene {
     }).setOrigin(1, 0);
     this.asUi(this.gaugeBg, this.gaugeFill, this.vignette, this.retryText);
 
+    this.panel = new MinigamePanel();
+    this.child = this.add.sprite(...Object.values(at(CHILD.col, CHILD.row)), 'chars', 5);
+    this.asWorld?.(this.child);
+
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
   }
@@ -141,6 +147,14 @@ export class EscapeScene extends Phaser.Scene {
         this.checkpoint = i;
         console.log(`[escape] 체크포인트 ${i}`);
         break;
+      }
+    }
+
+    // 심문실 도달 — 한 번만 발동한다.
+    if (!this.ended) {
+      const c = at(CHILD.col, CHILD.row);
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, c.x, c.y) < TILE * 2) {
+        this.#startInterrogation();
       }
     }
 
@@ -204,6 +218,51 @@ export class EscapeScene extends Phaser.Scene {
     this.graceUntil = this.time.now + RESPAWN_GRACE_MS;
     this.respawning = false;
     this.cameras.main.fadeIn(300, 0, 0, 0);
+  }
+
+  /** 심문 개시 — 여기서부터 탈출 규칙은 멈추고 서버와 왕복한다. */
+  async #startInterrogation() {
+    if (this.ended) return;
+    this.ended = true; // update() 의 탈출 로직을 멈춘다
+    this.player.body.setVelocity(0, 0);
+
+    const post = async (path, body = {}) => {
+      const res = await fetch(`/api/escape${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      return json;
+    };
+
+    let sessionId = null;
+    const outcome = await runRobotInterrogation(this.panel, {
+      fetchStart: async () => {
+        const r = await post('/interrogation/start');
+        sessionId = r.state.sessionId;
+        return r;
+      },
+      pickIdentity: (identityId) => post('/interrogation/identity', { sessionId, identityId }),
+      fetchQuestion: () => post('/interrogation/question', { sessionId }),
+      submitAnswer: (answer) => post('/interrogation/answer', { sessionId, answer }),
+    });
+
+    if (outcome === 'win') {
+      this.#toEnding();
+      return;
+    }
+    // 패배·오류는 심문 직전으로 되돌린다 — 여기서 결과 화면을 덮으면 마지막 장면이
+    // 통째로 날아간다. 탈출을 다시 걷게 하지도 않는다 (마지막 체크포인트에서 시작).
+    this.ended = false;
+    this.#respawn();
+  }
+
+  #toEnding() {
+    this.cameras.main.fadeOut(900, 0, 0, 0);
+    this.uiCam?.fadeOut(900, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Ending'));
   }
 }
 
