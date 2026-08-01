@@ -22,6 +22,9 @@ const TEMPLATES = [
   'mansion-civ',
   'checkpoint-question',
   'checkpoint-judge',
+  'escape-question',
+  'escape-system-judge',
+  'escape-robot-judge',
 ];
 const isProd = process.env.NODE_ENV === 'production';
 const cache = new Map();
