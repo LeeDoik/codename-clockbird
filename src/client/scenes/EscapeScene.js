@@ -7,8 +7,10 @@ import {
   setupCameras,
 } from '../world/worldParts.js';
 import escapeData from '../assets/escape.json';
+import { Sentry } from '../entities/Sentry.js';
+import { makeBlockedLookup } from '../world/los.js';
 // 좌표·상수의 단일 출처. 씬은 여기서만 읽는다 — 씬 안에 좌표를 다시 적지 않는다.
-import { CHECKPOINTS, CHILD, TILE, at } from '../world/escapeLayout.js';
+import { CHECKPOINTS, CHILD, SENTRY_ROUTES, TILE, at } from '../world/escapeLayout.js';
 
 /**
  * 스테이지 3 — 저택 탈출.
@@ -58,6 +60,11 @@ export class EscapeScene extends Phaser.Scene {
       PLAYER_HEIGHT,
     );
 
+    this.isBlocked = makeBlockedLookup(escapeData);
+    this.sentries = SENTRY_ROUTES.map(
+      (route) => new Sentry(this, { route, tileSize: TILE, isBlocked: this.isBlocked }),
+    );
+
     // 월드를 다 깐 직후·UI 를 만들기 전에 부른다 (worldParts.setupCameras 의 호출 시점 규약).
     setupCameras(this, escapeData, this.player);
 
@@ -78,14 +85,26 @@ export class EscapeScene extends Phaser.Scene {
     }
   }
 
-  update() {
+  update(time, delta) {
     if (this.ended) {
       this.player.body.setVelocity(0, 0);
+      for (const s of this.sentries) s.update(delta, null);
       this.playerVisual.update();
       return;
     }
+
     applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
     this.playerVisual.update();
+
+    let seen = false;
+    for (const s of this.sentries) {
+      if (s.update(delta, this.player)) seen = true;
+    }
+    // 게이지는 Task 9 에서 붙인다. 지금은 콘 안에 들어갔는지만 콘솔로 확인한다.
+    if (seen !== this.wasSeen) {
+      this.wasSeen = seen;
+      console.log(seen ? '[escape] 시야 안' : '[escape] 시야 밖');
+    }
   }
 }
 
