@@ -90,18 +90,25 @@ router.post('/interrogation/question', async (req, res, next) => {
     // 순차 재호출은 막아도 두 요청이 동시에 "아직 비어 있다" 를 보고 각자 새로
     // 생성해 버려, 나중에 끝난 쪽이 덮어써 화면의 질문과 채점되는 질문이 다시
     // 어긋난다.
-    // generateRobotQuestion 은 fail-open 이라 절대 reject 하지 않는다 — 그래서
-    // 이 캐시가 거절된 프로미스로 눌러앉아 세션을 영영 막는 일은 없다. 이 전제가
-    // 깨지면(예: 나중에 throw 하도록 바뀌면) 이 캐시도 같이 손봐야 한다.
+    // generateRobotQuestion 의 API 호출 실패는 캔 질문으로 흡수되지만(fail-open),
+    // 그 앞의 renderPrompt(프롬프트 파일 읽기)는 try 밖이라 실패하면 그대로
+    // reject 한다. 거절된 프로미스를 캐시에 남겨 두면 이 세션의 /question 은
+    // 매번 같은 실패를 재현할 뿐 복구할 길이 없어지므로(세션이 인메모리라 다른
+    // 리셋 수단도 없다), .catch() 로 캐시를 비워 다음 호출이 다시 시도하게 한다.
     session.pendingQuestionPromise ??= generateRobotQuestion({
       history: session.history,
       asked: session.asked,
       questionMax: QUESTION_MAX,
-    }).then(({ question }) => {
-      // 답변 심사에 같은 질문을 써야 하므로 여기 보관한다.
-      session.pendingQuestion = question;
-      return question;
-    });
+    })
+      .then(({ question }) => {
+        // 답변 심사에 같은 질문을 써야 하므로 여기 보관한다.
+        session.pendingQuestion = question;
+        return question;
+      })
+      .catch((err) => {
+        session.pendingQuestionPromise = null;
+        throw err;
+      });
 
     const question = await session.pendingQuestionPromise;
     res.json({ question, state: toEscapeView(session) });
