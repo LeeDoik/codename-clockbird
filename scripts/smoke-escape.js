@@ -47,5 +47,82 @@ ok(b.body.state?.identity?.id === pick.id, '고른 신분이 세워진다', b.bo
 ok(b.body.state?.detection === 100, '탐지 게이지 100 시작', String(b.body.state?.detection));
 ok(b.body.state?.questionMax === 8, '8문 상한', String(b.body.state?.questionMax));
 
+// ── 3. 명백한 거짓 → 탐지 게이지 −20 ──────────────────────────────
+// 신분을 배달부로 고정하고, 배달부가 절대 할 수 없는 말을 던진다.
+console.log('\n[3] 명백한 거짓 → −20');
+const c = await post('/interrogation/start', { debug: { identityId: 'courier' } });
+const cid = c.body.state.sessionId;
+const cq = await post('/interrogation/question', { sessionId: cid });
+ok(cq.status === 200 && Boolean(cq.body.question), '질문 생성', cq.body.question);
+const lie = await post('/interrogation/answer', {
+  sessionId: cid,
+  answer: '저는 평생 바다에서 배만 몰았고 뭍에 올라온 적이 없습니다.',
+});
+ok(lie.status === 200, '200', String(lie.status));
+ok(lie.body.state.detection <= 80, '탐지 게이지 감소', `${lie.body.state.detection}`);
+ok(Boolean(lie.body.npcReply), '로봇 대사가 온다', lie.body.npcReply?.slice(0, 30));
+// 대사는 단어를 모르는 판정기가 쓴다 — 정답이 대사에 실릴 경로가 없어야 한다.
+ok(!lie.body.npcReply.includes('배달부'), '로봇 대사에 정답이 없다');
+
+// ── 4. 단어 직접 노출 → −20 ───────────────────────────────────────
+console.log('\n[4] 단어 직접 노출 → −20');
+const d = await post('/interrogation/start', { debug: { identityId: 'courier' } });
+const did = d.body.state.sessionId;
+await post('/interrogation/question', { sessionId: did });
+const reveal = await post('/interrogation/answer', {
+  sessionId: did,
+  answer: '저는 배달부입니다. 짐을 나릅니다.',
+});
+ok(reveal.body.state.detection <= 80, '노출로 감소', `${reveal.body.state.detection}`);
+
+// ── 5. 게이지 0 → 패배 ────────────────────────────────────────────
+// 게이지를 20 만 남겨 두고 거짓을 한 번 맞으면 끝난다.
+console.log('\n[5] 게이지 소진 → 패배');
+const e = await post('/interrogation/start', {
+  debug: { identityId: 'courier', detection: 20 },
+});
+const eid = e.body.state.sessionId;
+await post('/interrogation/question', { sessionId: eid });
+const dead = await post('/interrogation/answer', {
+  sessionId: eid,
+  answer: '저는 평생 바다에서 배만 몰았고 뭍에 올라온 적이 없습니다.',
+});
+ok(dead.body.state.detection === 0, '게이지 0', `${dead.body.state.detection}`);
+ok(dead.body.state.outcome === 'lose', '패배 확정', dead.body.state.outcome ?? '안 끝남');
+
+// ── 6. 8문 방어 → 승리 ────────────────────────────────────────────
+// 7문을 이미 넘긴 상태에서 한 번만 더 방어하면 승리다 (LLM 8회를 태우지 않는다).
+console.log('\n[6] 8문 방어 → 승리');
+const f = await post('/interrogation/start', {
+  debug: { identityId: 'courier', asked: 7 },
+});
+const fid = f.body.state.sessionId;
+await post('/interrogation/question', { sessionId: fid });
+const win = await post('/interrogation/answer', {
+  sessionId: fid,
+  answer: '해 뜨기 전에 나와서 골목을 돕니다. 다리가 먼저 기억하지요.',
+});
+ok(win.body.state.asked === 8, '8문 도달', `${win.body.state.asked}`);
+ok(win.body.state.outcome === 'win', '승리 확정', win.body.state.outcome ?? '안 끝남');
+
+// ── 7. 추리 선언 ──────────────────────────────────────────────────
+// 확신도를 임계 위로 올려 둔 채 한 턴 돌리면 선언이 나와야 한다.
+console.log('\n[7] 확신도 임계 → 추리 선언');
+const g = await post('/interrogation/start', {
+  debug: { identityId: 'courier', confidence: 95 },
+});
+const gid = g.body.state.sessionId;
+await post('/interrogation/question', { sessionId: gid });
+const dec = await post('/interrogation/answer', {
+  sessionId: gid,
+  answer: '짐을 지고 골목을 돌며 집집마다 물건을 가져다줍니다.',
+});
+ok(Boolean(dec.body.declaration), '추리 선언 발생', dec.body.declaration?.word ?? '없음');
+ok(
+  dec.body.state.declaresLeft === 1 || dec.body.state.outcome === 'lose',
+  '선언 잔여가 줄거나 적중해 끝난다',
+  `잔여 ${dec.body.state.declaresLeft} · ${dec.body.state.outcome ?? '진행'}`,
+);
+
 console.log(failures ? `\n실패 ${failures}건\n` : '\n전부 통과\n');
 process.exit(failures ? 1 : 0);

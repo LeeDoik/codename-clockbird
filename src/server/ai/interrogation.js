@@ -151,3 +151,38 @@ export async function judgeAsRobot({ history, question, answer }) {
 }
 
 export { FALLBACK_REPLY };
+
+const DeclarationSchema = z.object({
+  word: z.string().describe('상대의 직업이라고 확신하는 단어 하나 (명사)'),
+  reason: z.string().describe('그렇게 본 근거 (한 문장, 서버 로그용)'),
+});
+
+/**
+ * 정식 추리 선언 — 로봇이 상대의 직업을 지목한다.
+ *
+ * **후보 3개를 주지 않는다.** 주면 3지선다 소거법으로 필승이 되어 규칙이 죽는다.
+ * 무제한으로 추리하게 두어도 죽은 규칙이 되므로, 호출부가 선언 횟수를 제한한다.
+ *
+ * 실패 시 fallback 을 표시해 돌려준다 — 호출부가 선언을 없던 일로 처리한다.
+ */
+export async function declareGuess({ history }) {
+  const system =
+    '너는 사람의 직업을 알아맞히는 관찰자다. 아래 문답만 보고 상대의 직업을 ' +
+    '**하나의 명사**로 지목하라. 확신이 없어도 반드시 하나를 고른다. ' +
+    '설명하지 말고 직업 이름만 word 에 적는다.';
+
+  try {
+    const message = await anthropic.beta.messages.parse({
+      model: MODEL_JUDGE,
+      max_tokens: 300,
+      thinking: { type: 'disabled' },
+      system,
+      output_format: betaZodOutputFormat(DeclarationSchema),
+      messages: [{ role: 'user', content: formatHistory(history) }],
+    });
+    return { ...message.parsed_output, fallback: false };
+  } catch (err) {
+    console.error('[escape/declare] 선언 실패 — 선언을 건너뛴다', err.message);
+    return { word: '', reason: '선언 모듈 오류', fallback: true };
+  }
+}

@@ -1,6 +1,7 @@
 import express from 'express';
 import { readFile } from 'node:fs/promises';
-import { generateRobotQuestion, judgeAsRobot, judgeAsSystem } from '../ai/interrogation.js';
+import { declareGuess, generateRobotQuestion, judgeAsRobot, judgeAsSystem } from '../ai/interrogation.js';
+import { judgeGuess } from '../ai/judge.js';
 import {
   applyVerdict,
   chooseIdentity,
@@ -8,6 +9,7 @@ import {
   getEscapeSession,
   pushEscapeTurn,
   toEscapeView,
+  DECLARE_THRESHOLD,
   QUESTION_MAX,
 } from '../escapeSession.js';
 
@@ -41,7 +43,14 @@ router.post('/interrogation/start', async (req, res, next) => {
     // 프로덕션에서는 통째로 무시한다 (mansion 의 debug:'key' 와 같은 정책).
     const debug = req.body?.debug;
     if (!isProd && debug && typeof debug === 'object') {
-      if (debug.identityId) chooseIdentity(session, debug.identityId);
+      // chooseIdentity 는 무작위로 뽑힌 session.choices(3장) 안에서만 찾는다 —
+      // 디버그가 요청한 id 가 그 3장에 없으면 조용히 실패해 identity 가 null 로
+      // 남는다. 디버그는 표본과 무관하게 "이 신분으로 강제 세팅"이 목적이므로
+      // 전체 신분 풀(data.identities)에서 직접 찾는다.
+      if (debug.identityId) {
+        const forced = data.identities.find((i) => i.id === debug.identityId);
+        if (forced) session.identity = forced;
+      }
       if (Number.isFinite(debug.detection)) session.detection = debug.detection;
       if (Number.isFinite(debug.asked)) session.asked = debug.asked;
       if (Number.isFinite(debug.confidence)) session.confidence = debug.confidence;
@@ -157,6 +166,34 @@ router.post('/interrogation/answer', async (req, res, next) => {
       confidence: bot.confidence,
     });
 
+    // 확신도가 임계에 닿고 선언이 남아 있으면 정식 추리를 선언한다.
+    // 적중 판정은 접선 코드와 같은 판정기를 쓴다 — 동의어를 인정하지 않으면
+    // "택배원" 같은 답이 빗나가서 규칙이 운에 좌우된다.
+    let declaration = null;
+    if (!session.outcome && session.confidence >= DECLARE_THRESHOLD && session.declaresLeft > 0) {
+      const guess = await declareGuess({ history: session.history });
+      if (!guess.fallback && guess.word) {
+        session.declaresLeft -= 1;
+        const { correct } = await judgeGuess({
+          codeWord: session.identity.word,
+          guess: guess.word,
+        });
+        declaration = { word: guess.word, hit: correct };
+        if (correct) {
+          session.outcome = 'lose';
+          events.push('exposed');
+        } else {
+          events.push('declare-missed');
+          // 빗나간 선언은 확신을 깎는다. 안 깎으면 남은 매 턴마다 선언이 터진다.
+          session.confidence = 0;
+        }
+        console.log(
+          `[escape] 추리 선언 "${guess.word}" → ${correct ? '적중' : '빗나감'}` +
+            ` (잔여 ${session.declaresLeft})`,
+        );
+      }
+    }
+
     // 8문을 다 방어했으면 승리. 게이지가 먼저 0이 됐으면 applyVerdict 가 이미 lose 를 세웠다.
     if (!session.outcome && session.asked >= QUESTION_MAX) {
       session.outcome = 'win';
@@ -169,7 +206,7 @@ router.post('/interrogation/answer', async (req, res, next) => {
         (events.length ? ` → ${events.join(',')}` : ''),
     );
 
-    res.json({ npcReply: bot.reply, events, state: toEscapeView(session) });
+    res.json({ npcReply: bot.reply, events, declaration, state: toEscapeView(session) });
   } catch (err) {
     next(err);
   }
