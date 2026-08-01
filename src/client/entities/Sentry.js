@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { hasLineOfSight, LOS_STEP } from '../world/los.js';
+import { hasLineOfSight, rayDistance, LOS_STEP } from '../world/los.js';
 import { CONE_ANGLE, CONE_RANGE, SENTRY_SPEED, TURN_PAUSE_MS } from '../world/escapeLayout.js';
 
 /**
@@ -18,6 +18,12 @@ import { CONE_ANGLE, CONE_RANGE, SENTRY_SPEED, TURN_PAUSE_MS } from '../world/es
 
 /** 웨이포인트 도착 판정 반경 (px) */
 const ARRIVE_EPS = 4;
+/**
+ * 콘 폭에 고르게 쏘는 광선 수(양 끝 포함) — 다각형의 꼭짓점 수가 된다.
+ * escapeLayout.js 는 검증 스크립트가 봐야 하는 값만 두는 곳이라, 렌더 세부인
+ * 이 값은 여기 둔다.
+ */
+const CONE_RAYS = 24;
 
 export class Sentry {
   /**
@@ -55,6 +61,10 @@ export class Sentry {
       this.route[this.index].y - this.route[0].y,
       this.route[this.index].x - this.route[0].x,
     );
+    // 정지 회전의 시작/목표 각. 지금은 정지 중이 아니라 둘 다 facing 과 같지만,
+    // #move 가 pauseLeft>0 일 때만 읽으므로 다음 도착이 이 값들을 새로 채운다.
+    this.turnFrom = this.facing;
+    this.turnTo = this.facing;
     this.pauseLeft = 0;
   }
 
@@ -73,7 +83,14 @@ export class Sentry {
 
   #move(delta) {
     if (this.pauseLeft > 0) {
+      // 정지 중에도 콘은 돈다 — turnFrom 에서 turnTo 로 정지 시간에 걸쳐 서서히
+      // 돌려, "지금 지나갈까"를 판단할 1.5초를 실제로 준다. 그냥 굳어 있다가
+      // 이동 재개 순간 홱 돌면 그 판단 시간이 아예 없어진다. 각도 차는 감아서
+      // 재야 한다 — 그냥 빼면 −π/π 경계에서 반대로 돈다.
       this.pauseLeft -= delta;
+      const t = 1 - Math.max(0, this.pauseLeft) / TURN_PAUSE_MS;
+      const diff = Phaser.Math.Angle.Wrap(this.turnTo - this.turnFrom);
+      this.facing = Phaser.Math.Angle.Wrap(this.turnFrom + diff * t);
       return;
     }
 
@@ -85,7 +102,10 @@ export class Sentry {
     if (dist <= ARRIVE_EPS) {
       // 왕복이다 — 순환이 아니라 되돌아온다. 통로 한 줄에서는 순환이 곧 왕복이지만,
       // 웨이포인트가 3개 이상이 되면 달라진다.
+      this.turnFrom = this.facing;
       this.index = (this.index + 1) % this.route.length;
+      const next = this.route[this.index];
+      this.turnTo = Math.atan2(next.y - this.sprite.y, next.x - this.sprite.x);
       this.pauseLeft = TURN_PAUSE_MS;
       return;
     }
@@ -97,22 +117,32 @@ export class Sentry {
     this.sprite.y += Math.sin(this.facing) * move;
   }
 
+  /**
+   * 콘 폭에 광선 CONE_RAYS 개를 고르게 쏘아, 벽에 막힌 지점을 잇는 다각형을 그린다.
+   *
+   * 예전처럼 Graphics.arc() 로 통짜 부채꼴을 그리면 그려진 빨간 영역이 sees() 의
+   * 실제 감지 영역(벽 뒤는 안 보임)의 상위집합이 된다 — 벽 너머 안전한 바닥이
+   * 빨갛게 칠해진다. 이 스테이지의 난이도는 전부 "바닥에 그려진 위험을 읽는다"에
+   * 걸려 있어서, 그려진 것과 실제 판정이 어긋나면 안전한 통로에서 플레이어가
+   * 얼어붙는다 (설계 스펙 §3 — 광선이 벽·엄폐물에 막혀 콘을 잘라낸다).
+   */
   #drawCone() {
     const half = Phaser.Math.DegToRad(this.coneAngle) / 2;
+    const points = [{ x: this.sprite.x, y: this.sprite.y }];
+    for (let i = 0; i < CONE_RAYS; i++) {
+      const t = i / (CONE_RAYS - 1);
+      const angle = this.facing - half + t * (2 * half);
+      const dist = rayDistance(this.sprite, angle, this.coneRange, this.tileSize, this.isBlocked, LOS_STEP);
+      points.push({ x: this.sprite.x + Math.cos(angle) * dist, y: this.sprite.y + Math.sin(angle) * dist });
+    }
+
     this.cone.clear();
     // 안쪽을 옅게 채우고 가장자리를 진하게 둘러 경계가 어디까지인지 눈으로 재게 한다
     // (Patrol 의 원과 같은 원칙). 채우기만 하면 어디서부터 걸리는지 알 수 없다.
     this.cone.fillStyle(0xc25b4a, 0.16);
-    this.cone.beginPath();
-    this.cone.moveTo(this.sprite.x, this.sprite.y);
-    this.cone.arc(
-      this.sprite.x, this.sprite.y, this.coneRange,
-      this.facing - half, this.facing + half, false,
-    );
-    this.cone.closePath();
-    this.cone.fillPath();
+    this.cone.fillPoints(points, true);
     this.cone.lineStyle(2, 0xc25b4a, 0.5);
-    this.cone.strokePath();
+    this.cone.strokePoints(points, true);
   }
 
   /** 대상이 부채꼴 안에 있고, 그 사이를 벽·엄폐물이 막지 않는가. */

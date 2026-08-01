@@ -41,6 +41,7 @@ export class EscapeScene extends Phaser.Scene {
 
   init() {
     this.ended = false;
+    this.wasSeen = false;
   }
 
   create() {

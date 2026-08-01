@@ -63,3 +63,26 @@ export function hasLineOfSight(from, to, tileSize, isBlocked, step = LOS_STEP) {
   }
   return true;
 }
+
+/**
+ * from 에서 angle 방향으로 얼마나 멀리 볼 수 있는가 (px).
+ * 벽에 막히면 막히기 직전까지의 거리를, 아무것도 없으면 maxDist 를 돌려준다.
+ * hasLineOfSight 와 같은 샘플 간격을 써야 그린 콘과 판정이 어긋나지 않는다.
+ *
+ * 시작점(dist=0)은 검사하지 않는다 — hasLineOfSight 가 감지자가 서 있는 칸을
+ * 막힘 여부와 무관하게 두는 것과 같은 이유다.
+ */
+export function rayDistance(from, angle, maxDist, tileSize, isBlocked, step = LOS_STEP) {
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  let dist = 0;
+
+  while (dist < maxDist) {
+    const next = Math.min(dist + step, maxDist);
+    const col = Math.floor((from.x + dx * next) / tileSize);
+    const row = Math.floor((from.y + dy * next) / tileSize);
+    if (isBlocked(col, row)) return dist;
+    dist = next;
+  }
+  return maxDist;
+}

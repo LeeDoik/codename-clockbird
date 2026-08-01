@@ -6,7 +6,7 @@
  * los.js 는 Phaser 를 import 하지 않는 순수 함수다. 그래서 브라우저 없이 여기서 돌린다 —
  * 시야 판정은 눈으로 확인하기 가장 어려운 규칙이라 자동 검증이 특히 값지다.
  */
-import { hasLineOfSight, makeBlockedLookup } from '../src/client/world/los.js';
+import { hasLineOfSight, makeBlockedLookup, rayDistance } from '../src/client/world/los.js';
 
 let failures = 0;
 const ok = (cond, label, extra = '') => {
@@ -88,6 +88,29 @@ const oobMapData = {
 };
 const oobBlocked = makeBlockedLookup(oobMapData);
 ok(oobBlocked(0, 0) === true, 'tiles 범위 밖 인덱스는 막힌 것으로 본다');
+
+console.log('\n[4] rayDistance — Sentry 콘이 벽에 잘리는가');
+// col3(row1, 열린 칸, x=112,y=48)에서 오른쪽(col4)으로 40px 만 본다. col4 는 끝까지
+// 열려 있고 맵은 5칸(160px)까지라 40px 안에는 아무것도 없다 — maxDist 그대로.
+ok(
+  rayDistance(mid(3, 1), 0, 40, TILE, blocked) === 40,
+  '벽이 없는 방향은 maxDist 를 그대로 돌려준다',
+);
+// mid(0,1)(x=16,y=48)에서 오른쪽(col2 벽)을 향해 쏜다. 벽 앞쪽 가장자리는 x=64 —
+// 8px 간격으로 전진하다 x=64(벽)에 걸리기 직전인 40 에서 멈춰야 한다.
+ok(
+  rayDistance(mid(0, 1), 0, 300, TILE, blocked) === 40,
+  '벽 방향은 벽 앞에서 멈춘다',
+  `실측 ${rayDistance(mid(0, 1), 0, 300, TILE, blocked)}`,
+);
+// mid(0,1)(x=16,y=48)에서 왼쪽(맵 밖)을 향해 쏜다. col -1 은 항상 막힌 것으로 보므로
+// 8px 간격 중 두 번째 스텝(16px, x=0)까지는 col 0 안이라 열려 있고, 세 번째
+// 스텝(24px, x=-8)에서 col -1 로 나가 막힌다 — 16 에서 멈춰야 한다.
+ok(
+  rayDistance(mid(0, 1), Math.PI, 100, TILE, blocked) === 16,
+  '맵 밖으로 나가는 방향은 경계에서 멈춘다',
+  `실측 ${rayDistance(mid(0, 1), Math.PI, 100, TILE, blocked)}`,
+);
 
 console.log(failures ? `\n실패 ${failures}건\n` : '\n전부 통과\n');
 process.exit(failures ? 1 : 0);
