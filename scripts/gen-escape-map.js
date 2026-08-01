@@ -10,7 +10,7 @@
  * 그림 없는 임시 렌더에만 쓰인다 — worldParts.buildColliders 가 walk 를 우선한다.
  */
 import { writeFile } from 'node:fs/promises';
-import { CORRIDORS, COLS, ROWS, TILE } from '../src/client/world/escapeLayout.js';
+import { CORRIDORS, CHECKPOINTS, COLS, ROWS, TILE } from '../src/client/world/escapeLayout.js';
 
 const layout = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => 1));
 for (const { rect } of CORRIDORS) {
@@ -37,7 +37,9 @@ const map = {
     { name: '벽', solid: true },
   ],
   layout,
-  spawns: { player: { col: 4, row: 4 } },
+  // 첫 체크포인트에서 시작한다 — 하드코딩하면 escapeLayout.js 의 CHECKPOINTS[0] 을
+  // 옮겼을 때 여기만 안 따라가도 아무도 모른다 (Patrol.js<->check-spawn-safety 전례).
+  spawns: { player: CHECKPOINTS[0] },
 };
 
 const out = new URL('../src/client/assets/escape.json', import.meta.url);
