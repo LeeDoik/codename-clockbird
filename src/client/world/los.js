@@ -36,9 +36,11 @@ export function makeBlockedLookup(mapData, props = {}) {
   return (col, row) => {
     if (row < 0 || row >= rows || col < 0 || col >= cols) return true;
     const t = layout[row]?.[col];
-    // 맵 밖과 미정의 타일은 막힌 것으로 본다 — 뚫리는 쪽으로 틀리면 벽 관통 감지가 된다.
-    if (t === undefined) return true;
-    return Boolean(tiles[t]?.solid);
+    const tile = tiles[t];
+    // 맵 밖·미정의 타일·tiles 배열 범위 밖 인덱스는 모두 막힌 것으로 본다 — 뚫리는
+    // 쪽으로 틀리면 벽 관통 감지가 된다.
+    if (t === undefined || tile === undefined) return true;
+    return Boolean(tile.solid);
   };
 }
 
