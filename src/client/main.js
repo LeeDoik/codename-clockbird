@@ -4,6 +4,7 @@ import { IntroScene } from './scenes/IntroScene.js';
 import { TutorialScene } from './scenes/TutorialScene.js';
 import { StageScene } from './scenes/StageScene.js';
 import { MansionScene } from './scenes/MansionScene.js';
+import { EscapeScene } from './scenes/EscapeScene.js';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -27,8 +28,8 @@ const game = new Phaser.Game({
     arcade: { debug: false },
   },
   // Boot(에셋 로드 + 스테이지 fetch 착수) → Intro(오프닝) → Tutorial(본부 훈련)
-  //   → Stage(거리) → Mansion(저택 잠입)
-  scene: [BootScene, IntroScene, TutorialScene, StageScene, MansionScene],
+  //   → Stage(거리) → Mansion(저택 잠입) → Escape(지하 탈출)
+  scene: [BootScene, IntroScene, TutorialScene, StageScene, MansionScene, EscapeScene],
 });
 
 // 개발 콘솔·자동화 검증에서 씬 상태를 들여다보기 위한 손잡이 (프로덕션 빌드에서는 빠진다).
