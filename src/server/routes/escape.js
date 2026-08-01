@@ -53,7 +53,7 @@ router.post('/interrogation/start', async (req, res, next) => {
       `[escape] 세션 ${sessionId.slice(0, 8)} 시작 — 카드: ` +
         session.choices.map((c) => c.word).join(', '),
     );
-    res.json({ state: toEscapeView(session), child: (await getData()).child });
+    res.json({ state: toEscapeView(session), child: data.child });
   } catch (err) {
     next(err);
   }
@@ -83,6 +83,13 @@ router.post('/interrogation/question', async (req, res, next) => {
     if (!session.identity) return res.status(409).json({ error: '신분을 먼저 고르세요.' });
     if (session.outcome) return res.status(409).json({ error: '이미 끝난 심문입니다.' });
     if (session.asked >= QUESTION_MAX) return res.status(409).json({ error: '질문이 끝났습니다.' });
+
+    // 멱등성 — 이미 대기 중인 질문이 있으면 새로 만들지 않고 그대로 돌려준다.
+    // 재시도나 중복 호출로 pending 이 갈아치워지면 화면에 뜬 질문과 실제로 채점될
+    // 질문이 어긋나는데, 그 어긋남은 플레이어에게 전혀 보이지 않는다.
+    if (session.pendingQuestion) {
+      return res.json({ question: session.pendingQuestion, state: toEscapeView(session) });
+    }
 
     const { question } = await generateRobotQuestion({
       history: session.history,
