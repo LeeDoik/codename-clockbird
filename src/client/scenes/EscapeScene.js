@@ -12,6 +12,7 @@ import { makeBlockedLookup } from '../world/los.js';
 // 좌표·상수의 단일 출처. 씬은 여기서만 읽는다 — 씬 안에 좌표를 다시 적지 않는다.
 import { CHECKPOINTS, CHILD, SENTRY_ROUTES, TILE, at } from '../world/escapeLayout.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
+import { DialogueBox } from '../ui/DialogueBox.js';
 import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
 
 /**
@@ -108,6 +109,7 @@ export class EscapeScene extends Phaser.Scene {
     this.asUi(this.gaugeBg, this.gaugeFill, this.vignette, this.retryText);
 
     this.panel = new MinigamePanel();
+    this.dialogue = new DialogueBox();
     this.child = this.add.sprite(...Object.values(at(CHILD.col, CHILD.row)), 'chars', 5);
     this.asWorld?.(this.child);
 
@@ -244,6 +246,7 @@ export class EscapeScene extends Phaser.Scene {
         sessionId = r.state.sessionId;
         return r;
       },
+      showIntro: (child) => this.#showChildIntro(child),
       pickIdentity: (identityId) => post('/interrogation/identity', { sessionId, identityId }),
       fetchQuestion: () => post('/interrogation/question', { sessionId }),
       submitAnswer: (answer) => post('/interrogation/answer', { sessionId, answer }),
@@ -263,6 +266,28 @@ export class EscapeScene extends Phaser.Scene {
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Ending'));
+  }
+
+  /**
+   * 심문 전 반전 대사 — "사실 나는 로봇이야." 이 게임 전체의 반전이라 심문 패널의
+   * 작은 상태줄이 아니라 DialogueBox 로 세운다 (StageScene#toMansion 과 같은 방식:
+   * 대사를 띄우고 시간을 두었다 다음 줄로 넘긴다, 입력 대기가 아니다).
+   *
+   * 정체를 밝히기 전에는 '아이', 밝힌 뒤에는 '꼬마' — 아직 이름이 없는 인물이다.
+   * portrait: 'child' 는 아직 파일이 없어 안 뜨지만(DialogueBox 가 조용히 no-portrait
+   * 로 떨어진다), 아트가 들어오면 이 한 줄로 붙는다.
+   */
+  async #showChildIntro(child) {
+    this.dialogue.show('아이', child.greet, { portrait: 'child' });
+    await this.#beat(2600);
+    this.dialogue.show('꼬마', child.reveal, { portrait: 'child' });
+    await this.#beat(4200);
+    this.dialogue.hide();
+  }
+
+  /** 연출용 사이 — delayedCall 을 await 할 수 있게 감싼다 (StageScene#beat 과 같은 모양). */
+  #beat(ms) {
+    return new Promise((resolve) => this.time.delayedCall(ms, resolve));
   }
 }
 

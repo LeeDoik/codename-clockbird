@@ -12,25 +12,35 @@ const MAX_ANSWER_LEN = 120;
  * @param {import('../ui/MinigamePanel.js').MinigamePanel} panel
  * @param {object} io
  * @param {() => Promise<{state: object, child: object}>} io.fetchStart
+ * @param {(child: object) => Promise<void>} io.showIntro 심문 전 반전 대사 연출 (DialogueBox 등) — 끝날 때까지 기다린다
  * @param {(identityId: string) => Promise<{state: object}>} io.pickIdentity
  * @param {() => Promise<{question: string}>} io.fetchQuestion
  * @param {(answer: string) => Promise<{npcReply: string, events: string[], declaration: object|null, state: object}>} io.submitAnswer
  * @returns {Promise<'win'|'lose'|'error'>}
  */
 export async function runRobotInterrogation(panel, io) {
-  panel.open({
+  const openPanel = () => panel.open({
     title: '심문',
     subtitle: '아이가 고개를 들어 올려다본다.',
     hint: '여기서는 걸어나갈 수 없다',
   });
-  panel.setStatus('…');
 
   let start;
   try {
     start = await io.fetchStart();
   } catch (err) {
+    openPanel();
     return fail(panel, `연결 실패 — ${err.message}`);
   }
+
+  // 반전 대사("사실 나는 로봇이야") 가 다 나온 뒤에야 심문 패널을 연다 — 대사 위에
+  // 심문 패널이 먼저 떠 있으면 순서가 어색하고, 이 게임 전체의 반전이 작은 상태줄로
+  // 흘러 무게가 죽는다. 대사 연출 자체는 호출부(DialogueBox 를 쥔 씬)가 한다 —
+  // 이 모듈은 여전히 DialogueBox 도 fetch 도 모른다.
+  await io.showIntro(start.child);
+
+  openPanel();
+  panel.setStatus('…');
 
   // ── 1. 신분 카드 3장 ──
   const identityId = await askIdentity(panel, start.state.choices);
