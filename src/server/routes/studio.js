@@ -39,6 +39,11 @@ const RECOMMENDED_VARS = {
   'mansion-dialogue': ['backstory', 'personality'],
   'checkpoint-question': ['alertLevel', 'arrestedCount'],
   'checkpoint-judge': ['alertLevel', 'arrestedCount', 'strictness'],
+  'escape-question': ['asked', 'questionMax', 'historyBlock'],
+  'escape-system-judge': ['identityWord'],
+  // escape-robot-judge 에 identityWord 는 **없어야 한다** — 로봇이 신분 단어를 알면
+  // 3지선다 소거법으로 필승이라 심문이 죽는다. 그래서 권장 변수에도 넣지 않는다.
+  'escape-robot-judge': ['historyBlock'],
 };
 
 function missingVars(name, text) {

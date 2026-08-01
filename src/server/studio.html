@@ -137,32 +137,19 @@
         </section>
 
         <section>
-          <h2>연상 단어 프롬프트 <span class="dirty" id="wordgen-dirty" hidden>● 저장 안 됨</span></h2>
-          <div class="warn">
-            ⚠ <b>여길 만질 땐 반드시 오른쪽 [5인 전원 생성 + 중복 판정]으로 확인하세요.</b><br />
-            연상 단어를 "더 직접적으로" 몰면 5인이 같은 단어로 수렴해 중복(체포)이 폭등하고,
-            시작하자마자 단서가 사라져 <b>오히려 못 푸는 판</b>이 됩니다 (실측된 함정).
-            대규모 측정은 터미널에서 <code>npm run exp:diff</code>.
-          </div>
-          <div class="legend">치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> — 접선 코드는 유저 메시지로 별도 전달됨</div>
-          <textarea id="t-wordgen" rows="16" spellcheck="false"></textarea>
-          <div class="row">
-            <button class="primary" id="save-wordgen">연상 단어 프롬프트 저장</button>
-            <span class="status" id="wordgen-status"></span>
-          </div>
-        </section>
-
-        <section>
-          <h2>자유 대화 프롬프트 <span class="dirty" id="dialogue-dirty" hidden>● 저장 안 됨</span></h2>
+          <h2>시스템 프롬프트 <span class="dirty" id="prompt-dirty" hidden>● 저장 안 됨</span></h2>
           <div class="legend">
-            치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> <code>{{word}}</code>
-            <code>{{alertLevel}}</code> <code>{{arrestedCount}}</code><br />
-            안전 설계: 접선 코드는 이 프롬프트에 <b>주입 자체가 안 되므로</b> 어떻게 고쳐도 코드가 유출될 수 없습니다. 톤·힌트 강도는 자유롭게 조율하세요.
+            게임의 모든 LLM 호출이 쓰는 시스템 프롬프트입니다. 스테이지별로 탭이 나뉘어 있고,
+            탭 이름 뒤의 <b>●</b> 는 아직 저장하지 않은 변경이 있다는 뜻입니다.
+            저장은 <b>지금 열려 있는 탭 하나</b>만 반영됩니다.
           </div>
-          <textarea id="t-dialogue" rows="20" spellcheck="false"></textarea>
+          <div class="tabs" id="prompt-tabs"></div>
+          <div class="warn" id="prompt-warn" hidden></div>
+          <div class="legend" id="prompt-legend"></div>
+          <textarea id="t-prompt" rows="20" spellcheck="false"></textarea>
           <div class="row">
-            <button class="primary" id="save-dialogue">자유 대화 프롬프트 저장</button>
-            <span class="status" id="dialogue-status"></span>
+            <button class="primary" id="save-prompt">이 프롬프트 저장</button>
+            <span class="status" id="prompt-status"></span>
           </div>
         </section>
 
@@ -248,7 +235,80 @@
     <script>
       const $ = (id) => document.getElementById(id);
       // pool 은 [{ name, text }] — text 는 textarea 원문 그대로 두고 저장·dirty 판정 때만 파싱한다.
-      const state = { allies: [], prompts: {}, pool: [], selected: 0, selectedCat: 0, saved: null };
+      const state = { allies: [], prompts: {}, pool: [], selected: 0, selectedCat: 0, selectedPrompt: null, saved: null };
+
+      /**
+       * 템플릿별 라벨·치환 변수·경고.
+       *
+       * 여기 적힌 경고는 전부 **이미 한 번 부딪힌 함정**이다. 프롬프트를 고치는 사람이
+       * 그 이력을 모른 채 같은 곳을 다시 밟지 않게 화면에 붙여 둔다.
+       * 서버가 새 템플릿을 늘리면 여기 없어도 탭은 뜬다 (라벨만 파일명으로 나온다).
+       */
+      const PROMPT_META = {
+        'wordgen-system': {
+          label: 'S1 · 연상 단어',
+          vars: ['name', 'role', 'backstory', 'personality'],
+          note: '접선 코드는 유저 메시지로 별도 전달됩니다.',
+          warn:
+            '⚠ <b>여길 만질 땐 반드시 오른쪽 [5인 전원 생성 + 중복 판정]으로 확인하세요.</b><br />' +
+            '연상 단어를 "더 직접적으로" 몰면 5인이 같은 단어로 수렴해 중복(체포)이 폭등하고, ' +
+            '시작하자마자 단서가 사라져 <b>오히려 못 푸는 판</b>이 됩니다 (실측된 함정). ' +
+            '대규모 측정은 터미널에서 <code>npm run exp:diff</code>.',
+        },
+        'dialogue-system': {
+          label: 'S1 · 자유 대화',
+          vars: ['name', 'role', 'backstory', 'personality', 'word', 'alertLevel', 'arrestedCount'],
+          note:
+            '안전 설계: 접선 코드는 이 프롬프트에 <b>주입 자체가 안 되므로</b> 어떻게 고쳐도 ' +
+            '코드가 유출될 수 없습니다. 톤·힌트 강도는 자유롭게 조율하세요.',
+        },
+        'tutorial-dialogue': {
+          label: '튜토리얼 · 대화',
+          vars: ['name', 'role', 'backstory', 'personality', 'word', 'reasonBlock'],
+        },
+        'checkpoint-question': { label: 'S1 · 검문 질문', vars: ['alertLevel', 'arrestedCount'] },
+        'checkpoint-judge': {
+          label: 'S1 · 검문 심사',
+          vars: ['alertLevel', 'arrestedCount', 'strictness'],
+        },
+        'mansion-dialogue': {
+          label: 'S2 · 저택 대화',
+          vars: ['backstory', 'personality'],
+          warn:
+            '⚠ <b>호감도·의심도 같은 내부 수치를 이 프롬프트에 적지 마세요.</b> ' +
+            '"호감도 0/3" 을 넣었더니 모델이 그걸 그대로 대사에 출력한 적이 있습니다. ' +
+            '수치는 말로 바꿔 표현하세요 — 모르는 것은 유출될 수 없습니다.',
+        },
+        'mansion-stance': {
+          label: 'S2 · 성향 판정',
+          vars: ['clueBlock'],
+          note:
+            '애매하면 <b>neutral</b> 로 판정하도록 유지하세요. 오판으로 민간인의 의심도가 올라 ' +
+            '밀고까지 가면 판이 그대로 끝납니다 — 놓치는 쪽이 훨씬 쌉니다.',
+        },
+        'mansion-ally': { label: 'S2 · 동료 태도', vars: ['mood'] },
+        'mansion-civ': { label: 'S2 · 민간인 태도', vars: ['mood'] },
+        'escape-question': {
+          label: 'S3 · 심문 질문',
+          vars: ['asked', 'questionMax', 'historyBlock'],
+        },
+        'escape-system-judge': {
+          label: 'S3 · 시스템 판정',
+          vars: ['identityWord'],
+          note:
+            '이쪽은 플레이어가 고른 신분 단어를 <b>압니다</b>. 거짓·노출 둘 다 ' +
+            '"애매하면 아니다" 로 유지하세요 — 오탐 한 번이 플레이어를 불합리하게 죽입니다.',
+        },
+        'escape-robot-judge': {
+          label: 'S3 · 로봇 판정',
+          vars: ['historyBlock'],
+          warn:
+            '⚠ <b>여기에 신분 단어를 넣지 마세요.</b> 로봇이 정답을 알면 3지선다 소거법으로 ' +
+            '필승이라 심문이라는 규칙 자체가 죽습니다. 로봇의 <b>대사도 이 프롬프트가 씁니다</b> — ' +
+            '단어를 모르는 쪽이 말하기 때문에 대사가 정답을 흘릴 경로가 아예 없습니다.',
+        },
+      };
+      const promptLabel = (name) => PROMPT_META[name]?.label ?? name;
 
       const api = async (path, opts = {}) => {
         const res = await fetch('/api/studio' + path, {
@@ -288,9 +348,18 @@
         $('personas-dirty').hidden =
           JSON.stringify(state.allies.map(({ id, name, role, backstory, personality }) => ({ id, name, role, backstory, personality }))) ===
           JSON.stringify(now.allies.map(({ id, name, role, backstory, personality }) => ({ id, name, role, backstory, personality })));
-        $('wordgen-dirty').hidden = state.prompts['wordgen-system'] === now.prompts['wordgen-system'];
-        $('dialogue-dirty').hidden = state.prompts['dialogue-system'] === now.prompts['dialogue-system'];
+        $('prompt-dirty').hidden = Object.keys(state.prompts).every(
+          (n) => state.prompts[n] === now.prompts[n],
+        );
         $('pool-dirty').hidden = JSON.stringify(normalizedPool()) === JSON.stringify(now.pool);
+        // 어느 탭이 안 저장됐는지 탭 자체에 표시한다 — 12개나 되므로 헤더의 점 하나로는
+        // 어디를 저장해야 하는지 알 수 없다.
+        renderPromptTabs();
+      }
+
+      /** 이 템플릿에 저장 안 된 변경이 있는가 */
+      function promptDirty(name) {
+        return state.prompts[name] !== JSON.parse(state.saved).prompts[name];
       }
 
       function renderTabs() {
@@ -321,8 +390,48 @@
       for (const id of ['p-name', 'p-role', 'p-backstory', 'p-personality']) {
         $(id).addEventListener('input', () => { collectPersonaFields(); refreshDirty(); });
       }
-      $('t-wordgen').addEventListener('input', () => { state.prompts['wordgen-system'] = $('t-wordgen').value; refreshDirty(); });
-      $('t-dialogue').addEventListener('input', () => { state.prompts['dialogue-system'] = $('t-dialogue').value; refreshDirty(); });
+      // ── 시스템 프롬프트 편집 ───────────────────────────────────
+      // 화면에는 지금 고른 템플릿 하나만 뜨지만, 편집 중인 원문은 전부 state.prompts 에
+      // 살아 있다. 탭을 옮겨 다녀도 저장 전 초안이 날아가지 않고, 미리보기도 이 초안을 쓴다.
+      function renderPromptTabs() {
+        const tabs = $('prompt-tabs');
+        if (!tabs) return;
+        tabs.innerHTML = '';
+        for (const name of Object.keys(state.prompts)) {
+          const b = document.createElement('button');
+          b.textContent = promptLabel(name) + (promptDirty(name) ? ' ●' : '');
+          b.className = name === state.selectedPrompt ? 'active' : '';
+          b.onclick = () => {
+            state.selectedPrompt = name;
+            renderPromptFields();
+            refreshDirty();
+          };
+          tabs.appendChild(b);
+        }
+      }
+
+      function renderPromptFields() {
+        const name = state.selectedPrompt;
+        const meta = PROMPT_META[name] ?? {};
+        $('t-prompt').value = state.prompts[name] ?? '';
+
+        const warn = $('prompt-warn');
+        warn.hidden = !meta.warn;
+        warn.innerHTML = meta.warn ?? '';
+
+        const vars = (meta.vars ?? []).map((v) => `<code>{{${v}}}</code>`).join(' ');
+        $('prompt-legend').innerHTML =
+          `<b>${name}.txt</b>` +
+          (vars ? `<br />치환 변수: ${vars}` : '<br />치환 변수 없음') +
+          (meta.note ? `<br />${meta.note}` : '');
+        $('save-prompt').textContent = `「${promptLabel(name)}」 저장`;
+        setStatus('prompt-status', '');
+      }
+
+      $('t-prompt').addEventListener('input', () => {
+        state.prompts[state.selectedPrompt] = $('t-prompt').value;
+        refreshDirty();
+      });
 
       // ── 접선 코드 단어 풀 편집 ─────────────────────────────────
       const currentCat = () => state.pool[state.selectedCat];
@@ -429,16 +538,26 @@
         } catch (e) { setStatus('personas-status', e.message, 'err'); }
       };
 
-      const savePrompt = (name, textareaId, statusId) => async () => {
+      // 열려 있는 탭 하나만 저장한다. 전부 한 번에 쓰면 어느 파일이 왜 바뀌었는지
+      // git diff 에서 갈라 읽을 수 없다.
+      $('save-prompt').onclick = async () => {
+        const name = state.selectedPrompt;
         try {
-          const r = await api('/prompts/' + name, { method: 'PUT', body: JSON.stringify({ text: $(textareaId).value }) });
-          state.prompts[name] = $(textareaId).value;
+          const r = await api('/prompts/' + name, {
+            method: 'PUT',
+            body: JSON.stringify({ text: $('t-prompt').value }),
+          });
+          state.prompts[name] = $('t-prompt').value;
           snapshot();
-          setStatus(statusId, r.warnings?.length ? '저장됨 · ⚠ ' + r.warnings.join(' ') : '저장됨 — 다음 호출부터 반영됩니다.', r.warnings?.length ? 'err' : 'ok');
-        } catch (e) { setStatus(statusId, e.message, 'err'); }
+          setStatus(
+            'prompt-status',
+            r.warnings?.length
+              ? '저장됨 · ⚠ ' + r.warnings.join(' ')
+              : `「${promptLabel(name)}」 저장됨 — 다음 호출부터 반영됩니다.`,
+            r.warnings?.length ? 'err' : 'ok',
+          );
+        } catch (e) { setStatus('prompt-status', e.message, 'err'); }
       };
-      $('save-wordgen').onclick = savePrompt('wordgen-system', 't-wordgen', 'wordgen-status');
-      $('save-dialogue').onclick = savePrompt('dialogue-system', 't-dialogue', 'dialogue-status');
 
       // ── 미리보기 ──────────────────────────────────────────────
       const busy = (btns, on) => btns.forEach((id) => ($(id).disabled = on));
@@ -452,7 +571,7 @@
         try {
           const r = await api('/preview/wordgen', {
             method: 'POST',
-            body: JSON.stringify({ codeWord, ally: currentAlly(), promptOverride: $('t-wordgen').value }),
+            body: JSON.stringify({ codeWord, ally: currentAlly(), promptOverride: state.prompts['wordgen-system'] }),
           });
           $('pv-word-out').innerHTML =
             `<b>${currentAlly().name}</b> → 「${r.word}」\n<span class="meta">이유: ${r.reason}\n${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
@@ -470,7 +589,7 @@
         try {
           const r = await api('/preview/wordgen-all', {
             method: 'POST',
-            body: JSON.stringify({ codeWord, allies: state.allies, promptOverride: $('t-wordgen').value }),
+            body: JSON.stringify({ codeWord, allies: state.allies, promptOverride: state.prompts['wordgen-system'] }),
           });
           const byId = Object.fromEntries(state.allies.map((a) => [a.id, a]));
           const lines = r.associations.map((a) => {
@@ -504,7 +623,7 @@
               alertLevel: $('pv-alert').value,
               arrestedCount: $('pv-arrested').value,
               message,
-              promptOverride: $('t-dialogue').value,
+              promptOverride: state.prompts['dialogue-system'],
             }),
           });
           $('pv-talk-out').innerHTML = `<b>${currentAlly().name}</b>: ${r.reply}\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
@@ -520,12 +639,14 @@
           state.allies = data.allies;
           state.prompts = data.prompts;
           state.pool = Object.entries(data.categories).map(([name, words]) => ({ name, text: words.join(', ') }));
-          $('t-wordgen').value = data.prompts['wordgen-system'];
-          $('t-dialogue').value = data.prompts['dialogue-system'];
+          // 탭 목록은 서버가 준 템플릿 그대로다 — 새 프롬프트를 TEMPLATES 에 넣으면
+          // 이 화면은 손대지 않아도 탭이 하나 늘어난다.
+          state.selectedPrompt = Object.keys(state.prompts)[0] ?? null;
           renderDatalist(data.categories);
           snapshot();
           renderTabs();
           renderPersonaFields();
+          renderPromptFields();
           renderCatTabs();
           renderCatFields();
         } catch (e) {
