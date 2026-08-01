@@ -73,6 +73,7 @@ const reveal = await post('/interrogation/answer', {
   sessionId: did,
   answer: '저는 배달부입니다. 짐을 나릅니다.',
 });
+ok(reveal.status === 200, '200', String(reveal.status));
 ok(reveal.body.state.detection <= 80, '노출로 감소', `${reveal.body.state.detection}`);
 
 // ── 5. 게이지 0 → 패배 ────────────────────────────────────────────
@@ -92,9 +93,11 @@ ok(dead.body.state.outcome === 'lose', '패배 확정', dead.body.state.outcome 
 
 // ── 6. 8문 방어 → 승리 ────────────────────────────────────────────
 // 7문을 이미 넘긴 상태에서 한 번만 더 방어하면 승리다 (LLM 8회를 태우지 않는다).
+// confidence: 0 으로 못박아 선언 분기가 못 터지게 한다 — 안 그러면 이번 답변에
+// LLM 이 매기는 확신도가 우연히 임계를 넘어 선언이 적중, win 이 lose 로 뒤집힐 수 있다.
 console.log('\n[6] 8문 방어 → 승리');
 const f = await post('/interrogation/start', {
-  debug: { identityId: 'courier', asked: 7 },
+  debug: { identityId: 'courier', asked: 7, confidence: 0 },
 });
 const fid = f.body.state.sessionId;
 await post('/interrogation/question', { sessionId: fid });
@@ -122,6 +125,27 @@ ok(
   dec.body.state.declaresLeft === 1 || dec.body.state.outcome === 'lose',
   '선언 잔여가 줄거나 적중해 끝난다',
   `잔여 ${dec.body.state.declaresLeft} · ${dec.body.state.outcome ?? '진행'}`,
+);
+
+// ── 8. 선언 횟수 소진 → 무제한 추리 금지 ───────────────────────────
+// declaresLeft 를 0 으로 못박아 두면, 확신도가 임계 위여도 더는 선언이 나오면 안 된다.
+// (DECLARE_MAX 가 실제로 문지기 역할을 하는지 확인 — 안 그러면 로봇이 매 턴 찍어서 이긴다.)
+console.log('\n[8] 선언 횟수 소진 → 무제한 추리 금지');
+const h = await post('/interrogation/start', {
+  debug: { identityId: 'courier', confidence: 95, declaresLeft: 0 },
+});
+const hid = h.body.state.sessionId;
+ok(h.body.state.declaresLeft === 0, '선언 잔여 0 세팅', `${h.body.state.declaresLeft}`);
+await post('/interrogation/question', { sessionId: hid });
+const exhausted = await post('/interrogation/answer', {
+  sessionId: hid,
+  answer: '짐을 지고 골목을 돌며 집집마다 물건을 가져다줍니다.',
+});
+ok(exhausted.status === 200, '200', String(exhausted.status));
+ok(
+  exhausted.body.declaration === null,
+  '선언 잔여 소진 시 선언 없음',
+  JSON.stringify(exhausted.body.declaration),
 );
 
 console.log(failures ? `\n실패 ${failures}건\n` : '\n전부 통과\n');

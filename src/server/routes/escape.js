@@ -47,6 +47,8 @@ router.post('/interrogation/start', async (req, res, next) => {
       // 디버그가 요청한 id 가 그 3장에 없으면 조용히 실패해 identity 가 null 로
       // 남는다. 디버그는 표본과 무관하게 "이 신분으로 강제 세팅"이 목적이므로
       // 전체 신분 풀(data.identities)에서 직접 찾는다.
+      // 주의: 이 경로는 identity 가 session.choices 안에 없을 수 있게 만든다 —
+      // "고른 카드는 항상 카드 3장 중 하나" 라는 전제가 개발 플래그에서는 깨진다.
       if (debug.identityId) {
         const forced = data.identities.find((i) => i.id === debug.identityId);
         if (forced) session.identity = forced;
@@ -54,6 +56,7 @@ router.post('/interrogation/start', async (req, res, next) => {
       if (Number.isFinite(debug.detection)) session.detection = debug.detection;
       if (Number.isFinite(debug.asked)) session.asked = debug.asked;
       if (Number.isFinite(debug.confidence)) session.confidence = debug.confidence;
+      if (Number.isFinite(debug.declaresLeft)) session.declaresLeft = debug.declaresLeft;
       if (debug.forgiven === true) session.contradictionForgiven = true;
       console.log(`[escape] 세션 ${sessionId.slice(0, 8)} — 개발 플래그 적용`);
     }
@@ -173,24 +176,36 @@ router.post('/interrogation/answer', async (req, res, next) => {
     if (!session.outcome && session.confidence >= DECLARE_THRESHOLD && session.declaresLeft > 0) {
       const guess = await declareGuess({ history: session.history });
       if (!guess.fallback && guess.word) {
-        session.declaresLeft -= 1;
-        const { correct } = await judgeGuess({
-          codeWord: session.identity.word,
-          guess: guess.word,
-        });
-        declaration = { word: guess.word, hit: correct };
-        if (correct) {
-          session.outcome = 'lose';
-          events.push('exposed');
-        } else {
-          events.push('declare-missed');
-          // 빗나간 선언은 확신을 깎는다. 안 깎으면 남은 매 턴마다 선언이 터진다.
-          session.confidence = 0;
+        // judgeGuess(ai/judge.js) 는 표기 일치·빈 입력 빠른 경로만 네트워크를 안 탄다 —
+        // 나머지 경로는 fail-open 이 아니라 그대로 던진다. 여기서 던지게 두면
+        // declaresLeft(단 2회)가 화면에 선언을 보여주지도 못한 채 소모되므로,
+        // 판정 실패는 선언을 없던 일로 하고 턴을 그대로 진행한다. 소모(-1)는
+        // 판정이 실제로 끝난 뒤로 미룬다.
+        let correct;
+        try {
+          ({ correct } = await judgeGuess({
+            codeWord: session.identity.word,
+            guess: guess.word,
+          }));
+        } catch (err) {
+          console.warn('[escape] 선언 적중 판정 실패 — 이번 선언을 없던 일로 처리', err.message);
         }
-        console.log(
-          `[escape] 추리 선언 "${guess.word}" → ${correct ? '적중' : '빗나감'}` +
-            ` (잔여 ${session.declaresLeft})`,
-        );
+        if (correct !== undefined) {
+          session.declaresLeft -= 1;
+          declaration = { word: guess.word, hit: correct };
+          if (correct) {
+            session.outcome = 'lose';
+            events.push('exposed');
+          } else {
+            events.push('declare-missed');
+            // 빗나간 선언은 확신을 깎는다. 안 깎으면 남은 매 턴마다 선언이 터진다.
+            session.confidence = 0;
+          }
+          console.log(
+            `[escape] 추리 선언 "${guess.word}" → ${correct ? '적중' : '빗나감'}` +
+              ` (잔여 ${session.declaresLeft})`,
+          );
+        }
       }
     }
 
