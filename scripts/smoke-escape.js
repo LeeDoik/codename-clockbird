@@ -93,11 +93,14 @@ ok(dead.body.state.outcome === 'lose', '패배 확정', dead.body.state.outcome 
 
 // ── 6. 8문 방어 → 승리 ────────────────────────────────────────────
 // 7문을 이미 넘긴 상태에서 한 번만 더 방어하면 승리다 (LLM 8회를 태우지 않는다).
-// confidence: 0 으로 못박아 선언 분기가 못 터지게 한다 — 안 그러면 이번 답변에
-// LLM 이 매기는 확신도가 우연히 임계를 넘어 선언이 적중, win 이 lose 로 뒤집힐 수 있다.
+// declaresLeft: 0 으로 못박는다 — 선언 분기가 applyVerdict 직후·승리 판정보다
+// 먼저 돌아서, 안 막으면 이번 답변에 LLM 이 매기는 확신도가 우연히 임계를
+// 넘을 때 (declaresLeft > 0 조건이 참이라) 선언이 터져 적중 시 win 이 lose 로
+// 뒤집힌다. declaresLeft: 0 은 그 조건을 LLM 호출 전에 거짓으로 만들어
+// 확신도 값과 무관하게 이 검사를 결정적으로 만든다.
 console.log('\n[6] 8문 방어 → 승리');
 const f = await post('/interrogation/start', {
-  debug: { identityId: 'courier', asked: 7, confidence: 0 },
+  debug: { identityId: 'courier', asked: 7, declaresLeft: 0 },
 });
 const fid = f.body.state.sessionId;
 await post('/interrogation/question', { sessionId: fid });
