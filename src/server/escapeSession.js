@@ -11,6 +11,9 @@ import { randomUUID } from 'node:crypto';
  *     정확히 읽어, 그 직전에만 말을 아끼는 최적해가 생긴다
  *   - `contradictionForgiven` — 첫 모순 사면을 이미 썼는가
  *   - `history` — 심문 이력 원문 (프롬프트 재료)
+ *
+ * `DECLARE_THRESHOLD` 와 `declaresLeft` 는 이 파일에서는 아직 쓰이지 않는다 — 확신도가
+ * 임계에 닿았을 때 로봇이 정식 추리를 선언하는 로직은 이후 태스크(HTTP 라우트)가 담당한다.
  */
 const sessions = new Map();
 
