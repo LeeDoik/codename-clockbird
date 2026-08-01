@@ -41,7 +41,25 @@ const ok = (cond, label, extra = '') => {
 };
 
 const isBlocked = makeBlockedLookup(map);
-const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+/**
+ * Phaser.Math.Angle.Wrap 과 반드시 같은 값을 내야 한다 — Sentry.js #move() 가 실제로
+ * 그 함수로 회전을 보간한다(이 스크립트는 Phaser 를 import 하지 않으므로 알고리즘을
+ * 그대로 옮겨 적는다. node_modules/phaser/src/math/Wrap.js·math/angle/Wrap.js 참고).
+ *
+ * atan2(sin(a), cos(a)) 트릭은 언뜻 "각도를 감는다"는 목적에 맞아 보이지만 정확히
+ * ±π 에서 Phaser 와 부호가 갈린다 — 실측: Phaser.Math.Angle.Wrap(π) = -π 인데
+ * atan2 트릭은 +π 를 낸다. 이 맵의 SENTRY_ROUTES 는 셋 다 완전한 수평 왕복이라
+ * 순방향·역방향 각도가 정확히 {0, π} 이고, 따라서 seesDuringTurn 의 모든 끝점
+ * 회전에서 diff(turnTo - turnFrom)가 정확히 그 경계값에 걸린다. atan2 트릭을 쓰면
+ * 이 경계에서 부호가 뒤집혀 facing 이 실제 게임과 거울상인 반대쪽 반원을 훑는다 —
+ * 체크포인트가 진짜 위험한 쪽에 있어도 검사는 안전한 반대쪽만 보고 ✔ 를 찍는다.
+ * "atan2 로 더 간단하게" 되돌리지 말 것 — 간단해 보이는 건 이 맵 데이터가 항상
+ * 그 경계값(±π)을 정확히 찍기 때문에 드러나지 않을 뿐, 틀린 결과다.
+ */
+const wrap = (a) => {
+  const range = Math.PI * 2;
+  return -Math.PI + (((a + Math.PI) % range) + range) % range;
+};
 const HALF_CONE_RAD = ((CONE_ANGLE / 2) * Math.PI) / 180;
 
 /**
@@ -76,9 +94,10 @@ const TURN_SAMPLES = 180;
  * Sentry.js #move() 의 pauseLeft 분기를 그대로 재현한다: 도착 직후 facing 은
  * turnFrom(도착할 때까지의 진행 방향)에서 turnTo(다음 목표를 향한 방향)까지
  * TURN_PAUSE_MS 에 걸쳐 감은 각도차만큼 선형 보간된다
- * (facing = wrap(turnFrom + wrap(turnTo - turnFrom) * t)). 각도 감기를 빠뜨리면
- * −π/π 경계에서 반대 방향으로 돌게 재는 버그가 생긴다 — Sentry.js 와 동일하게
- * wrap 을 두 번(diff, facing) 다 적용한다.
+ * (facing = wrap(turnFrom + wrap(turnTo - turnFrom) * t)). wrap 을 빠뜨리거나
+ * (위 wrap 정의의 주석 참고) Phaser 와 다른 방식으로 감으면 −π/π 경계에서 부호가
+ * 갈려 반대 방향으로 도는 것으로 잘못 잰다 — 위 wrap 이 Phaser.Math.Angle.Wrap 과
+ * 정확히 같아야 하는 이유가 바로 여기서 diff·facing 둘 다에 쓰이기 때문이다.
  *
  * route 배열 길이에 매이지 않는다 — 지금 SENTRY_ROUTES 는 2점 왕복이지만, 이 함수는
  * 웨이포인트 개수와 무관하게 "도착 시점의 진행 방향 → 다음 목표 방향" 회전을
@@ -108,6 +127,11 @@ for (const [i, cp] of CHECKPOINTS.entries()) {
 console.log('\n[2] 체크포인트가 어떤 순찰 지점의 콘에도 안 들어가는가');
 // 경로를 100 등분해 양방향 전부 검사한다 — 한 지점만 재면 왕복 중 한쪽을 놓친다.
 // 여기서는 "이동 중" 만 본다 — 웨이포인트에서 멈춰 도는 구간은 [3]에서 따로 훑는다.
+// 주의: 샘플 간격(경로 길이/100 — 지금 맵은 약 7.7px)은 체크포인트가 경로에서
+// 수직으로 멀어질수록 콘이 스치는 이동 구간(감지 창)을 좁힌다. 지금 CHECKPOINTS
+// 5곳은 전부 자기 경로와 수직 거리 0(경로가 지나는 행·열 선상)이라 무관하지만,
+// 나중에 축에서 크게 벗어난 체크포인트를 넣을 때는 100 등분으로 그 좁은 창을
+// 완전히 건너뛸 수 있다 — 그때는 s 상한을 올려야 한다.
 for (const [i, cp] of CHECKPOINTS.entries()) {
   const p = at(cp.col, cp.row);
   let hit = null;
