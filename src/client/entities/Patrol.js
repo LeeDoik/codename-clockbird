@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import mapData from '../assets/map.json';
+import { hasLineOfSight, makeBlockedLookup, LOS_STEP } from '../world/los.js';
 
 /**
  * 순찰 로봇.
@@ -29,10 +30,10 @@ const RADIUS_PER_LEVEL = 26;
 const MAX_LEVEL = 3;
 /** 웨이포인트 도착 판정 반경 (px) */
 const ARRIVE_EPS = 5;
-/** 시야 판정에 쓰는 광선 샘플 간격 (px). 타일 32px 보다 촘촘해야 벽을 안 뚫는다. */
-const LOS_STEP = 8;
 
 const TILE = mapData.tileSize;
+/** 거리 맵은 walkmask 를 쓰지 않는다 — layout 의 solid 가 원본이다. */
+const IS_BLOCKED = makeBlockedLookup(mapData);
 /** 타일 좌표 → 픽셀 중심 */
 const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 });
 
@@ -159,28 +160,9 @@ export class Patrol {
   sees(target, alertLevel) {
     const dist = Math.hypot(target.x - this.sprite.x, target.y - this.sprite.y);
     if (dist > this.radius(alertLevel)) return false;
-    return this.#hasLineOfSight(target);
-  }
-
-  /**
-   * 벽 관통 검문 방지.
-   *
-   * 이게 없으면 로봇이 방 하나를 사이에 두고 플레이어를 "투시"해 세운다. 콘은
-   * 화면에 그려지는데 그 안이 벽이라는 걸 판정이 모르면 플레이어는 이유를 알 수 없다.
-   */
-  #hasLineOfSight(target) {
-    const dx = target.x - this.sprite.x;
-    const dy = target.y - this.sprite.y;
-    const steps = Math.ceil(Math.hypot(dx, dy) / LOS_STEP);
-
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      const col = Math.floor((this.sprite.x + dx * t) / TILE);
-      const row = Math.floor((this.sprite.y + dy * t) / TILE);
-      const tile = mapData.layout[row]?.[col];
-      if (tile === undefined || mapData.tiles[tile].solid) return false;
-    }
-    return true;
+    // 벽 관통 검문 방지. 이게 없으면 로봇이 방 하나를 사이에 두고 플레이어를 "투시"해
+    // 세운다. 콘은 화면에 그려지는데 그 안이 벽이라는 걸 판정이 모르면 이유를 알 수 없다.
+    return hasLineOfSight(this.sprite, target, TILE, IS_BLOCKED, LOS_STEP);
   }
 
   destroy() {
