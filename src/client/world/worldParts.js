@@ -211,12 +211,40 @@ const BODY_MAX_H = 0.65;
 /**
  * 걷는 속도 / 캐릭터 높이.
  *
- * 속도를 200 으로 못박아 두면 그림이 큰 맵에서 발이 느려 보인다 — 같은 200px/s 라도
- * 32px 캐릭터에게는 초당 여섯 걸음이고 96px 캐릭터에게는 두 걸음이다. 눈이 재는 것은
- * 절대 픽셀이 아니라 **제 키의 몇 배를 갔는가** 라서, 키에 비례시켜야 어느 맵에서나
- * 같은 발놀림이 된다. 32px 에서는 예전 값(200)과 정확히 같다.
+ * 절대 픽셀로 못박으면 그림이 큰 맵에서 발이 느려 보인다 — 같은 200px/s 라도 32px
+ * 캐릭터에게는 초당 여섯 걸음이고 96px 캐릭터에게는 두 걸음이다. 눈이 재는 것은 절대
+ * 픽셀이 아니라 **제 키의 몇 배를 갔는가** 라서 키에 비례시킨다.
+ *
+ * 6.25(=200/32)에서 3.0 으로 낮췄다. 6.25 는 걷기 그림 한 걸음(0.31초) 동안 **제 키의
+ * 1.9배**를 미끄러지는 속도다 — 사람의 보폭은 걸을 때 키의 0.4~0.5배, 전력질주라도
+ * 0.8~1.0배다. 다리는 걷는 시늉만 하고 몸은 그 네 배를 나가니 발이 땅을 안 딛는 것처럼
+ * 보였다(공중부양). 캐릭터가 32px 이던 시절부터 있던 값인데, 96px 로 키우면서 드러났다.
+ *
+ * 3.0 은 STRIDE_RATIO 와 짝이다 — 이 속도에서 timeScale 이 정확히 1 이 되어 손으로
+ * 그린 프레임률이 그대로 나온다. 속도를 여기서 바꿔도 그림은 알아서 따라온다.
  */
-const SPEED_RATIO = 200 / DEFAULT_CHAR_HEIGHT;
+const SPEED_RATIO = 3.0;
+
+/**
+ * 한 걸음에 나아가는 거리 / 캐릭터 높이 — **걷는 그림의 재생 속도를 정하는 기준**이다.
+ *
+ * 걷기 시트는 방향마다 8프레임이고 한 사이클이 두 걸음이다. 손으로 정한 프레임률
+ * (BootScene 의 CYCLE_SECONDS)은 고정이라, 이동 속도가 바뀌면 발이 미끄러진다.
+ * 그래서 매 프레임 **실제 속도를 보고 재생 속도를 맞춘다** — 보폭이 늘 이 비율로
+ * 유지되므로 속도를 어떻게 잡아도 발이 땅에 붙어 있다.
+ *
+ * 0.92 는 지금 그림의 박자에서 역산한 값이다: 8프레임 13fps → 한 걸음 0.31초 →
+ * 초당 3.25걸음. 사람이 걸을 때가 초당 1.8~2.0걸음, 달릴 때가 2.6~3.0이니 이 그림은
+ * 이미 **달리는 박자**다. 거기 맞는 보폭이 키의 0.8~1.0배다.
+ */
+const STRIDE_RATIO = 0.92;
+
+/**
+ * 재생 속도 상·하한. 벽에 붙어 밀거나(속도는 살아 있는데 안 움직인다) 씬이 속도를
+ * 따로 넘길 때 다리가 정지하거나 깜빡이지 않게 잘라 둔다.
+ */
+const ANIM_SCALE_MIN = 0.5;
+const ANIM_SCALE_MAX = 2.5;
 
 /** 플레이어 — 맵이 지정한 스폰 칸 중앙에 두고 벽과 충돌시킨다. */
 export function createPlayer(scene, mapData, walls, frame = 0) {
@@ -285,16 +313,34 @@ export function createPlayerVisual(
     visual.play(key);
   };
 
+  /**
+   * 이 속도에서 손으로 그린 프레임률이 그대로 맞는다 (timeScale = 1).
+   * 여기서 벗어난 만큼만 재생 속도를 당기거나 늦춘다 — 보폭이 늘 STRIDE_RATIO 로
+   * 유지되므로 씬이 속도를 바꿔도 발이 미끄러지지 않는다.
+   */
+  const referenceSpeed = displayHeight * SPEED_RATIO;
+
   return {
     node: visual,
-    /** 씬의 update() 에서 매 프레임 부른다 — 위치를 따라가고, 속도로 방향을 고른다. */
+    /** 씬의 update() 에서 매 프레임 부른다 — 위치를 따라가고, 속도로 방향·박자를 고른다. */
     update() {
       visual.setPosition(player.x, player.y);
       const { x: vx, y: vy } = player.body.velocity;
       if (vx === 0 && vy === 0) {
+        // 서 있는 그림은 걷기와 박자가 무관하다 — 배속을 되돌려 놓지 않으면
+        // 마지막으로 걷던 속도가 그대로 남아 숨쉬기가 빨라진다.
+        visual.anims.timeScale = 1;
         play(idle);
         return;
       }
+
+      // 걷는 그림의 재생 속도를 실제 이동 속도에 맞춘다 (STRIDE_RATIO 주석 참고).
+      const speed = Math.hypot(vx, vy);
+      visual.anims.timeScale = Math.min(
+        ANIM_SCALE_MAX,
+        Math.max(ANIM_SCALE_MIN, speed / referenceSpeed),
+      );
+
       if (Math.abs(vx) > Math.abs(vy)) {
         play(vx > 0 ? walkRight : walkLeft);
       } else {
@@ -314,10 +360,15 @@ export function applyMovement(player, { cursors, wasd, speed = player.walkSpeed 
   const up = cursors.up.isDown || wasd.W.isDown;
   const down = cursors.down.isDown || wasd.S.isDown;
 
-  player.body.setVelocity(
-    (right ? speed : 0) - (left ? speed : 0),
-    (down ? speed : 0) - (up ? speed : 0),
-  );
+  const dx = (right ? 1 : 0) - (left ? 1 : 0);
+  const dy = (down ? 1 : 0) - (up ? 1 : 0);
+
+  // 대각선은 길이를 1로 맞춘다. 두 축에 각각 speed 를 주면 √2 배(41%) 빨라져서,
+  // 어디를 가든 대각선으로 지그재그 하는 것이 최적이 된다 — 순찰을 피하는 게임에서는
+  // 그게 곧 난이도 구멍이다. 걷는 그림의 재생 속도도 실제 속도를 보므로, 안 맞추면
+  // 대각선에서만 발이 41% 미끄러진다.
+  const len = Math.hypot(dx, dy) || 1;
+  player.body.setVelocity((dx / len) * speed, (dy / len) * speed);
 }
 
 /**

@@ -68,7 +68,14 @@ export const SENTRY_ROUTES = [
 export const CHILD = { col: 26, row: 40 };
 
 // ── 감지 상수 (Sentry 와 검증 스크립트가 같은 값을 봐야 한다) ──
-/** 이동 속도 (px/s). 플레이어(200)의 45% — 마주쳐도 뒤로 빼서 엄폐물까지 갈 수 있어야 한다. */
+/**
+ * 이동 속도 (px/s). 마주쳐도 뒤로 빼서 엄폐물까지 갈 수 있어야 한다.
+ *
+ * ⚠ 이 값(90)은 캐릭터가 32px·플레이어가 200px/s 이던 시절의 것이다(그때 45%).
+ * 지금 수로의 플레이어는 264px/s(charHeight 88 × SPEED_RATIO 3.0)라 34% 로 떨어졌다.
+ * CONE_RANGE(220px)도 같은 사정이라 예전엔 키의 6.9배였던 시야가 지금은 2.5배다 —
+ * 스테이지 3 이 설계보다 쉬워져 있다. 고치려면 npm run check:escape 를 다시 태워라.
+ */
 export const SENTRY_SPEED = 90;
 /** 부채꼴 각 (도) */
 export const CONE_ANGLE = 70;

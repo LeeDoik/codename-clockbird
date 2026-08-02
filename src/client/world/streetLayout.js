@@ -35,8 +35,9 @@ export const REINFORCE_AT = 2;
 
 /**
  * 밸런스 상수 — 플레이테스트 후 손댈 곳이 여기뿐이어야 한다.
- * 순찰 속도는 어떤 경계 레벨에서도 플레이어(200)보다 느리다 — 걸리면 무조건 검문이지
- * 도망칠 방법이 없는 게임은 만들지 않는다.
+ * 순찰 속도는 어떤 경계 레벨에서도 플레이어보다 느려야 한다 — 걸리면 무조건 검문이지
+ * 도망칠 방법이 없는 게임은 만들지 않는다. 거리의 플레이어는 192px/s 다
+ * (charHeight 64 × worldParts.SPEED_RATIO 3.0). 순찰은 60~105 이니 1.8~3.2배 빠르다.
  */
 export const SPEED_BASE = 60;
 export const SPEED_PER_LEVEL = 15;
