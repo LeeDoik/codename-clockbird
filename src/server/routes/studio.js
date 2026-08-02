@@ -220,10 +220,18 @@ function patchMansionNpcFields(text, npcs) {
     const m = text.match(blockRe);
     if (!m) throw new Error(`mansion.json 에서 ${id} 블록을 찾을 수 없습니다.`);
     let block = m[0];
-    block = block.replace(/"name":\s*"(?:[^"\\]|\\.)*"/, `"name": ${JSON.stringify(name)}`);
-    block = block.replace(/"line":\s*"(?:[^"\\]|\\.)*"/, `"line": ${JSON.stringify(line)}`);
-    block = block.replace(/"backstory":\s*"(?:[^"\\]|\\.)*"/, `"backstory": ${JSON.stringify(backstory)}`);
-    block = block.replace(/"personality":\s*"(?:[^"\\]|\\.)*"/, `"personality": ${JSON.stringify(personality)}`);
+    for (const [key, value] of Object.entries({ name, line, backstory, personality })) {
+      const fieldRe = new RegExp(`"${key}":\\s*"(?:[^"\\\\]|\\\\.)*"`);
+      if (!fieldRe.test(block)) {
+        throw new Error(`mansion.json 의 ${id} 블록에서 ${key} 필드를 찾을 수 없습니다.`);
+      }
+      // replace 의 두 번째 인자가 "문자열"이면 그 안의 $&·$$·$`·$' 를 특수 치환
+      // 패턴으로 해석한다 — value 는 팀원이 textarea 에 친 임의 문자열이라
+      // "A&B" 같은 흔한 입력에도 매치 전체가 끼어들어 JSON 이 깨질 수 있다.
+      // 함수를 넘기면 반환값이 그대로 삽입되어 그 해석을 피한다. 절대 문자열로
+      // 되돌리지 말 것.
+      block = block.replace(fieldRe, () => `"${key}": ${JSON.stringify(value)}`);
+    }
     text = text.slice(0, m.index) + block + text.slice(m.index + m[0].length);
   }
   return text;
@@ -272,7 +280,16 @@ router.put('/mansion-npcs', async (req, res, next) => {
       };
     });
 
-    await writeFile(MANSION_URL, patchMansionNpcFields(raw, file.npcs), 'utf8');
+    const patched = patchMansionNpcFields(raw, file.npcs);
+    // 이중 안전망 — 위 치환 로직에 놓친 경로가 있어도 깨진 결과가 디스크에
+    // 닿기 전에 여기서 막는다. 이 파일에는 스테이지 2 등장인물 전부와
+    // 저장소 주인의 다른 미커밋 작업이 함께 들어 있어, 조용히 깨지면 피해가 크다.
+    try {
+      JSON.parse(patched);
+    } catch (parseErr) {
+      throw new Error(`저택 인물 저장 결과가 손상되어 취소했습니다 (파일은 바뀌지 않았습니다): ${parseErr.message}`);
+    }
+    await writeFile(MANSION_URL, patched, 'utf8');
     res.json({ ok: true, npcs: file.npcs.map(({ id, name, kind, room, line, backstory, personality }) => ({
       id, name, kind, room, line, backstory, personality,
     })) });
