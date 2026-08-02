@@ -1,5 +1,18 @@
 # 배치 파일은 항상 CRLF 로 체크아웃 — LF 면 Windows cmd 가 파싱에 실패한다.
 *.bat text eol=crlf
-
-# 바이너리 에셋은 라인엔딩 변환 금지
-*.png binary
+# 그림·영상은 Git LFS 로 보낸다 (2026-08-02).
+#
+# 배경 한 장이 3~4MB 이고 다시 구울 때마다 히스토리에 사본이 통째로 쌓인다 —
+# 몇 번만 반복해도 클론이 무거워진다. LFS 는 히스토리에 포인터(130바이트)만 남기고
+# 실제 파일은 따로 받아온다.
+#
+# ⚠ 클론한 뒤 **git lfs install** 을 한 번 해야 한다. 안 하면 그림 파일 자리에
+#   포인터 텍스트가 들어와 게임 화면이 통째로 비어 보인다 (README 참고).
+#   이미 그렇게 받았다면: git lfs install && git lfs pull
+#
+# 히스토리는 재작성하지 않았다 — 이 저장소는 기여자가 둘이고 원격 브랜치가 여럿이라
+# lfs migrate 로 SHA 를 갈아엎으면 남의 클론과 그 브랜치들이 전부 끊긴다.
+# 이 커밋 이전 판은 여전히 일반 blob 으로 남아 있다.
+*.png filter=lfs diff=lfs merge=lfs -text
+*.webp filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text

@@ -13,8 +13,19 @@
 ### 사전 준비
 
 1. **Node.js 22 이상** ([nodejs.org](https://nodejs.org))
-2. **Anthropic API 키** — [console.anthropic.com](https://console.anthropic.com/settings/keys) 에서 발급
-3. `.env.example` 을 `.env` 로 복사한 뒤 키를 입력:
+2. **Git LFS** ([git-lfs.com](https://git-lfs.com)) — 그림·영상이 LFS 에 있습니다. 클론한 뒤 한 번:
+
+   ```bash
+   git lfs install
+   git lfs pull      # 이미 LFS 없이 클론했다면
+   ```
+
+   > ⚠ 이걸 건너뛰면 **게임 화면이 통째로 비어 보입니다.** 배경·스프라이트 자리에
+   > 그림 대신 130바이트짜리 포인터 텍스트가 들어오기 때문입니다. 파일 크기가
+   > `src/client/assets/street-bg.png` 기준 3.7MB 가 아니라 1KB 미만이면 이 경우입니다.
+
+3. **Anthropic API 키** — [console.anthropic.com](https://console.anthropic.com/settings/keys) 에서 발급
+4. `.env.example` 을 `.env` 로 복사한 뒤 키를 입력:
 
    ```
    ANTHROPIC_API_KEY=sk-ant-...
