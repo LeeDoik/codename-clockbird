@@ -123,6 +123,7 @@ router.post('/interrogation/question', async (req, res, next) => {
         return question;
       })
       .catch((err) => {
+        console.warn('[escape] 질문 생성 실패 —', err.message);
         session.pendingQuestionPromise = null;
         throw err;
       });

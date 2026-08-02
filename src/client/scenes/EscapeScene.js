@@ -110,7 +110,10 @@ export class EscapeScene extends Phaser.Scene {
 
     this.panel = new MinigamePanel();
     this.dialogue = new DialogueBox();
-    this.child = this.add.sprite(...Object.values(at(CHILD.col, CHILD.row)), 'chars', 5);
+    // Object.values(at(...)) 는 at() 이 { x, y } 순서로 리턴하는 데 암묵적으로 기대던 것 —
+    // 그 리터럴 순서가 바뀌면(예: { y, x }) 에러 없이 좌표가 뒤바뀐다. 명시적으로 뽑는다.
+    const childPos = at(CHILD.col, CHILD.row);
+    this.child = this.add.sprite(childPos.x, childPos.y, 'chars', 5);
     this.asWorld?.(this.child);
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -258,8 +261,22 @@ export class EscapeScene extends Phaser.Scene {
     }
     // 패배·오류는 심문 직전으로 되돌린다 — 여기서 결과 화면을 덮으면 마지막 장면이
     // 통째로 날아간다. 탈출을 다시 걷게 하지도 않는다 (마지막 체크포인트에서 시작).
-    this.ended = false;
-    this.#respawn();
+    //
+    // #respawn() 끝의 fadeIn 은 #caught() 가 먼저 fadeOut 한 뒤 부르는 것을 전제로
+    // 한다 — 화면이 이미 검게 죽어 있어야 다시 밝아지는 연출이 자연스럽다. 이 경로는
+    // fadeOut 없이 밝은 화면 그대로 들어오므로, fadeOut 없이 바로 #respawn() 을 부르면
+    // 멀쩡한 화면이 느닷없이 검게 깜빡였다 돌아온다. #caught() 와 같은 순서(먼저
+    // fadeOut, 완료되면 #respawn())로 맞춘다.
+    //
+    // respawning 을 fadeOut 시작 전에 세운다 — update() 는 ended || respawning 일 때만
+    // 이동을 얼린다. ended 를 먼저 false 로 내리면 fadeOut 이 끝나는 400ms 동안 둘 다
+    // false 인 틈이 생겨, 화면이 검은 채로 캐릭터가 움직여 버린다.
+    this.respawning = true;
+    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.ended = false;
+      this.#respawn();
+    });
   }
 
   #toEnding() {

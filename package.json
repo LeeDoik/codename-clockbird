@@ -21,7 +21,7 @@
     "smoke:tutorial": "node scripts/smoke-tutorial.js",
     "smoke:mansion": "node scripts/smoke-mansion.js",
     "smoke:escape": "node scripts/smoke-escape.js",
-    "check:escape": "node scripts/check-escape-spawn.js && node scripts/check-los.js"
+    "check:escape": "node scripts/check-escape-spawn.js && node scripts/check-los.js && node scripts/check-escape-session.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
