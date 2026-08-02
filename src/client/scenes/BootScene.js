@@ -5,6 +5,7 @@ import tilesUrl from '../assets/tiles/tiles.png';
 import hqBgUrl from '../assets/hq-bg.png';
 import streetBgUrl from '../assets/street-bg.png';
 import mansionBgUrl from '../assets/mansion-bg.png';
+import escapeBgUrl from '../assets/escape-bg.png';
 import mansionDoorUrl from '../assets/mansion-door-open.png';
 import charsUrl from '../assets/chars.png';
 import officerIdleUrl from '../assets/npc/officer-idle.png';
@@ -42,11 +43,12 @@ export class BootScene extends Phaser.Scene {
     // 텍스처는 게임 전역이라 여기서 한 번 로드하면 StageScene 에서 바로 쓸 수 있다.
     this.load.spritesheet('tiles', tilesUrl, { frameWidth: 32, frameHeight: 32 });
     // 거리(스테이지 1)와 저택(스테이지 2)은 타일을 한 칸씩 깔지 않는다 — 바닥·건물·
-    // 소품·조명을 한 장에 구운 배경을 쓴다 (scripts/gen-{street,mansion}-art.js).
-    // 충돌은 각 map.json + *-props.json 이 맡는다.
+    // 가구까지 한 장에 구운 AI 배틀맵 배경 (scripts/import-map-art.js).
+    // 충돌은 각 맵 json + *-props.json 의 walk 가 맡는다.
     this.load.image('hq-bg', hqBgUrl);
     this.load.image('street-bg', streetBgUrl);
     this.load.image('mansion-bg', mansionBgUrl);
+    this.load.image('escape-bg', escapeBgUrl);
     this.load.image('mansion-door-open', mansionDoorUrl);
     // 캐릭터 8프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민 / 7 순찰 로봇
     this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });

@@ -8,6 +8,7 @@ import {
   DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
 import escapeData from '../assets/escape.json';
+import escapeProps from '../assets/escape-props.json';
 import { Sentry } from '../entities/Sentry.js';
 import { makeBlockedLookup } from '../world/los.js';
 // 좌표·상수의 단일 출처. 씬은 여기서만 읽는다 — 씬 안에 좌표를 다시 적지 않는다.
@@ -22,7 +23,8 @@ import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
  * 저택에서 문서를 훔쳐 지하로 도망친 직후다. 여기서는 말이 통하지 않는다 —
  * 경비는 구형 순찰 로봇이고, 걸리면 변명할 기회가 없다 (이미 문서를 쥐고 있다).
  *
- * 길은 ㄹ자 한 줄이라 잃을 수 없다. 어려운 것은 길이 아니라 **언제 지나가느냐**다.
+ * 길은 물웅덩이 넷을 도는 순환 통로다. 바깥 띠와 가운데 십자 복도가 전부라 잃을 수
+ * 없고, 어려운 것은 길이 아니라 **언제 지나가느냐**다 — 로봇 셋이 그 십자를 왕복한다.
  */
 
 /**
@@ -31,8 +33,7 @@ import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
  *
  * 앞의 두 상수는 **그 스프라이트 시트 안에서 인물이 어디 있는가**라, 시트를 바꾸면
  * 같이 바뀐다 (tutorial 시트 실측값 — TutorialScene 과 동일).
- * PLAYER_HEIGHT 만 다르다: 그건 **이 맵에서 화면에 얼마로 보일지**이고, 본부(9.6px 타일)와
- * 여기(32px 타일)는 월드 배율이 다르다. 여기서는 chars.png NPC(32px 무배율)와 키를 맞춘다.
+ * PLAYER_HEIGHT 만 다르다: 그건 **이 맵에서 화면에 얼마로 보일지**이고, 맵이 정한다.
  */
 const PLAYER_FRAME = 0;
 const PLAYER_ANIM = {
@@ -85,11 +86,9 @@ export class EscapeScene extends Phaser.Scene {
   }
 
   create() {
-    // 임시 배경 — 아트가 붙기 전까지 걷는 칸을 눈으로 구분하기 위한 것이다.
-    // escape-bg.png 가 들어오면 이 블록을 this.add.image 한 줄로 갈아 끼운다.
-    this.#drawPlaceholder();
-
-    this.walls = buildColliders(this, escapeData);
+    // 네 맵이 같은 방식이다 — 한 장에 구운 배경을 1:1 로 깔고 충돌만 따로 세운다.
+    this.add.image(0, 0, 'escape-bg').setOrigin(0, 0).setDepth(-100);
+    this.walls = buildColliders(this, escapeData, escapeProps);
     this.player = createPlayer(this, escapeData, this.walls, PLAYER_FRAME);
     this.player.setVisible(false);
     this.playerVisual = createPlayerVisual(
@@ -101,7 +100,8 @@ export class EscapeScene extends Phaser.Scene {
       PLAYER_HEIGHT,
     );
 
-    this.isBlocked = makeBlockedLookup(escapeData);
+    // 시야가 보는 벽은 충돌이 보는 벽과 같아야 한다 — 수로는 물이 시야를 막는다.
+    this.isBlocked = makeBlockedLookup(escapeData, escapeProps);
     this.sentries = SENTRY_ROUTES.map(
       (route) => new Sentry(this, { route, tileSize: TILE, isBlocked: this.isBlocked }),
     );
@@ -123,24 +123,11 @@ export class EscapeScene extends Phaser.Scene {
     // Object.values(at(...)) 는 at() 이 { x, y } 순서로 리턴하는 데 암묵적으로 기대던 것 —
     // 그 리터럴 순서가 바뀌면(예: { y, x }) 에러 없이 좌표가 뒤바뀐다. 명시적으로 뽑는다.
     const childPos = at(CHILD.col, CHILD.row);
-    this.child = this.add.sprite(childPos.x, childPos.y, 'chars', 5);
+    this.child = this.add.sprite(childPos.x, childPos.y, 'chars', 5).setScale(PLAYER_HEIGHT / 32);
     this.asWorld?.(this.child);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
-  }
-
-  /** 걷는 칸만 옅게 칠한 임시 바닥. 아트가 붙으면 통째로 사라진다. */
-  #drawPlaceholder() {
-    const g = this.add.graphics().setDepth(-100);
-    g.fillStyle(0x11131a, 1);
-    g.fillRect(0, 0, escapeData.cols * TILE, escapeData.rows * TILE);
-    g.fillStyle(0x39415c, 1);
-    for (let r = 0; r < escapeData.rows; r++) {
-      for (let c = 0; c < escapeData.cols; c++) {
-        if (escapeData.layout[r][c] === 0) g.fillRect(c * TILE, r * TILE, TILE - 1, TILE - 1);
-      }
-    }
   }
 
   update(time, delta) {
@@ -318,8 +305,10 @@ export class EscapeScene extends Phaser.Scene {
   }
 }
 
-// Interfaces 계약: 씬이 SEGMENTS · CHECKPOINTS 를 export 한다 (Task 8~10 이 참조).
-// 값 자체는 escapeLayout.js 가 유일한 출처다 — 여기서는 그 값을 이름만 바꿔 다시
-// 내보낼 뿐, 좌표를 이 파일에 다시 적지 않는다.
+// 값 자체는 escapeLayout.js 가 유일한 출처다 — 여기서는 그 값을 다시 내보낼 뿐,
+// 좌표를 이 파일에 적지 않는다.
+//
+// 옛 `SEGMENTS`(= CORRIDORS) 재수출은 지웠다. 걷는 길이 사각형 목록에서 그림
+// (escape-props.json 의 walk)으로 넘어가면서 CORRIDORS 자체가 없어졌고, 이 이름을
+// 읽는 곳도 없었다.
 export { CHECKPOINTS };
-export { CORRIDORS as SEGMENTS } from '../world/escapeLayout.js';

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { hasLineOfSight, rayDistance, LOS_STEP } from '../world/los.js';
-import { CONE_ANGLE, CONE_RANGE, SENTRY_SPEED, TURN_PAUSE_MS } from '../world/escapeLayout.js';
+import { CHAR_HEIGHT, CONE_ANGLE, CONE_RANGE, SENTRY_SPEED, TURN_PAUSE_MS } from '../world/escapeLayout.js';
 
 /**
  * 부채꼴 시야 순찰 로봇 — 스테이지 3 탈출 전용.
@@ -43,7 +43,11 @@ export class Sentry {
     this.coneAngle = coneAngle;
     this.coneRange = coneRange;
 
-    this.sprite = scene.add.sprite(route[0].x, route[0].y, 'chars', 7);
+    // chars.png 는 한 프레임이 32px 이라 무배율로 두면 이 맵의 사람(charHeight)보다
+    // 절반 크기로 선다 — 수로 그림에서 로봇만 인형처럼 작았다.
+    this.sprite = scene.add
+      .sprite(route[0].x, route[0].y, 'chars', 7)
+      .setScale(CHAR_HEIGHT / 32);
     this.cone = scene.add.graphics();
     this.reset();
   }
@@ -139,9 +143,13 @@ export class Sentry {
     this.cone.clear();
     // 안쪽을 옅게 채우고 가장자리를 진하게 둘러 경계가 어디까지인지 눈으로 재게 한다
     // (Patrol 의 원과 같은 원칙). 채우기만 하면 어디서부터 걸리는지 알 수 없다.
-    this.cone.fillStyle(0xc25b4a, 0.16);
+    //
+    // 값이 예전(0.16 / 0.5)보다 진하다. 임시 배경은 짙은 남색이라 그 위에서는 옅어도
+    // 읽혔는데, 수로 그림은 바닥이 밝은 돌이라 붉은 콘이 통째로 씻겨 사라졌다.
+    // 이 스테이지의 난이도는 전부 "바닥에 그려진 위험을 읽는다"에 걸려 있다.
+    this.cone.fillStyle(0xd8402c, 0.3);
     this.cone.fillPoints(points, true);
-    this.cone.lineStyle(2, 0xc25b4a, 0.5);
+    this.cone.lineStyle(3, 0xff5a3c, 0.85);
     this.cone.strokePoints(points, true);
   }
 

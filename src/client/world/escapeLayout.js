@@ -13,51 +13,59 @@
  */
 
 export const TILE = 32;
-export const COLS = 60;
-export const ROWS = 34;
+export const COLS = 54;
+export const ROWS = 42;
 
 /**
  * 인물이 화면에 보일 높이(월드 px). escape.json 의 `charHeight` 로 구워져 씬과
  * worldParts(발밑 판정 크기)가 같이 읽는다 — worldParts.DEFAULT_CHAR_HEIGHT 참고.
  */
-export const CHAR_HEIGHT = 32;
+export const CHAR_HEIGHT = 88;
+/** 카메라 배율. charHeight × cameraZoom ≈ 100~130 이 눈에 맞는 구간이다 (docs/맵교체_계획.md §1). */
+export const CAMERA_ZOOM = 1;
 
 /** 타일 좌표 → 픽셀 중심 */
 export const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 });
 
-/** 걸을 수 있는 사각형들. [col, row, w, h] — 스펙 §3 의 구간 표. */
-export const CORRIDORS = [
-  { name: 'top', rect: [2, 2, 49, 5] },
-  { name: 'rightV', rect: [46, 2, 5, 15] },
-  { name: 'mid', rect: [5, 12, 46, 5] },
-  { name: 'leftV', rect: [5, 12, 5, 16] },
-  { name: 'bottom', rect: [5, 23, 48, 5] },
-  { name: 'hall', rect: [48, 20, 11, 12] },
-];
+/**
+ * 걷는 길은 이제 **그림이 정한다** — escape-props.json 의 walk 가 유일한 출처다
+ * (배경이 붙기 전까지는 여기 CORRIDORS 사각형이 그 역할을 했다).
+ * 수로 그림은 물(청록)과 돌길(황갈)이 색으로 갈려서 scripts/walkmask.js 의 seed 가
+ * 기계로 뽑는다. escape.json 의 layout 은 바깥 테두리만 solid 인 껍데기로 남는다.
+ */
 
-/** 각 구간의 진입점 — 발각 시 여기로 돌아온다 (스펙 §3). */
+/**
+ * 각 구간의 진입점 — 발각 시 여기로 돌아온다 (스펙 §3).
+ *
+ * 수로는 물웅덩이 네 개를 도는 순환 구조다. 바깥 통로(폭 6칸)와 가운데 십자 복도가
+ * 걸을 수 있는 전부라, 진입점은 **순찰이 도는 가로 복도가 아닌 세로 통로**에 둔다 —
+ * 통로가 좁아 같은 띠 안에 있으면 로봇이 끝점에서 도는 동안 콘에 쓸린다.
+ */
 export const CHECKPOINTS = [
-  { col: 4, row: 4 },
-  { col: 48, row: 4 },
-  { col: 48, row: 14 },
-  { col: 7, row: 14 },
-  { col: 7, row: 25 },
+  { col: 26, row: 2 },  // 북쪽 배수구 아래 — 시작
+  { col: 2, row: 10 },  // 서편 위
+  { col: 2, row: 31 },  // 서편 아래
+  { col: 51, row: 31 }, // 동편 아래
+  { col: 51, row: 10 }, // 동편 위
 ];
 
 /**
- * 순찰 경로 — 구간마다 1기. 순찰 폭 24칸(768px)이라 왕복 약 17초다.
- * 양 끝을 구간 안쪽으로 물려 굽이(코너)에는 콘이 닿지 않게 한다 — 코너는 플레이어가
- * 다음 구간을 살피는 자리라, 여기가 막히면 진입 자체가 도박이 된다.
- * 중단은 반대 방향으로 출발시켜 위상을 어긋나게 둔다.
+ * 순찰 경로 — 물웅덩이 사이를 가르는 십자 복도를 왕복한다. 세로 하나 + 가로 둘이라
+ * 어느 쪽으로 내려가든 한 번은 마주친다. 가운데 가로 축만 반대 방향으로 출발시켜
+ * 위상을 어긋나게 둔다.
+ * 북쪽 복도(1~6행)에는 두지 않는다 — 통로가 6칸뿐이라 로봇이 끝점에서 도는 동안
+ * 배수구 아래 시작 지점이 콘에 쓸린다 (check:escape 가 실제로 잡아냈다).
+ * 좌표는 walk 격자에서 34칸 이상 이어지는 직선만 후보로 놓고 골랐다 — 전 구간이
+ * 걷는 칸 위에 있는 것을 확인했다.
  */
 export const SENTRY_ROUTES = [
-  [at(14, 4), at(38, 4)],
-  [at(38, 14), at(14, 14)],
-  [at(16, 25), at(40, 25)],
+  [at(26, 12), at(26, 34)],
+  [at(42, 24), at(12, 24)],
+  [at(12, 39), at(42, 39)],
 ];
 
-/** 심문실 — 꼬마가 서 있는 자리. 여기 닿으면 심문이 시작된다. */
-export const CHILD = { col: 53, row: 26 };
+/** 심문실 — 꼬마가 서 있는 자리. 남쪽 수문 앞이다. 여기 닿으면 심문이 시작된다. */
+export const CHILD = { col: 26, row: 40 };
 
 // ── 감지 상수 (Sentry 와 검증 스크립트가 같은 값을 봐야 한다) ──
 /** 이동 속도 (px/s). 플레이어(200)의 45% — 마주쳐도 뒤로 빼서 엄폐물까지 갈 수 있어야 한다. */

@@ -38,6 +38,7 @@ const MAPS = {
   hq: { map: 'src/client/assets/hq.json', bg: 'src/client/assets/hq-bg.png', props: 'src/client/assets/hq-props.json' },
   mansion: { map: 'src/client/assets/mansion.json', bg: 'src/client/assets/mansion-bg.png', props: 'src/client/assets/mansion-props.json' },
   street: { map: 'src/client/assets/map.json', bg: 'src/client/assets/street-bg.png', props: 'src/client/assets/street-props.json' },
+  escape: { map: 'src/client/assets/escape.json', bg: 'src/client/assets/escape-bg.png', props: 'src/client/assets/escape-props.json' },
 };
 const MASK_DIR = 'design/walkmask';
 
@@ -51,6 +52,8 @@ const MASK_DIR = 'design/walkmask';
  *     그림용이다 (가장자리가 어둡게 깔려 있어 광장 자갈이 건물 지붕보다 어두운 자리가 있다).
  *   · `minLum` — 절대 밝기. 저택은 **기계가 읽을 수 있는 도면**(흰 바닥 / 어두운 벽)이
  *     따로 있어서 이 편이 정확하다.
+ *   · `maxGreenBias` — G−R 이 이 값을 넘으면 바닥이 아니다. 수로는 물이 청록(G>R)이고
+ *     돌길이 황갈(R>G)이라 이 한 줄로 갈린다. 밝기로는 못 가른다 — 물이 돌길만큼 밝다.
  * - `blockRects` — 손으로 적는 `[col, row, w, h]` 사각형. 도면에 없는 **큰 가구**용이다.
  *   저택 가구는 색으로 못 가른다: 촛불·화덕 때문에 가구가 바닥보다 밝고(밝기 실패),
  *   붉은 카펫이 식탁보다 진하다(채도 실패). 큰 덩어리 열몇 개뿐이라 적는 편이 빠르고,
@@ -83,6 +86,11 @@ const SEED = {
     // 그건 게임이 열어 줘야 하는 것이고, MansionScene 이 그때 충돌체를 지운다.
     openDoors: true,
     blockRects: [],
+  },
+  escape: {
+    // 수로는 소품 없는 판이 따로 없다 — 배경 자체를 본다.
+    floor: { minLum: 45, maxGreenBias: 8, min: 0.55 },
+    openIsolated: 6,
   },
 };
 
@@ -203,9 +211,13 @@ function seedWalk(name, map, bg) {
     lum[i] = 0.299 * base.data[i * 4] + 0.587 * base.data[i * 4 + 1] + 0.114 * base.data[i * 4 + 2];
   }
   const blurred = rule.floor.blur ? boxBlur(lum, w, h, rule.floor.blur) : null;
+  /** G−R. 양수면 청록(물), 음수면 황갈(돌·나무). */
+  const greenBias = (p) => base.data[p * 4 + 1] - base.data[p * 4];
   const isFloorPixel = blurred
     ? (p) => lum[p] > blurred[p] * rule.floor.ratio
-    : (p) => lum[p] > rule.floor.minLum;
+    : (p) =>
+        lum[p] > (rule.floor.minLum ?? 0) &&
+        (rule.floor.maxGreenBias === undefined || greenBias(p) < rule.floor.maxGreenBias);
 
   const cw = w / map.cols;
   const chh = h / map.rows;

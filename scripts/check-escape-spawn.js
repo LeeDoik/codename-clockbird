@@ -33,6 +33,12 @@ import {
 const map = JSON.parse(
   await readFile(new URL('../src/client/assets/escape.json', import.meta.url), 'utf8'),
 );
+// 시야가 보는 벽은 **충돌이 보는 벽과 같아야 한다** — 수로는 물이 시야를 막는다.
+// escape.json 의 layout 은 이제 바깥 테두리만 solid 인 껍데기라 이걸 안 넘기면
+// 물 위를 그대로 꿰뚫어 보는 셈이 되어, 실제보다 훨씬 빡빡한 검사가 된다.
+const props = JSON.parse(
+  await readFile(new URL('../src/client/assets/escape-props.json', import.meta.url), 'utf8'),
+);
 
 let failures = 0;
 const ok = (cond, label, extra = '') => {
@@ -40,7 +46,7 @@ const ok = (cond, label, extra = '') => {
   if (!cond) failures++;
 };
 
-const isBlocked = makeBlockedLookup(map);
+const isBlocked = makeBlockedLookup(map, props);
 /**
  * Phaser.Math.Angle.Wrap 과 반드시 같은 값을 내야 한다 — Sentry.js #move() 가 실제로
  * 그 함수로 회전을 보간한다(이 스크립트는 Phaser 를 import 하지 않으므로 알고리즘을
