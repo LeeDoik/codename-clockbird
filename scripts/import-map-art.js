@@ -61,6 +61,12 @@ const MAPS = {
     crop: { left: 16 },
     pad: { bottom: 16 },
     watermark: null, // 이 그림엔 없다 (완성본만 깨끗하다 — 충돌도 쪽엔 있지만 도구 입력이라 상관없다)
+    // 걷는 길 초안(walkmask seed)이 볼 도면. **같은 자르기를 거쳐야** 칸이 맞는다 —
+    // 왼쪽을 16px 잘라 낸 배경과 안 자른 도면을 나란히 놓으면 반 칸씩 밀린다.
+    seedSrc: {
+      src: `${PNG_DIR}/mansion_floorplan_collision_map.png`,
+      out: 'design/walkmask/src/mansion-collision.png',
+    },
   },
   escape: {
     src: `${PNG_DIR}/empty_sewer_map.png`,
@@ -239,6 +245,18 @@ export function importMapArt(name, { dry = null, cmpFile = null, keepWatermark =
   const kb = (fs.statSync(target).size / 1024).toFixed(0);
   console.log(`→ ${target}  ${framed.w}×${framed.h} = ${framed.w / TILE}×${framed.h / TILE}칸  (${kb}KB)`);
   console.log(`   맵 json 에 적을 값:  "tileSize": ${TILE}, "cols": ${framed.w / TILE}, "rows": ${framed.h / TILE}`);
+
+  // 걷는 길 초안이 볼 도면도 **같은 자르기**로 낸다 (dry 여도 같이 낸다 — 도구 입력이라 assets 를 안 건드린다).
+  if (cfg.seedSrc) {
+    const s = decodePng(fs.readFileSync(cfg.seedSrc.src));
+    if (s.w !== img.w || s.h !== img.h) {
+      throw new Error(`${cfg.seedSrc.src} 크기(${s.w}×${s.h})가 배경 원본(${img.w}×${img.h})과 다르다`);
+    }
+    const sf = reframe(s, s.data, cfg);
+    fs.mkdirSync(path.dirname(cfg.seedSrc.out), { recursive: true });
+    fs.writeFileSync(cfg.seedSrc.out, encodePng(sf.w, sf.h, sf.data));
+    console.log(`→ ${cfg.seedSrc.out}  ${sf.w}×${sf.h}  (걷는 길 초안용 — 같은 자르기)`);
+  }
   return framed;
 }
 

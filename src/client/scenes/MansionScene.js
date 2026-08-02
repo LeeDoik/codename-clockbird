@@ -38,8 +38,7 @@ const PLAYER_FRAME = 0;
  *
  * 앞의 두 상수는 **그 시트 안에서 인물이 어디 있는가**라 시트를 바꾸면 같이 바뀐다
  * (tutorial 시트 실측값 — TutorialScene 과 동일).
- * PLAYER_HEIGHT 만 이 씬 고유다: 그건 **이 맵에서 화면에 얼마로 보일지**이고,
- * 여기서는 NPC(chars.png, 32px 무배율)와 키를 맞춘다.
+ * PLAYER_HEIGHT 만 이 씬 고유다: 그건 **이 맵에서 화면에 얼마로 보일지**이고, 맵이 정한다.
  */
 const PLAYER_ANIM = {
   idle: 'tutorialPlayerIdle',
@@ -52,6 +51,13 @@ const PLAYER_ORIGIN_Y = 176 / 256;
 const PLAYER_CONTENT_HEIGHT = 176;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = mansionData.charHeight ?? DEFAULT_CHAR_HEIGHT;
+/**
+ * chars.png(32×32 한 프레임) 인물을 이 맵의 축척으로 키운다.
+ * 무배율로 두면 새 저택 그림에서 직원들만 절반 크기로 선다 (거리도 같은 문제였다).
+ */
+const CHARS_SCALE = PLAYER_HEIGHT / 32;
+/** 이름표는 정수리 위 — chars.png 인물은 스프라이트 **중심**이 자리라 절반만 올린다. */
+const LABEL_DY = -(PLAYER_HEIGHT * 0.5 + 8);
 
 /**
  * chars.png 프레임 배정. 전용 스프라이트는 아직 없다.
@@ -88,8 +94,8 @@ const SHROUD_COLOR = 0x05040a;
  */
 const ALWAYS_LIT = new Set(['hall']);
 
-/** 연구실 문서 받침대 — 스테이지 목표. 가구를 그린 자리와 같다. */
-const DOCUMENT = { name: '신형 로봇 기록', col: 53, row: 22 };
+/** 연구실 문서 받침대 — 스테이지 목표. 잠긴 연구실(rooms.lab) 안쪽이다. */
+const DOCUMENT = { name: '신형 로봇 기록', col: 48, row: 17 };
 /**
  * 홀과 벽 없이 맞닿는 방과, 그 경계에서 어둠이 풀어질 거리(칸).
  *
@@ -262,13 +268,14 @@ export class MansionScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // 좌표는 가구를 그린 자리 그대로 (scripts/gen-mansion-art.js).
+    // 좌표는 새 그림에서 김이 오르는 자리다 (칸 → 픽셀). 화덕·조리대는 주방(6~16열,
+    // 14~24행), 빨래통은 세탁실(6~16열, 5~13행) 안이다.
     const vents = [
-      { x: 1200, y: 402, tint: 0xffdcb0, freq: 210, rise: 34 }, // 화덕 불구멍
-      { x: 1404, y: 392, tint: 0xffe8cc, freq: 380, rise: 26 }, // 조리대 냄비
-      { x: 464, y: 176, tint: 0xdde8ef, freq: 300, rise: 24 }, // 빨래통
-      { x: 528, y: 176, tint: 0xdde8ef, freq: 420, rise: 22 },
-    ];
+      { col: 8, row: 19, tint: 0xffdcb0, freq: 210, rise: 34 }, // 주방 화덕
+      { col: 11, row: 19, tint: 0xffe8cc, freq: 380, rise: 26 }, // 조리대 냄비
+      { col: 7, row: 8, tint: 0xdde8ef, freq: 300, rise: 24 }, // 세탁 대야
+      { col: 10, row: 8, tint: 0xdde8ef, freq: 420, rise: 22 },
+    ].map((v) => ({ ...v, x: v.col * TILE + TILE / 2, y: v.row * TILE + TILE / 2 }));
 
     for (const v of vents) {
       const em = this.add.particles(v.x, v.y, 'steam', {
@@ -359,8 +366,8 @@ export class MansionScene extends Phaser.Scene {
     const place = (npc) => {
       const x = npc.col * TILE + TILE / 2;
       const y = npc.row * TILE + TILE / 2;
-      const sprite = this.add.sprite(x, y, 'chars', NPC_FRAME[npc.id] ?? 6);
-      const label = worldLabel(this, x, y - 26, npc.name, LABEL_STYLE);
+      const sprite = this.add.sprite(x, y, 'chars', NPC_FRAME[npc.id] ?? 6).setScale(CHARS_SCALE);
+      const label = worldLabel(this, x, y + LABEL_DY, npc.name, LABEL_STYLE);
       this.asWorld(sprite, label);
       this.nodes.push({ npc, sprite, label });
 
@@ -440,7 +447,8 @@ export class MansionScene extends Phaser.Scene {
       type: 'door',
       x: (door.x + door.w / 2) * TILE,
       y: (door.y + door.h / 2) * TILE,
-      range: 56,
+      // 기본 사거리(charHeight×1.5)보다 조금 넉넉하게 — 문 앞은 한 칸이라 비켜 서기 쉽다.
+      range: PLAYER_HEIGHT * 1.75,
       bubble: '[E] 열기',
       isUnlocked: () => Boolean(this.state?.hasKey),
       lockedText: '잠겨 있다. 열쇠가 필요할 것 같다.',

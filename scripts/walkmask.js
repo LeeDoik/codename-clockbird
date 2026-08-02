@@ -46,9 +46,15 @@ const MASK_DIR = 'design/walkmask';
  *
  * - `base` — 바닥/벽을 가를 때 볼 그림. **소품이 없는 판**이 있으면 그쪽이 훨씬 잘 갈린다
  *   (거리: clean_town_square_base). 없으면 배경 자체를 본다. 배경과 칸 수가 같아야 한다.
- * - `floor` — "여기는 바닥인가". 절대 밝기로는 못 가른다 — 이 그림들은 가장자리가 어둡게
- *   깔려 있어(비네트) 광장 자갈이 건물 지붕보다 어두운 자리가 생긴다. 대신 **크게 흐린
- *   자기 자신과 비교**한다: 건물은 주변 땅보다 국소적으로 어둡다는 성질을 쓴다.
+ * - `floor` — "여기는 바닥인가". 두 가지 방식이 있다:
+ *   · `blur`+`ratio` — **크게 흐린 자기 자신과 비교**한다. 거리처럼 절대 밝기로는 못 가르는
+ *     그림용이다 (가장자리가 어둡게 깔려 있어 광장 자갈이 건물 지붕보다 어두운 자리가 있다).
+ *   · `minLum` — 절대 밝기. 저택은 **기계가 읽을 수 있는 도면**(흰 바닥 / 어두운 벽)이
+ *     따로 있어서 이 편이 정확하다.
+ * - `blockRects` — 손으로 적는 `[col, row, w, h]` 사각형. 도면에 없는 **큰 가구**용이다.
+ *   저택 가구는 색으로 못 가른다: 촛불·화덕 때문에 가구가 바닥보다 밝고(밝기 실패),
+ *   붉은 카펫이 식탁보다 진하다(채도 실패). 큰 덩어리 열몇 개뿐이라 적는 편이 빠르고,
+ *   도면이 벽을 정확히 주고 있어 사람이 적을 것은 가구뿐이다.
  * - `props` — base 와 배경이 달라진 칸 = 나중에 놓인 소품(가판·나무·상자) → 막는다.
  *   `max` 는 **칸의 몇 할이 달라져야 막을 것인가**다. 이 값이 낮으면 벤치 모서리가
  *   걸친 칸까지 벽이 되어 광장 전체가 한 칸짜리 골목이 된다 — 0.45 로 뽑았더니
@@ -65,6 +71,18 @@ const SEED = {
     floor: { blur: 60, ratio: 0.97, min: 0.55 },
     props: { diff: 52, max: 0.65, ignoreSmoke: true },
     openIsolated: 6,
+  },
+  mansion: {
+    // 기획자가 받아 온 mansion_floorplan_collision_map — 흰 바닥 / 어두운 나무·돌 벽.
+    // import-map-art.js 가 배경과 **같은 자르기**로 내 준다.
+    base: 'design/walkmask/src/mansion-collision.png',
+    floor: { minLum: 145, min: 0.55 },
+    // 문틀(아치)은 도면에 **어두운 나무**로 그려져 있어 밝기로는 벽이 된다 — 그대로 두면
+    // 방이 전부 섬이 됐다(실측: 2320칸 중 454칸이 못 닿는 섬). 그래서 맵 json 의
+    // `doors[]` 를 뚫는다. 잠긴 문(`locked`)과 열쇠 문(`key`)은 그대로 막아 둔다 —
+    // 그건 게임이 열어 줘야 하는 것이고, MansionScene 이 그때 충돌체를 지운다.
+    openDoors: true,
+    blockRects: [],
   },
 };
 
@@ -184,7 +202,10 @@ function seedWalk(name, map, bg) {
   for (let i = 0; i < w * h; i++) {
     lum[i] = 0.299 * base.data[i * 4] + 0.587 * base.data[i * 4 + 1] + 0.114 * base.data[i * 4 + 2];
   }
-  const blurred = boxBlur(lum, w, h, rule.floor.blur);
+  const blurred = rule.floor.blur ? boxBlur(lum, w, h, rule.floor.blur) : null;
+  const isFloorPixel = blurred
+    ? (p) => lum[p] > blurred[p] * rule.floor.ratio
+    : (p) => lum[p] > rule.floor.minLum;
 
   const cw = w / map.cols;
   const chh = h / map.rows;
@@ -206,7 +227,7 @@ function seedWalk(name, map, bg) {
         for (let x = x0; x < x1; x++) {
           const p = y * w + x;
           n++;
-          if (lum[p] > blurred[p] * rule.floor.ratio) floor++;
+          if (isFloorPixel(p)) floor++;
           if (!rule.props) continue;
           const i = p * 4;
           const d = Math.max(
@@ -246,6 +267,27 @@ function seedWalk(name, map, bg) {
           open += at(c + dc, r + dr);
         }
         if (open >= rule.openIsolated) grid[r][c] = 1;
+      }
+    }
+  }
+
+  // 문틀을 뚫는다 (SEED.openDoors 주석 참고). 잠긴 문·열쇠 문은 건너뛴다.
+  if (rule.openDoors) {
+    for (const d of map.doors ?? []) {
+      if (d.locked || d.key) continue;
+      for (let r = d.y; r < d.y + d.h; r++) {
+        for (let c = d.x; c < d.x + d.w; c++) {
+          if (r >= 0 && r < map.rows && c >= 0 && c < map.cols) grid[r][c] = 1;
+        }
+      }
+    }
+  }
+
+  // 도면에 없는 큰 가구 (SEED.blockRects 주석 참고).
+  for (const [c0, r0, rw, rh] of rule.blockRects ?? []) {
+    for (let r = r0; r < r0 + rh; r++) {
+      for (let c = c0; c < c0 + rw; c++) {
+        if (r >= 0 && r < map.rows && c >= 0 && c < map.cols) grid[r][c] = 0;
       }
     }
   }
