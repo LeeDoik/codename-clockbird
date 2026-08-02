@@ -136,6 +136,29 @@
           </div>
         </section>
 
+        <section id="sec-mansion">
+          <h2>저택 인물 (스테이지 2) <span class="dirty" id="mansion-dirty" hidden>● 저장 안 됨</span></h2>
+          <div class="legend">
+            성향 판정(<code>mansion-stance</code>)과 저택 대화(<code>mansion-dialogue</code>)에
+            <code>{{backstory}}</code> <code>{{personality}}</code> 로 주입됩니다.<br />
+            <b>첫 문장</b>은 플레이어가 그 인물에게 처음 듣는 말입니다 — 동료는 여기에
+            반브루주아 뉘앙스를 옅게 깔아 두는 것이 이 스테이지의 유일한 단서입니다.
+          </div>
+          <div class="tabs" id="mansion-tabs"></div>
+          <label>이름</label>
+          <input type="text" id="m-name" />
+          <label>첫 문장 (말 걸었을 때 처음 나오는 대사)</label>
+          <textarea id="m-line" rows="2"></textarea>
+          <label>배경</label>
+          <textarea id="m-backstory" rows="4"></textarea>
+          <label>성격·특징</label>
+          <textarea id="m-personality" rows="3"></textarea>
+          <div class="row">
+            <button class="primary" id="save-mansion">저택 인물 8인 저장</button>
+            <span class="status" id="mansion-status"></span>
+          </div>
+        </section>
+
         <section>
           <h2>시스템 프롬프트 <span class="dirty" id="prompt-dirty" hidden>● 저장 안 됨</span></h2>
           <div class="legend">
@@ -235,7 +258,7 @@
     <script>
       const $ = (id) => document.getElementById(id);
       // pool 은 [{ name, text }] — text 는 textarea 원문 그대로 두고 저장·dirty 판정 때만 파싱한다.
-      const state = { allies: [], prompts: {}, pool: [], selected: 0, selectedCat: 0, selectedPrompt: null, saved: null };
+      const state = { allies: [], mansionNpcs: [], prompts: {}, pool: [], selected: 0, selectedMansion: 0, selectedCat: 0, selectedPrompt: null, saved: null };
 
       /**
        * 템플릿별 라벨·치환 변수·경고.
@@ -332,8 +355,15 @@
       const parseWords = (text) => text.split(/[\n,]/).map((w) => w.trim()).filter(Boolean);
       const normalizedPool = () => state.pool.map((c) => ({ name: c.name.trim(), words: parseWords(c.text) }));
 
+      const MANSION_FIELDS = ({ id, name, line, backstory, personality }) => ({ id, name, line, backstory, personality });
+
       function snapshot() {
-        state.saved = JSON.stringify({ allies: state.allies, prompts: state.prompts, pool: normalizedPool() });
+        state.saved = JSON.stringify({
+          allies: state.allies,
+          mansionNpcs: state.mansionNpcs,
+          prompts: state.prompts,
+          pool: normalizedPool(),
+        });
         refreshDirty();
       }
       function collectPersonaFields() {
@@ -352,6 +382,9 @@
           (n) => state.prompts[n] === now.prompts[n],
         );
         $('pool-dirty').hidden = JSON.stringify(normalizedPool()) === JSON.stringify(now.pool);
+        $('mansion-dirty').hidden =
+          JSON.stringify(state.mansionNpcs.map(MANSION_FIELDS)) ===
+          JSON.stringify(now.mansionNpcs.map(MANSION_FIELDS));
         // 어느 탭이 안 저장됐는지 탭 자체에 표시한다 — 12개나 되므로 헤더의 점 하나로는
         // 어디를 저장해야 하는지 알 수 없다.
         renderPromptTabs();
@@ -390,6 +423,60 @@
       for (const id of ['p-name', 'p-role', 'p-backstory', 'p-personality']) {
         $(id).addEventListener('input', () => { collectPersonaFields(); refreshDirty(); });
       }
+
+      // ── 저택 인물 편집 ─────────────────────────────────────────
+      const currentMansion = () => state.mansionNpcs[state.selectedMansion];
+
+      function collectMansionFields() {
+        const n = currentMansion();
+        n.name = $('m-name').value;
+        n.line = $('m-line').value;
+        n.backstory = $('m-backstory').value;
+        n.personality = $('m-personality').value;
+      }
+      function renderMansionTabs() {
+        const tabs = $('mansion-tabs');
+        tabs.innerHTML = '';
+        state.mansionNpcs.forEach((n, i) => {
+          const b = document.createElement('button');
+          // kind 를 탭에 적는다 — 성격을 고칠 때 그가 동료인지 민간인인지가 곧 기준이다.
+          b.textContent = `${n.name} · ${n.kind === 'ally' ? '동료' : '민간인'}`;
+          b.className = i === state.selectedMansion ? 'active' : '';
+          b.onclick = () => {
+            collectMansionFields();
+            state.selectedMansion = i;
+            renderMansionTabs();
+            renderMansionFields();
+            refreshDirty();
+          };
+          tabs.appendChild(b);
+        });
+      }
+      function renderMansionFields() {
+        const n = currentMansion();
+        $('m-name').value = n.name;
+        $('m-line').value = n.line;
+        $('m-backstory').value = n.backstory;
+        $('m-personality').value = n.personality;
+      }
+      for (const id of ['m-name', 'm-line', 'm-backstory', 'm-personality']) {
+        $(id).addEventListener('input', () => { collectMansionFields(); refreshDirty(); });
+      }
+
+      $('save-mansion').onclick = async () => {
+        collectMansionFields();
+        try {
+          const r = await api('/mansion-npcs', {
+            method: 'PUT',
+            body: JSON.stringify({ npcs: state.mansionNpcs.map(MANSION_FIELDS) }),
+          });
+          state.mansionNpcs = r.npcs;
+          snapshot();
+          renderMansionTabs();
+          setStatus('mansion-status', '저장됨 — 다음 판부터 반영됩니다.', 'ok');
+        } catch (e) { setStatus('mansion-status', e.message, 'err'); }
+      };
+
       // ── 시스템 프롬프트 편집 ───────────────────────────────────
       // 화면에는 지금 고른 템플릿 하나만 뜨지만, 편집 중인 원문은 전부 state.prompts 에
       // 살아 있다. 탭을 옮겨 다녀도 저장 전 초안이 날아가지 않고, 미리보기도 이 초안을 쓴다.
@@ -637,6 +724,7 @@
         try {
           const data = await api('/data');
           state.allies = data.allies;
+          state.mansionNpcs = data.mansionNpcs;
           state.prompts = data.prompts;
           state.pool = Object.entries(data.categories).map(([name, words]) => ({ name, text: words.join(', ') }));
           // 탭 목록은 서버가 준 템플릿 그대로다 — 새 프롬프트를 TEMPLATES 에 넣으면
@@ -646,6 +734,8 @@
           snapshot();
           renderTabs();
           renderPersonaFields();
+          renderMansionTabs();
+          renderMansionFields();
           renderPromptFields();
           renderCatTabs();
           renderCatFields();

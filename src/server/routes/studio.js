@@ -26,6 +26,7 @@ router.use((req, res, next) => {
 
 const PERSONAS_URL = new URL('../../data/personas.json', import.meta.url);
 const CODEWORDS_URL = new URL('../../data/codewords.json', import.meta.url);
+const MANSION_URL = new URL('../../data/mansion.json', import.meta.url);
 const promptUrl = (name) => new URL(`../../data/prompts/${name}.txt`, import.meta.url);
 
 /** 템플릿별로 빠지면 게임이 조용히 망가지는 변수 — 저장은 막지 않고 경고만 돌려준다. */
@@ -50,14 +51,25 @@ function missingVars(name, text) {
   return (RECOMMENDED_VARS[name] ?? []).filter((v) => !text.includes(`{{${v}}}`));
 }
 
-/** GET /api/studio/data — 편집 대상 전부 (페르소나 + 템플릿 + 미리보기용 코드 단어 풀) */
+/** GET /api/studio/data — 편집 대상 전부 (페르소나 + 저택 NPC + 템플릿 + 미리보기용 코드 단어 풀) */
 router.get('/data', async (req, res, next) => {
   try {
     const personas = JSON.parse(await readFile(PERSONAS_URL, 'utf8'));
     const codewords = JSON.parse(await readFile(CODEWORDS_URL, 'utf8'));
+    const mansion = JSON.parse(await readFile(MANSION_URL, 'utf8'));
     const prompts = {};
     for (const name of templateNames()) prompts[name] = await loadTemplate(name);
-    res.json({ allies: personas.allies, prompts, categories: codewords.categories });
+    res.json({
+      allies: personas.allies,
+      // kind(동료/민간인)는 게임의 정답이지만 스튜디오는 프로덕션에서 전 라우트 403 이고,
+      // 성격을 고치려면 그가 동료인지 민간인인지 보여야 한다 — 첫 문장의 뉘앙스를
+      // 그 역할에 맞춰야 하기 때문이다.
+      mansionNpcs: mansion.npcs.map(({ id, name, kind, room, line, backstory, personality }) => ({
+        id, name, kind, room, line, backstory, personality,
+      })),
+      prompts,
+      categories: codewords.categories,
+    });
   } catch (err) {
     next(err);
   }
@@ -186,6 +198,84 @@ router.put('/codewords', async (req, res, next) => {
     file.categories = cleaned;
     await writeFile(CODEWORDS_URL, formatCodewords(file), 'utf8');
     res.json({ ok: true, categories: cleaned, total: seen.size });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * mansion.json 의 npcs 블록 안 name/line/backstory/personality 네 필드만 원문에서
+ * 문자열 치환한다. `objects` 배열은 사람이 손으로 칸을 맞춘 한 줄짜리 포맷이고
+ * escort·npcs·objects·rewards 사이사이에 구분용 빈 줄이 있는데, 이 파일 전체를
+ * JSON.stringify(file, null, 2) 로 다시 쓰면 그 수작업 정렬과 빈 줄이 사라져
+ * 안 건드린 구간까지 diff 가 퍼진다 (검증됨). id 로 해당 npc 블록만 찾아 그 안의
+ * 네 필드 값만 바꿔치기하면 나머지 바이트는 원본과 그대로 같다.
+ */
+function patchMansionNpcFields(text, npcs) {
+  for (const { id, name, line, backstory, personality } of npcs) {
+    const idLit = escapeRe(JSON.stringify(id));
+    const blockRe = new RegExp(`\\{\\s*"id":\\s*${idLit}[\\s\\S]*?\\n    \\}`);
+    const m = text.match(blockRe);
+    if (!m) throw new Error(`mansion.json 에서 ${id} 블록을 찾을 수 없습니다.`);
+    let block = m[0];
+    block = block.replace(/"name":\s*"(?:[^"\\]|\\.)*"/, `"name": ${JSON.stringify(name)}`);
+    block = block.replace(/"line":\s*"(?:[^"\\]|\\.)*"/, `"line": ${JSON.stringify(line)}`);
+    block = block.replace(/"backstory":\s*"(?:[^"\\]|\\.)*"/, `"backstory": ${JSON.stringify(backstory)}`);
+    block = block.replace(/"personality":\s*"(?:[^"\\]|\\.)*"/, `"personality": ${JSON.stringify(personality)}`);
+    text = text.slice(0, m.index) + block + text.slice(m.index + m[0].length);
+  }
+  return text;
+}
+
+/**
+ * PUT /api/studio/mansion-npcs  { npcs: [{id, name, line, backstory, personality}] }
+ *
+ * id 집합은 기존과 같아야 한다 (personas 와 같은 정책) — 좌표·방·kind 등 나머지 필드는
+ * 보존한다. kind 를 편집 대상에 넣지 않는 이유: 누가 동료인지는 맵 배치·보상 데이터와
+ * 얽혀 있어서 여기서 바꾸면 rewards 와 조용히 어긋난다.
+ *
+ * 진행 중인 세션은 createMansionSession 이 npc 를 복사해 두므로 영향받지 않는다.
+ */
+router.put('/mansion-npcs', async (req, res, next) => {
+  try {
+    const incoming = req.body?.npcs;
+    const raw = await readFile(MANSION_URL, 'utf8');
+    const file = JSON.parse(raw);
+
+    if (!Array.isArray(incoming) || incoming.length !== file.npcs.length) {
+      return res.status(400).json({ error: `저택 인물은 정확히 ${file.npcs.length}명이어야 합니다.` });
+    }
+    const byId = new Map(incoming.map((n) => [n?.id, n]));
+    for (const orig of file.npcs) {
+      const inc = byId.get(orig.id);
+      if (!inc) return res.status(400).json({ error: `누락된 인물: ${orig.id} (id 는 바꿀 수 없습니다)` });
+      for (const field of ['name', 'line', 'backstory', 'personality']) {
+        if (typeof inc[field] !== 'string' || !inc[field].trim()) {
+          return res.status(400).json({ error: `${orig.id}.${field} 가 비어 있습니다.` });
+        }
+        if (inc[field].length > 2000) {
+          return res.status(400).json({ error: `${orig.id}.${field} 가 너무 깁니다 (2000자 제한).` });
+        }
+      }
+    }
+
+    file.npcs = file.npcs.map((orig) => {
+      const inc = byId.get(orig.id);
+      return {
+        ...orig,
+        name: inc.name.trim(),
+        line: inc.line.trim(),
+        backstory: inc.backstory.trim(),
+        personality: inc.personality.trim(),
+      };
+    });
+
+    await writeFile(MANSION_URL, patchMansionNpcFields(raw, file.npcs), 'utf8');
+    res.json({ ok: true, npcs: file.npcs.map(({ id, name, kind, room, line, backstory, personality }) => ({
+      id, name, kind, room, line, backstory, personality,
+    })) });
   } catch (err) {
     next(err);
   }
