@@ -7,6 +7,12 @@ import {
   setupCameras,
   DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
+import {
+  PLAYER_ANIM,
+  PLAYER_CONTENT_HEIGHT,
+  PLAYER_FRAME_SIZE,
+  PLAYER_ORIGIN_Y,
+} from '../entities/playerSprite.js';
 import escapeData from '../assets/escape.json';
 import escapeProps from '../assets/escape-props.json';
 import { Sentry } from '../entities/Sentry.js';
@@ -36,15 +42,6 @@ import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
  * PLAYER_HEIGHT 만 다르다: 그건 **이 맵에서 화면에 얼마로 보일지**이고, 맵이 정한다.
  */
 const PLAYER_FRAME = 0;
-const PLAYER_ANIM = {
-  idle: 'tutorialPlayerIdle',
-  walkDown: 'tutorialPlayerWalkDown',
-  walkUp: 'tutorialPlayerWalkUp',
-  walkLeft: 'tutorialPlayerWalkLeft',
-  walkRight: 'tutorialPlayerWalkRight',
-};
-const PLAYER_ORIGIN_Y = 176 / 256;
-const PLAYER_CONTENT_HEIGHT = 176;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = escapeData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
@@ -98,6 +95,7 @@ export class EscapeScene extends Phaser.Scene {
       PLAYER_ORIGIN_Y,
       PLAYER_CONTENT_HEIGHT,
       PLAYER_HEIGHT,
+      PLAYER_FRAME_SIZE,
     );
 
     // 시야가 보는 벽은 충돌이 보는 벽과 같아야 한다 — 수로는 물이 시야를 막는다.

@@ -293,18 +293,29 @@ export function createPlayer(scene, mapData, walls, frame = 0) {
 export function createPlayerVisual(
   scene,
   player,
-  { idle, walkDown, walkUp, walkLeft, walkRight },
+  anims,
   originY,
   contentHeight,
   displayHeight,
-  frameSize = 256,
+  frameSize = 128,
 ) {
+  const { idle } = anims;
   const scale = displayHeight / contentHeight;
+  // **재생을 먼저, 크기를 나중에.** setDisplaySize 는 지금 붙어 있는 텍스처의 크기로
+  // 배율을 역산하므로, 아직 엉뚱한(또는 없는) 텍스처가 붙어 있으면 배율이 통째로
+  // 틀어진다. play() 가 올바른 프레임을 붙인 뒤에 크기를 잡으면 그 함정이 사라진다.
   const visual = scene.add
-    .sprite(player.x, player.y, idle, 0)
+    .sprite(player.x, player.y, anims.texture ?? idle, 0)
     .setOrigin(0.5, originY)
-    .setDisplaySize(frameSize * scale, frameSize * scale)
-    .play(idle);
+    .play(idle)
+    .setDisplaySize(frameSize * scale, frameSize * scale);
+
+  /**
+   * 마지막으로 향한 쪽. 걷다 멈추면 **보던 쪽 그대로** 서 있게 한다 —
+   * 대기 그림이 한 장뿐이던 시절에는 왼쪽으로 걷다 멈추면 갑자기 정면을 봤다.
+   * 방향별 대기가 없는 시트면 anims.idle 로 떨어진다.
+   */
+  let facing = 'Down';
 
   let current = idle;
   const play = (key) => {
@@ -330,7 +341,7 @@ export function createPlayerVisual(
         // 서 있는 그림은 걷기와 박자가 무관하다 — 배속을 되돌려 놓지 않으면
         // 마지막으로 걷던 속도가 그대로 남아 숨쉬기가 빨라진다.
         visual.anims.timeScale = 1;
-        play(idle);
+        play(anims[`idle${facing}`] ?? idle);
         return;
       }
 
@@ -341,11 +352,9 @@ export function createPlayerVisual(
         Math.max(ANIM_SCALE_MIN, speed / referenceSpeed),
       );
 
-      if (Math.abs(vx) > Math.abs(vy)) {
-        play(vx > 0 ? walkRight : walkLeft);
-      } else {
-        play(vy > 0 ? walkDown : walkUp);
-      }
+      if (Math.abs(vx) > Math.abs(vy)) facing = vx > 0 ? 'Right' : 'Left';
+      else facing = vy > 0 ? 'Down' : 'Up';
+      play(anims[`walk${facing}`]);
     },
   };
 }

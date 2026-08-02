@@ -8,6 +8,12 @@ import {
   setupCameras,
   DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
+import {
+  PLAYER_ANIM,
+  PLAYER_CONTENT_HEIGHT,
+  PLAYER_FRAME_SIZE,
+  PLAYER_ORIGIN_Y,
+} from '../entities/playerSprite.js';
 import { InteractionManager } from '../world/interact.js';
 import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
@@ -30,18 +36,9 @@ const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
 
 // 플레이어는 튜토리얼과 같은 외형이다 — TutorialScene 의 값과 같아야 한다.
 const PLAYER_FRAME = 0;
-const PLAYER_ANIM = {
-  idle: 'tutorialPlayerIdle',
-  walkDown: 'tutorialPlayerWalkDown',
-  walkUp: 'tutorialPlayerWalkUp',
-  walkLeft: 'tutorialPlayerWalkLeft',
-  walkRight: 'tutorialPlayerWalkRight',
-};
 // 브리프 원문은 218/256·197·32 였으나, TutorialScene.js:66-68 의 실제 값(176/256·176·56)과
 // 어긋나 "튜토리얼과 같은 외형이어야 한다"는 브리프 자신의 의도와 모순됐다 — 실제 소스를
 // 따른다 (task-13-report.md 참고).
-const PLAYER_ORIGIN_Y = 176 / 256;
-const PLAYER_CONTENT_HEIGHT = 176;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 /** 간부도 플레이어와 키를 맞춘다 (TutorialScene 과 같은 값이어야 한다). */
@@ -85,6 +82,7 @@ export class EndingScene extends Phaser.Scene {
     this.playerVisual = createPlayerVisual(
       this, this.player, PLAYER_ANIM,
       PLAYER_ORIGIN_Y, PLAYER_CONTENT_HEIGHT, PLAYER_HEIGHT,
+      PLAYER_FRAME_SIZE,
     );
 
     const os = hqData.spawns.officer;

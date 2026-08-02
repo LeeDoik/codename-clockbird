@@ -10,6 +10,12 @@ import {
   worldLabel,
   DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
+import {
+  PLAYER_ANIM,
+  PLAYER_CONTENT_HEIGHT,
+  PLAYER_FRAME_SIZE,
+  PLAYER_ORIGIN_Y,
+} from '../entities/playerSprite.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
@@ -28,8 +34,6 @@ const PLAYER_FRAME = 0;
 // 플레이어(튜토리얼 전용 외형): 256×256 프레임, 인물은 y[0,176] 영역(실측) —
 // 정수리가 프레임 맨 위에 닿아 있어 발-정수리 높이가 곧 인물 높이(176px)다.
 // 화면에 얼마로 보일지는 맵이 정한다 (hq.json 의 charHeight).
-const PLAYER_ORIGIN_Y = 176 / 256;
-const PLAYER_CONTENT_HEIGHT = 176;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
@@ -54,13 +58,6 @@ const ALLY_ORIGIN_Y = ALLY_CONTENT_BOTTOM / ALLY_FRAME;
 const ALLY_CONTENT_TOP = { t1: 26, t2: 58, t3: 26 };
 const ALLY_ANIM = { t1: 't1Idle', t2: 't2Idle', t3: 't3Idle' };
 
-const PLAYER_ANIM = {
-  idle: 'tutorialPlayerIdle',
-  walkDown: 'tutorialPlayerWalkDown',
-  walkUp: 'tutorialPlayerWalkUp',
-  walkLeft: 'tutorialPlayerWalkLeft',
-  walkRight: 'tutorialPlayerWalkRight',
-};
 
 const LABEL_STYLE = {
   fontFamily: FONTS.body,
@@ -100,6 +97,7 @@ export class TutorialScene extends Phaser.Scene {
       PLAYER_ORIGIN_Y,
       PLAYER_CONTENT_HEIGHT,
       PLAYER_HEIGHT,
+      PLAYER_FRAME_SIZE,
     );
     // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
     // 줌은 나머지 세 맵과 같은 기본값(2)이다. 방(60×40칸)이 화면(30×17칸)보다 커서

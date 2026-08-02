@@ -17,6 +17,12 @@ import {
   worldLabel,
   DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
+import {
+  PLAYER_ANIM,
+  PLAYER_CONTENT_HEIGHT,
+  PLAYER_FRAME_SIZE,
+  PLAYER_ORIGIN_Y,
+} from '../entities/playerSprite.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
@@ -69,15 +75,6 @@ const ALLY_SPRITE_CONTENT = 196;
  * (tutorial 시트 실측값 — TutorialScene 과 동일).
  * PLAYER_HEIGHT 만 이 씬 고유다: 그건 **이 맵에서 화면에 얼마로 보일지**이고, 맵이 정한다.
  */
-const PLAYER_ANIM = {
-  idle: 'tutorialPlayerIdle',
-  walkDown: 'tutorialPlayerWalkDown',
-  walkUp: 'tutorialPlayerWalkUp',
-  walkLeft: 'tutorialPlayerWalkLeft',
-  walkRight: 'tutorialPlayerWalkRight',
-};
-const PLAYER_ORIGIN_Y = 176 / 256;
-const PLAYER_CONTENT_HEIGHT = 176;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = mapData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
@@ -148,6 +145,7 @@ export class StageScene extends Phaser.Scene {
       PLAYER_ORIGIN_Y,
       PLAYER_CONTENT_HEIGHT,
       PLAYER_HEIGHT,
+      PLAYER_FRAME_SIZE,
     );
 
     // 동료 NPC — 위치는 맵의 스폰 포인트를 순서대로 따른다 (없으면 서버 spawn 으로 폴백).

@@ -16,12 +16,14 @@ import watchmakerIdleUrl from '../assets/npc/watchmaker-idle.png';
 import maidIdleUrl from '../assets/npc/maid-idle.png';
 import engineerIdleUrl from '../assets/npc/engineer-idle.png';
 import musicianIdleUrl from '../assets/npc/musician-idle.png';
-import tutorialPlayerIdleUrl from '../assets/player/tutorial-idle.png';
-import tutorialPlayerWalkUrl from '../assets/player/tutorial-walk.png';
-import stage1PlayerIdleUrl from '../assets/player/stage1-idle.png';
-import stage1PlayerWalkUrl from '../assets/player/stage1-walk.png';
-import stage2PlayerIdleUrl from '../assets/player/stage2-idle.png';
-import stage2PlayerWalkUrl from '../assets/player/stage2-walk.png';
+import playerIdleUrl from '../assets/player/player-idle.png';
+import playerWalkUrl from '../assets/player/player-walk.png';
+import {
+  PLAYER_ANIM,
+  PLAYER_FRAME_SIZE,
+  PLAYER_IDLE_FRAMES,
+  PLAYER_WALK_RANGES,
+} from '../entities/playerSprite.js';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -66,34 +68,20 @@ export class BootScene extends Phaser.Scene {
     this.load.spritesheet('maidIdle', maidIdleUrl, { frameWidth: 256, frameHeight: 256 });
     this.load.spritesheet('engineerIdle', engineerIdleUrl, { frameWidth: 256, frameHeight: 256 });
     this.load.spritesheet('musicianIdle', musicianIdleUrl, { frameWidth: 256, frameHeight: 256 });
-    // 플레이어(튜토리얼·스테이지1·저택 전용 외형) — idle 12프레임(1행), walk 44프레임 1행.
-    // walk 시트의 배치는 **아이들 12 + 방향 4종 × 8** 이다 (세 시트 모두 동일, 실측):
-    //   0-11 아이들(idle 시트와 픽셀 단위로 같다) · 12-19 아래 · 20-27 위 · 28-35 왼쪽 · 36-43 오른쪽
-    // 오른쪽은 전용 프레임이 있으므로 왼쪽을 반전하지 않는다 — 고글·가방·멜빵이
-    // 좌우 비대칭이라 반전하면 매 걸음 장비가 반대쪽으로 옮겨 다닌다.
-    this.load.spritesheet('tutorialPlayerIdle', tutorialPlayerIdleUrl, {
-      frameWidth: 256,
-      frameHeight: 256,
+    // 플레이어 — PixelLab 로 뽑은 시트를 scripts/import-player-sprite.js 가 구운 것.
+    // 128×128 프레임. 대기 4장(아래·위·왼·오) · 걷기 32장(방향마다 8장).
+    // 배치는 entities/playerSprite.js 가 단일 출처다.
+    //
+    // 스테이지마다 다른 시트를 쓰지 않는다 — 주인공은 튜토리얼부터 엔딩까지 같은
+    // 인물이다(2026-08-02 확정). 예전 stage1/stage2 시트는 아무도 안 쓰면서 번들에만
+    // 900KB 를 얹고 있어서 지웠다.
+    this.load.spritesheet('playerIdleSheet', playerIdleUrl, {
+      frameWidth: PLAYER_FRAME_SIZE,
+      frameHeight: PLAYER_FRAME_SIZE,
     });
-    this.load.spritesheet('tutorialPlayerWalk', tutorialPlayerWalkUrl, {
-      frameWidth: 256,
-      frameHeight: 256,
-    });
-    this.load.spritesheet('stage1PlayerIdle', stage1PlayerIdleUrl, {
-      frameWidth: 256,
-      frameHeight: 256,
-    });
-    this.load.spritesheet('stage1PlayerWalk', stage1PlayerWalkUrl, {
-      frameWidth: 256,
-      frameHeight: 256,
-    });
-    this.load.spritesheet('stage2PlayerIdle', stage2PlayerIdleUrl, {
-      frameWidth: 256,
-      frameHeight: 256,
-    });
-    this.load.spritesheet('stage2PlayerWalk', stage2PlayerWalkUrl, {
-      frameWidth: 256,
-      frameHeight: 256,
+    this.load.spritesheet('playerWalkSheet', playerWalkUrl, {
+      frameWidth: PLAYER_FRAME_SIZE,
+      frameHeight: PLAYER_FRAME_SIZE,
     });
   }
 
@@ -122,29 +110,30 @@ export class BootScene extends Phaser.Scene {
     // 역산한다. 지금은 네 방향이 전부 8프레임이라 결과가 같지만, 시트가 바뀌어 방향별
     // 프레임 수가 어긋나도 걷는 속도는 그대로 유지된다.
     const CYCLE_SECONDS = 0.6;
-    const WALK_RANGES = { Down: [12, 19], Up: [20, 27], Left: [28, 35], Right: [36, 43] };
-    for (const prefix of ['tutorial', 'stage1', 'stage2']) {
-      const idleKey = `${prefix}PlayerIdle`;
-      if (!this.anims.exists(idleKey)) {
-        this.anims.create({
-          key: idleKey,
-          frames: this.anims.generateFrameNumbers(idleKey, { start: 0, end: 11 }),
-          frameRate: 6,
-          repeat: -1,
-        });
-      }
-      const walkKey = `${prefix}PlayerWalk`;
-      for (const [dir, [start, end]] of Object.entries(WALK_RANGES)) {
-        const key = `${prefix}PlayerWalk${dir}`;
-        if (this.anims.exists(key)) continue;
-        const count = end - start + 1;
-        this.anims.create({
-          key,
-          frames: this.anims.generateFrameNumbers(walkKey, { start, end }),
-          frameRate: Math.round(count / CYCLE_SECONDS),
-          repeat: -1,
-        });
-      }
+
+    // 대기는 방향마다 한 장이다 — 애니메이션이라기보다 "그 방향으로 서 있는 그림"이다.
+    // 그래도 애니메이션으로 등록해 두면 씬이 걷기와 같은 방식(play(key))으로 다룰 수 있다.
+    for (const [dir, frame] of Object.entries(PLAYER_IDLE_FRAMES)) {
+      const key = PLAYER_ANIM[`idle${dir}`];
+      if (this.anims.exists(key)) continue;
+      this.anims.create({ key, frames: [{ key: 'playerIdleSheet', frame }], frameRate: 1, repeat: -1 });
+    }
+
+    // 걷기 — 한 바퀴가 같은 시간(0.6초) 걸리도록 프레임 수에서 frameRate 를 역산한다.
+    // 시트가 바뀌어 방향별 프레임 수가 어긋나도 한 바퀴 시간은 그대로 유지된다.
+    //
+    // 실제 재생 속도는 여기서 끝이 아니다 — worldParts.createPlayerVisual 이 매 프레임
+    // **이동 속도를 보고 timeScale 을 맞춘다**. 이 frameRate 는 그 기준점(timeScale 1)이다.
+    for (const [dir, [start, end]] of Object.entries(PLAYER_WALK_RANGES)) {
+      const key = PLAYER_ANIM[`walk${dir}`];
+      if (this.anims.exists(key)) continue;
+      const count = end - start + 1;
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers('playerWalkSheet', { start, end }),
+        frameRate: Math.round(count / CYCLE_SECONDS),
+        repeat: -1,
+      });
     }
 
     const params = new URLSearchParams(window.location.search);
