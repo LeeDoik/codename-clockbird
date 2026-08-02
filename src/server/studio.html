@@ -159,6 +159,30 @@
           </div>
         </section>
 
+        <section id="sec-escape-child">
+          <h2>신형 로봇 '꼬마' (스테이지 3) <span class="dirty" id="escape-child-dirty" hidden>● 저장 안 됨</span></h2>
+          <div class="legend">
+            심문 질문(<code>escape-question</code>)과 로봇 판정·대사(<code>escape-robot-judge</code>)
+            두 프롬프트에 <code>{{backstory}}</code> <code>{{personality}}</code> 로 주입됩니다.
+            첫 반전 대사(<code>greet</code>/<code>reveal</code>)는 연출용 고정 텍스트라 여기서
+            편집하지 않습니다.
+          </div>
+          <div class="warn">
+            ⚠ <b>꼬마는 플레이어가 고른 신분 단어를 모르는 쪽입니다.</b> 여기에 "상대의 직업을
+            추측하라" 같은 판정 규칙을 적지 마세요. 판정 규칙은 프롬프트 쪽에 이미 있고, 여기는
+            <b>말투와 배경</b>만입니다 — 흐려지면 이 심문의 정보 격리(로봇이 신분 단어를 모르는
+            설계)가 무너집니다.
+          </div>
+          <label>배경 (겉모습·정체 — 두 프롬프트 양쪽에 그대로 주입)</label>
+          <textarea id="ec-backstory" rows="4"></textarea>
+          <label>성격·말투</label>
+          <textarea id="ec-personality" rows="3"></textarea>
+          <div class="row">
+            <button class="primary" id="save-escape-child">꼬마 성격 저장</button>
+            <span class="status" id="escape-child-status"></span>
+          </div>
+        </section>
+
         <section>
           <h2>시스템 프롬프트 <span class="dirty" id="prompt-dirty" hidden>● 저장 안 됨</span></h2>
           <div class="legend">
@@ -258,7 +282,7 @@
     <script>
       const $ = (id) => document.getElementById(id);
       // pool 은 [{ name, text }] — text 는 textarea 원문 그대로 두고 저장·dirty 판정 때만 파싱한다.
-      const state = { allies: [], mansionNpcs: [], prompts: {}, pool: [], selected: 0, selectedMansion: 0, selectedCat: 0, selectedPrompt: null, saved: null };
+      const state = { allies: [], mansionNpcs: [], escapeChild: { backstory: '', personality: '' }, prompts: {}, pool: [], selected: 0, selectedMansion: 0, selectedCat: 0, selectedPrompt: null, saved: null };
 
       /**
        * 템플릿별 라벨·치환 변수·경고.
@@ -361,6 +385,7 @@
         state.saved = JSON.stringify({
           allies: state.allies,
           mansionNpcs: state.mansionNpcs,
+          escapeChild: state.escapeChild,
           prompts: state.prompts,
           pool: normalizedPool(),
         });
@@ -385,6 +410,7 @@
         $('mansion-dirty').hidden =
           JSON.stringify(state.mansionNpcs.map(MANSION_FIELDS)) ===
           JSON.stringify(now.mansionNpcs.map(MANSION_FIELDS));
+        $('escape-child-dirty').hidden = JSON.stringify(state.escapeChild) === JSON.stringify(now.escapeChild);
         // 어느 탭이 안 저장됐는지 탭 자체에 표시한다 — 12개나 되므로 헤더의 점 하나로는
         // 어디를 저장해야 하는지 알 수 없다.
         renderPromptTabs();
@@ -475,6 +501,33 @@
           renderMansionTabs();
           setStatus('mansion-status', '저장됨 — 다음 판부터 반영됩니다.', 'ok');
         } catch (e) { setStatus('mansion-status', e.message, 'err'); }
+      };
+
+      // ── 꼬마 성격 편집 (스테이지 3, 인물 하나뿐이라 탭 없음) ─────
+      function collectEscapeChildFields() {
+        state.escapeChild.backstory = $('ec-backstory').value;
+        state.escapeChild.personality = $('ec-personality').value;
+      }
+      function renderEscapeChildFields() {
+        $('ec-backstory').value = state.escapeChild.backstory;
+        $('ec-personality').value = state.escapeChild.personality;
+      }
+      for (const id of ['ec-backstory', 'ec-personality']) {
+        $(id).addEventListener('input', () => { collectEscapeChildFields(); refreshDirty(); });
+      }
+
+      $('save-escape-child').onclick = async () => {
+        collectEscapeChildFields();
+        try {
+          const r = await api('/escape-child', {
+            method: 'PUT',
+            body: JSON.stringify({ child: state.escapeChild }),
+          });
+          state.escapeChild = r.child;
+          snapshot();
+          renderEscapeChildFields();
+          setStatus('escape-child-status', '저장됨 — 다음 판부터 반영됩니다.', 'ok');
+        } catch (e) { setStatus('escape-child-status', e.message, 'err'); }
       };
 
       // ── 시스템 프롬프트 편집 ───────────────────────────────────
@@ -725,6 +778,7 @@
           const data = await api('/data');
           state.allies = data.allies;
           state.mansionNpcs = data.mansionNpcs;
+          state.escapeChild = data.escapeChild;
           state.prompts = data.prompts;
           state.pool = Object.entries(data.categories).map(([name, words]) => ({ name, text: words.join(', ') }));
           // 탭 목록은 서버가 준 템플릿 그대로다 — 새 프롬프트를 TEMPLATES 에 넣으면
@@ -736,6 +790,7 @@
           renderPersonaFields();
           renderMansionTabs();
           renderMansionFields();
+          renderEscapeChildFields();
           renderPromptFields();
           renderCatTabs();
           renderCatFields();

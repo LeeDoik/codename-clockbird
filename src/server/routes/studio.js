@@ -27,6 +27,7 @@ router.use((req, res, next) => {
 const PERSONAS_URL = new URL('../../data/personas.json', import.meta.url);
 const CODEWORDS_URL = new URL('../../data/codewords.json', import.meta.url);
 const MANSION_URL = new URL('../../data/mansion.json', import.meta.url);
+const ESCAPE_URL = new URL('../../data/escape.json', import.meta.url);
 const promptUrl = (name) => new URL(`../../data/prompts/${name}.txt`, import.meta.url);
 
 /** 템플릿별로 빠지면 게임이 조용히 망가지는 변수 — 저장은 막지 않고 경고만 돌려준다. */
@@ -57,6 +58,7 @@ router.get('/data', async (req, res, next) => {
     const personas = JSON.parse(await readFile(PERSONAS_URL, 'utf8'));
     const codewords = JSON.parse(await readFile(CODEWORDS_URL, 'utf8'));
     const mansion = JSON.parse(await readFile(MANSION_URL, 'utf8'));
+    const escape = JSON.parse(await readFile(ESCAPE_URL, 'utf8'));
     const prompts = {};
     for (const name of templateNames()) prompts[name] = await loadTemplate(name);
     res.json({
@@ -67,6 +69,8 @@ router.get('/data', async (req, res, next) => {
       mansionNpcs: mansion.npcs.map(({ id, name, kind, room, line, backstory, personality }) => ({
         id, name, kind, room, line, backstory, personality,
       })),
+      // greet·reveal 은 편집 대상이 아니라(EscapeScene 이 그대로 쓰는 연출 대사) 내보내지 않는다.
+      escapeChild: { backstory: escape.child.backstory, personality: escape.child.personality },
       prompts,
       categories: codewords.categories,
     });
@@ -293,6 +297,75 @@ router.put('/mansion-npcs', async (req, res, next) => {
     res.json({ ok: true, npcs: file.npcs.map(({ id, name, kind, room, line, backstory, personality }) => ({
       id, name, kind, room, line, backstory, personality,
     })) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * escape.json 의 child 블록 안 backstory/personality 두 필드만 원문에서 문자열 치환한다.
+ * mansion.json 과 같은 이유 — identities 배열이 사람이 손으로 한 줄씩 맞춘 포맷이라
+ * 파일 전체를 JSON.stringify(file, null, 2) 로 다시 쓰면 그 정렬이 사라진다 (검증됨).
+ * child 블록만 찾아 그 안의 두 필드 값만 바꿔치기하면 나머지 바이트는 원본과 그대로 같다.
+ *
+ * greet·reveal·identities·_comment 는 여기서 손대지 않는다 — greet·reveal 은 EscapeScene 이
+ * 그대로 쓰는 연출 대사라 편집 대상이 아니고, identities 는 신분 단어 고정 풀이라 이 경로와
+ * 무관하다.
+ */
+function patchEscapeChildFields(text, { backstory, personality }) {
+  const blockRe = /"child":\s*\{[\s\S]*?\n  \}/;
+  const m = text.match(blockRe);
+  if (!m) throw new Error('escape.json 에서 child 블록을 찾을 수 없습니다.');
+  let block = m[0];
+  for (const [key, value] of Object.entries({ backstory, personality })) {
+    const fieldRe = new RegExp(`"${key}":\\s*"(?:[^"\\\\]|\\\\.)*"`);
+    if (!fieldRe.test(block)) {
+      throw new Error(`escape.json 의 child 블록에서 ${key} 필드를 찾을 수 없습니다.`);
+    }
+    // replace 의 두 번째 인자가 "문자열"이면 그 안의 $&·$$·$`·$' 를 특수 치환 패턴으로
+    // 해석한다 — value 는 팀원이 textarea 에 친 임의 문자열이라 흔한 입력에도 매치 전체가
+    // 끼어들어 JSON 이 깨질 수 있다. 함수를 넘기면 반환값이 그대로 삽입되어 그 해석을
+    // 피한다 (patchMansionNpcFields 에서 검증된 패턴). 절대 문자열로 되돌리지 말 것.
+    block = block.replace(fieldRe, () => `"${key}": ${JSON.stringify(value)}`);
+  }
+  text = text.slice(0, m.index) + block + text.slice(m.index + m[0].length);
+  return text;
+}
+
+/**
+ * PUT /api/studio/escape-child  { child: { backstory, personality } }
+ *
+ * greet·reveal·identities 는 이 경로로 바꿀 수 없다 — 요청 바디에 담겨 와도 무시한다.
+ * mansion-npcs 와 같은 이중 안전망: 치환 결과를 디스크에 쓰기 전에 JSON.parse 로 검증한다.
+ */
+router.put('/escape-child', async (req, res, next) => {
+  try {
+    const incoming = req.body?.child;
+    if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+      return res.status(400).json({ error: 'child 객체가 필요합니다.' });
+    }
+    for (const field of ['backstory', 'personality']) {
+      if (typeof incoming[field] !== 'string' || !incoming[field].trim()) {
+        return res.status(400).json({ error: `child.${field} 가 비어 있습니다.` });
+      }
+      if (incoming[field].length > 2000) {
+        return res.status(400).json({ error: `child.${field} 가 너무 깁니다 (2000자 제한).` });
+      }
+    }
+
+    const raw = await readFile(ESCAPE_URL, 'utf8');
+    const patched = patchEscapeChildFields(raw, {
+      backstory: incoming.backstory.trim(),
+      personality: incoming.personality.trim(),
+    });
+    let parsed;
+    try {
+      parsed = JSON.parse(patched);
+    } catch (parseErr) {
+      throw new Error(`꼬마 성격 저장 결과가 손상되어 취소했습니다 (파일은 바뀌지 않았습니다): ${parseErr.message}`);
+    }
+    await writeFile(ESCAPE_URL, patched, 'utf8');
+    res.json({ ok: true, child: { backstory: parsed.child.backstory, personality: parsed.child.personality } });
   } catch (err) {
     next(err);
   }
