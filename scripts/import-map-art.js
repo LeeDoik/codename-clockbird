@@ -241,7 +241,8 @@ export function importMapArt(name, { dry = null, cmpFile = null, keepWatermark =
   }
 
   const target = dry || cfg.out;
-  fs.writeFileSync(target, encodePng(framed.w, framed.h, framed.data));
+  // 배경은 불투명하다 — 알파를 버리면(색 타입 2) 파일이 눈에 띄게 준다.
+  fs.writeFileSync(target, encodePng(framed.w, framed.h, framed.data, { rgb: true }));
   const kb = (fs.statSync(target).size / 1024).toFixed(0);
   console.log(`→ ${target}  ${framed.w}×${framed.h} = ${framed.w / TILE}×${framed.h / TILE}칸  (${kb}KB)`);
   console.log(`   맵 json 에 적을 값:  "tileSize": ${TILE}, "cols": ${framed.w / TILE}, "rows": ${framed.h / TILE}`);

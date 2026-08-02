@@ -104,20 +104,62 @@ export function decodePng(buf) {
   return { w, h, data: out };
 }
 
-export function encodePng(w, h, px) {
-  const stride = w * 4;
+/**
+ * @param {Uint8ClampedArray} px RGBA 픽셀
+ * @param {{rgb?: boolean}} [opt] rgb 면 알파를 버리고 색 타입 2 로 낸다.
+ *   배경처럼 불투명한 그림은 이것만으로 원본 바이트가 1/4 줄고, 압축 결과도 그만큼 준다.
+ *
+ * 행 필터는 **다섯 가지를 다 해 보고 가장 작은 것을 고른다**(표준 휴리스틱: 부호 있는
+ * 절대값 합이 최소인 것). 예전엔 Paeth 로 못박혀 있었는데, AI 배틀맵처럼 색이 잔뜩
+ * 섞인 그림에서는 행마다 잘 맞는 필터가 달라 손해가 컸다 — 배경 네 장 13.5MB 가
+ * 이 두 가지로 줄어든다.
+ */
+export function encodePng(w, h, px, { rgb = false } = {}) {
+  const bpp = rgb ? 3 : 4;
+  const stride = w * bpp;
+
+  // 알파를 버리는 경우 먼저 촘촘한 버퍼로 옮긴다 — 필터가 이웃 픽셀을 bpp 만큼 뒤로 본다.
+  let src = px;
+  if (rgb) {
+    src = new Uint8ClampedArray(w * h * 3);
+    for (let i = 0, j = 0; i < w * h; i++, j += 3) {
+      src[j] = px[i * 4];
+      src[j + 1] = px[i * 4 + 1];
+      src[j + 2] = px[i * 4 + 2];
+    }
+  }
+
   const raw = Buffer.alloc(h * (stride + 1));
+  const cand = Array.from({ length: 5 }, () => Buffer.alloc(stride));
   for (let y = 0; y < h; y++) {
-    const o = y * (stride + 1);
-    raw[o] = 4; // Paeth
+    const row = y * stride;
+    const prev = (y - 1) * stride;
     for (let i = 0; i < stride; i++) {
-      const a = i >= 4 ? px[y * stride + i - 4] : 0;
-      const b = y ? px[(y - 1) * stride + i] : 0;
-      const c = y && i >= 4 ? px[(y - 1) * stride + i - 4] : 0;
+      const x = src[row + i];
+      const a = i >= bpp ? src[row + i - bpp] : 0;
+      const b = y ? src[prev + i] : 0;
+      const c = y && i >= bpp ? src[prev + i - bpp] : 0;
       const p = a + b - c;
       const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
-      raw[o + 1 + i] = (px[y * stride + i] - (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 0xff;
+      cand[0][i] = x;
+      cand[1][i] = (x - a) & 0xff;
+      cand[2][i] = (x - b) & 0xff;
+      cand[3][i] = (x - ((a + b) >> 1)) & 0xff;
+      cand[4][i] = (x - (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 0xff;
     }
+    let best = 0;
+    let bestScore = Infinity;
+    for (let f = 0; f < 5; f++) {
+      let s = 0;
+      for (let i = 0; i < stride; i++) {
+        const v = cand[f][i];
+        s += v < 128 ? v : 256 - v;
+      }
+      if (s < bestScore) { bestScore = s; best = f; }
+    }
+    const o = y * (stride + 1);
+    raw[o] = best;
+    cand[best].copy(raw, o + 1);
   }
   const chunk = (type, data) => {
     const len = Buffer.alloc(4);
@@ -131,7 +173,7 @@ export function encodePng(w, h, px) {
   ihdr.writeUInt32BE(w, 0);
   ihdr.writeUInt32BE(h, 4);
   ihdr[8] = 8;
-  ihdr[9] = 6;
+  ihdr[9] = rgb ? 2 : 6;
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),

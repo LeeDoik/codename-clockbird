@@ -33,6 +33,7 @@ echo.
 echo     [1] 튜토리얼 본부   (hq)
 echo     [2] 스테이지 1 거리 (street)
 echo     [3] 스테이지 2 저택 (mansion)
+echo     [4] 스테이지 3 수로 (escape)
 echo     [Enter] 그만두기
 echo.
 set "PICK="
@@ -41,11 +42,12 @@ set /p "PICK=  번호: "
 if /i "%PICK%"=="1" set "MAP=hq"
 if /i "%PICK%"=="2" set "MAP=street"
 if /i "%PICK%"=="3" set "MAP=mansion"
+if /i "%PICK%"=="4" set "MAP=escape"
 if not "%MAP%"=="" goto have_map
 REM 빈 입력은 그만두기다 — 여기서 무조건 되돌아가면 입력이 끊겼을 때 끝없이 돈다.
 if "%PICK%"=="" exit /b 0
 echo.
-echo   [!] 1, 2, 3 중에 고르세요.
+echo   [!] 1, 2, 3, 4 중에 고르세요.
 echo.
 goto menu
 
@@ -53,8 +55,9 @@ goto menu
 if /i "%MAP%"=="hq" goto have_map
 if /i "%MAP%"=="street" goto have_map
 if /i "%MAP%"=="mansion" goto have_map
+if /i "%MAP%"=="escape" goto have_map
 echo   [!] 모르는 맵 이름입니다: %MAP%
-echo       hq / street / mansion 중 하나를 쓰세요.
+echo       hq / street / mansion / escape 중 하나를 쓰세요.
 echo.
 pause
 exit /b 1

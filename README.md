@@ -191,8 +191,17 @@ SSE 리더, 한글 IME 입력, 버튼 잠금(`setBusy`)은 **실제로 눌러본
      (화면에 보이는 월드 = 960×540px = 30×16.875 칸, 맵 최소 30×17 칸),
      HUD·수첩은 별도 UI 카메라가 1080p 원본으로 그린다 (`worldParts.setupCameras`).
      맵이 화면보다 크면 카메라가 플레이어를 따라간다 — 맵 크기와 캔버스 크기는 분리됐다.
-   - 맵 데이터: `tools/tilemap-studio.html`(브라우저 에디터, claude.ai/code Artifact)로 제작 →
-     `src/client/assets/map.json`(레이아웃+충돌+스폰) + `assets/tiles/tiles.png`(3프레임 시트).
-     `BootScene`이 스프라이트시트를, `StageScene`이 `map.json`을 import 해서 렌더·충돌.
-   - 검증용 독립 데모: `tools/map-demo.html` (서버 없이 더블클릭, 이동+충돌 확인).
-   - 남은 아트: 플레이어·동료·시민은 아직 도형(사각형). 바닥/벽 타일만 실아트다.
+   - **맵 데이터 (2026-08-02 전면 교체 — `docs/맵교체_계획.md`)**: 네 맵 모두
+     AI 배틀맵 한 장을 배경으로 깔고 충돌만 따로 세운다. 타일을 한 칸씩 그리지 않는다.
+     - 배경: `design/맵/` 의 원본 webp → `tools/webp2png.py` → `scripts/import-map-art.js`
+       (워터마크 제거 + 32의 배수로 자르기) → `src/client/assets/*-bg.png`
+     - 충돌: `scripts/walkmask.js` 의 **walk 격자가 유일한 출처**다 (`*-props.json`).
+       `seed` 가 그림에서 초안을 뽑고(맵마다 색 규칙이 다르다), 눈으로 고쳐 `import` 한다.
+       칸 수가 맵과 어긋나면 `los.readWalk` 가 던진다 — 조용히 옛 좌표로 되돌아가지 않는다.
+     - 축척: 맵 json 의 `charHeight`(인물 높이)와 `cameraZoom` 이 정한다.
+       걷는 속도·상호작용 사거리·말풍선 높이·발밑 판정이 전부 여기 비례한다.
+     - 크기: 본부 60×40 · 거리 70×35 · 저택 58×40 · 수로 54×42 (타일 32px)
+   - 화면 확인: `node tools/shot.mjs "/?tutorial" --wait 7000 -o hq.png`
+     (`?tutorial` `?stage2` `?stage3` 개발 링크로 곧장 들어간다)
+   - `tools/tilemap-studio.html` · `tools/map-demo.html` 과 `scripts/gen-*-art.js`·`gen-*-map.js`
+     는 그 이전 계보다 — **다시 돌리면 새 아트를 덮어쓴다** (각 파일 머리에 경고를 달아 뒀다).
