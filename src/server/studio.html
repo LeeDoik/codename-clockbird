@@ -313,7 +313,7 @@
         'mansion-civ': { label: 'S2 · 민간인 태도', vars: ['mood'] },
         'escape-question': {
           label: 'S3 · 심문 질문',
-          vars: ['asked', 'questionMax', 'historyBlock'],
+          vars: ['asked', 'questionMax', 'historyBlock', 'backstory', 'personality'],
         },
         'escape-system-judge': {
           label: 'S3 · 시스템 판정',
@@ -324,7 +324,7 @@
         },
         'escape-robot-judge': {
           label: 'S3 · 로봇 판정',
-          vars: ['historyBlock'],
+          vars: ['historyBlock', 'backstory', 'personality'],
           warn:
             '⚠ <b>여기에 신분 단어를 넣지 마세요.</b> 로봇이 정답을 알면 3지선다 소거법으로 ' +
             '필승이라 심문이라는 규칙 자체가 죽습니다. 로봇의 <b>대사도 이 프롬프트가 씁니다</b> — ' +

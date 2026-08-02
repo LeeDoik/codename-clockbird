@@ -40,11 +40,13 @@ const FALLBACK_QUESTION = '"아저씨는 아침에 제일 먼저 뭘 만져요?"
  * 로봇의 다음 질문을 만든다.
  * 실패해도 예외를 던지지 않는다 — 캔 질문으로 심문을 계속 진행시킨다.
  */
-export async function generateRobotQuestion({ history, asked, questionMax }) {
+export async function generateRobotQuestion({ history, asked, questionMax, persona }) {
   const system = await renderPrompt('escape-question', {
     asked,
     questionMax,
     historyBlock: formatHistory(history),
+    backstory: persona.backstory,
+    personality: persona.personality,
   });
 
   try {
@@ -121,9 +123,11 @@ const FALLBACK_REPLY = '"…음. 그렇구나."';
  * 대사(reply)도 여기서 나온다. 단어를 모르는 쪽이 말하므로 대사가 정답을 흘릴
  * 경로 자체가 없다.
  */
-export async function judgeAsRobot({ history, question, answer }) {
+export async function judgeAsRobot({ history, question, answer, persona }) {
   const system = await renderPrompt('escape-robot-judge', {
     historyBlock: formatHistory(history),
+    backstory: persona.backstory,
+    personality: persona.personality,
   });
 
   const content = `[네가 방금 던진 질문]\n${question}\n\n[상대의 답변]\n${answer}`;

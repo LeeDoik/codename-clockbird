@@ -65,7 +65,10 @@ router.post('/interrogation/start', async (req, res, next) => {
       `[escape] 세션 ${sessionId.slice(0, 8)} 시작 — 카드: ` +
         session.choices.map((c) => c.word).join(', '),
     );
-    res.json({ state: toEscapeView(session), child: data.child });
+    // 화이트리스트 — backstory/personality 는 클라이언트가 쓰지 않는다(showIntro 는 greet·reveal 만
+    // 읽는다, EscapeScene#showChildIntro). 정답(신분 단어)이 아니라 새어 나가도 게임이 깨지진
+    // 않지만, 응답에 안 쓰는 필드를 실을 이유가 없다.
+    res.json({ state: toEscapeView(session), child: { greet: data.child.greet, reveal: data.child.reveal } });
   } catch (err) {
     next(err);
   }
@@ -107,10 +110,12 @@ router.post('/interrogation/question', async (req, res, next) => {
     // reject 한다. 거절된 프로미스를 캐시에 남겨 두면 이 세션의 /question 은
     // 매번 같은 실패를 재현할 뿐 복구할 길이 없어지므로(세션이 인메모리라 다른
     // 리셋 수단도 없다), .catch() 로 캐시를 비워 다음 호출이 다시 시도하게 한다.
+    const data = await getData();
     session.pendingQuestionPromise ??= generateRobotQuestion({
       history: session.history,
       asked: session.asked,
       questionMax: QUESTION_MAX,
+      persona: data.child,
     })
       .then(({ question }) => {
         // 답변 심사에 같은 질문을 써야 하므로 여기 보관한다.
@@ -150,10 +155,11 @@ router.post('/interrogation/answer', async (req, res, next) => {
     const text = answer.trim().slice(0, MAX_ANSWER_LEN);
     const question = session.pendingQuestion;
 
+    const data = await getData();
     const [sys, bot] = await Promise.all([
       judgeAsSystem({ identityWord: session.identity.word, question, answer: text }),
       // identityWord 를 넘기지 않는다 — 넘길 자리 자체가 없다 (ai/interrogation.js 주석).
-      judgeAsRobot({ history: session.history, question, answer: text }),
+      judgeAsRobot({ history: session.history, question, answer: text, persona: data.child }),
     ]);
 
     pushEscapeTurn(session, question, text);
