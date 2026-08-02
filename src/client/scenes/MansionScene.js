@@ -146,7 +146,7 @@ export class MansionScene extends Phaser.Scene {
     );
     // 여기까지가 월드. NPC 는 /start 응답 후에 생기므로 asWorld() 로 따로 등록한다.
     setupCameras(this, mansionData, this.player);
-    this.interact = new InteractionManager(this, this.dialogue);
+    this.interact = new InteractionManager(this, this.dialogue, PLAYER_HEIGHT);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');

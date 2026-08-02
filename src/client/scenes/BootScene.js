@@ -148,6 +148,16 @@ export class BootScene extends Phaser.Scene {
     const params = new URLSearchParams(window.location.search);
     const noIntro = params.has('nointro');
 
+    // 개발용 — 튜토리얼(본부)로 곧장 들어간다.
+    //
+    // ?nointro 는 오프닝만 건너뛰고 스테이지 1 로 가므로, 본부를 보려면 3분짜리 오프닝을
+    // 매번 봐야 했다. 본부는 자기 세션(/api/tutorial/start)을 스스로 열고 힌트가 고정
+    // 세트라 LLM 대기도 없어서, 스테이지 시작 fetch 를 쏠 것이 없다 (?stage2 와 같다).
+    if (import.meta.env.DEV && params.has('tutorial')) {
+      waitForFonts(2000).then(() => this.scene.start('Tutorial'));
+      return;
+    }
+
     // 개발용 — 스테이지 2 저택으로 곧장 들어간다. 스테이지 1 세션이 없어도 되므로
     // 시작 fetch 를 쏘지 않는다 (저택은 LLM 대기 없이 시작한다).
     if (import.meta.env.DEV && params.has('stage2')) {

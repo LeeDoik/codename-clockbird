@@ -1,12 +1,13 @@
 {
   "format": "clockbird-tilemap",
   "version": 1,
-  "tileSize": 9.6,
-  "charHeight": 56,
+  "tileSize": 32,
+  "charHeight": 96,
+  "cameraZoom": 1,
   "cols": 60,
   "rows": 40,
   "tileset": "hq-bg.png",
-  "_comment": "hq-bg.png는 실제 아트(레지스탕스 아지트 픽셀아트 진짜 탑다운 배경, 1920x1280=60x40칸 원본, 32px/칸)다 — scripts/gen-hq-art.js 를 다시 돌리면 이 그림이 절차적 생성물로 덮어써지니 재실행 금지. 시점은 캐릭터와 맞췄지만(둘 다 탑다운) 가구가 캐릭터 대비 커서, TutorialScene 이 배경을 0.3배로 축소해서 깔고(BG_SCALE) 그만큼 tileSize 도 32→9.6 으로 같이 줄여 가구·충돌 좌표(칸 인덱스)는 그대로 유지했다. 배경이 작아진 만큼 방이 화면보다 작아지므로 카메라 줌(CAMERA_ZOOM=4)을 올려 화면을 꽉 채운다. 캐릭터(officer.png, chars.png)는 절대 픽셀 크기라 축소 영향을 안 받아 상대적으로 커 보인다.",
+  "_comment": "hq-bg.png 는 실제 아트(레지스탕스 아지트 픽셀아트 탑다운 배경, 1920x1280 = 60x40칸 · 32px/칸)다 — scripts/gen-hq-art.js 를 다시 돌리면 이 그림이 절차적 생성물로 덮어써지니 재실행 금지. 2026-08-02 네 맵 규격 통일(docs/맵교체_계획.md §1): 예전에는 배경을 0.3배로 줄여 깔고 tileSize 를 32→9.6 으로 같이 줄여 놨었는데, 그러면 월드가 576×384 로 작아져 카메라가 방 전체를 한 화면에 담아 탐색이 사라지고 본부만 줌 2.8125 의 예외가 됐다. 이제 배경은 1:1 로 깔고 tileSize 32 · 줌 2 로 나머지 세 맵과 같다. 칸 인덱스는 그대로라 손으로 칠한 hq-props.json 의 walk 를 그대로 쓴다. 캐릭터 크기는 charHeight(96)가 정한다.",
   "tiles": [
     {
       "name": "바닥(그림에 포함)",

@@ -1,4 +1,4 @@
-import { nearestOf, worldToScreen } from './worldParts.js';
+import { DEFAULT_CHAR_HEIGHT, nearestOf, worldToScreen } from './worldParts.js';
 
 /**
  * 공통 인터랙션 레이어 (스펙 §2).
@@ -10,15 +10,28 @@ import { nearestOf, worldToScreen } from './worldParts.js';
  *
  * E 이외의 키(F 접선·R 구출 등)는 씬의 몫이다 — 레이어는 current 를 내줄 뿐이다.
  */
-const DEFAULT_RANGE = 48;
+/**
+ * 사거리·말풍선 높이는 **캐릭터 키에 비례한다** (맵 json 의 charHeight).
+ *
+ * 절대 픽셀로 두면 그림이 큰 맵에서 팔 길이가 반으로 줄어든 것처럼 된다 — 인물이
+ * 96px 인데 사거리가 48px 이면 상대 몸에 겹쳐야 말이 걸린다. 아래 비율은 32px
+ * 캐릭터에서 예전 값(48 · 30)과 정확히 같은 수가 나오도록 잡았다.
+ */
+const RANGE_RATIO = 48 / DEFAULT_CHAR_HEIGHT;
+const BUBBLE_RATIO = 30 / DEFAULT_CHAR_HEIGHT;
 const VERB = { npc: '대화', choiceNpc: '대화', door: '열기', document: '열람', object: '조사' };
 
 export class InteractionManager {
-  constructor(scene, dialogue) {
+  /**
+   * @param {number} [charHeight] 이 맵의 인물 높이(월드 px). 씬이 맵 json 에서 읽어 넘긴다.
+   */
+  constructor(scene, dialogue, charHeight = DEFAULT_CHAR_HEIGHT) {
     this.scene = scene;
     this.dialogue = dialogue;
     this.nodes = new Map();
     this.nearest = null;
+    this.defaultRange = charHeight * RANGE_RATIO;
+    this.bubbleDy = charHeight * BUBBLE_RATIO;
     this.#buildBubble();
   }
 
@@ -44,9 +57,9 @@ export class InteractionManager {
 
   /** @param {number} x @param {number} y 대상의 **월드** 좌표 */
   #drawBubble(x, y, text) {
-    // 머리 위 30px 은 월드 기준이다 — 화면으로 옮기기 전에 더해야 줌이 달라도
+    // 머리 위 간격은 월드 기준이다 — 화면으로 옮기기 전에 더해야 줌이 달라도
     // 인물과의 간격이 그대로 유지된다.
-    const p = worldToScreen(this.scene.cameras.main, x, y - 30);
+    const p = worldToScreen(this.scene.cameras.main, x, y - this.bubbleDy);
     this.bubbleText.setText(text).setPosition(Math.round(p.x), Math.round(p.y)).setVisible(true);
     const b = this.bubbleText.getBounds();
     this.bubbleBg
@@ -94,20 +107,20 @@ export class InteractionManager {
       this.#hideBubble();
     }
     const items = [];
-    let maxRange = DEFAULT_RANGE;
+    let maxRange = this.defaultRange;
     for (const node of this.nodes.values()) {
       const { x, y } = this.#posOf(node);
       items.push({ value: node, x, y });
-      maxRange = Math.max(maxRange, node.range ?? DEFAULT_RANGE);
+      maxRange = Math.max(maxRange, node.range ?? this.defaultRange);
     }
-    // range 는 노드마다 다를 수 있어(문은 56) 최대 범위로 모은 뒤 개별 확인한다.
+    // range 는 노드마다 다를 수 있어(저택 연구실 문) 최대 범위로 모은 뒤 개별 확인한다.
     const found = nearestOf(player, items, maxRange);
     const near =
       found &&
       (() => {
         const { x, y } = this.#posOf(found);
         const dist = Math.hypot(player.x - x, player.y - y);
-        return dist <= (found.range ?? DEFAULT_RANGE) ? found : null;
+        return dist <= (found.range ?? this.defaultRange) ? found : null;
       })();
 
     this.nearest = near ?? null;

@@ -197,7 +197,7 @@ export class StageScene extends Phaser.Scene {
     // 여기까지가 월드 — 이후의 HUD·수첩·도움말은 UI 카메라 소속이다.
     // (경계 상승으로 나중에 붙는 증원 순찰은 #maybeReinforce 가 asWorld 로 등록한다.)
     setupCameras(this, mapData, this.player);
-    this.interact = new InteractionManager(this, this.dialogue);
+    this.interact = new InteractionManager(this, this.dialogue, PLAYER_HEIGHT);
     this.#registerInteractables();
 
     this.cursors = this.input.keyboard.createCursorKeys();

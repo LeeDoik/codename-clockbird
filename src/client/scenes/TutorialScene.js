@@ -25,26 +25,26 @@ import hqProps from '../assets/hq-props.json';
 const TILE = hqData.tileSize;
 const PLAYER_FRAME = 0;
 
-// 배경 가구가 캐릭터 대비 크다 — 그림을 0.3배로 줄여 깔고(hq.json 의 tileSize 도
-// 32→9.6으로 같은 비율로 줄여 가구·충돌 칸 인덱스는 그대로 유지), 캐릭터(고정
-// 픽셀 크기)는 손대지 않아 상대적으로 커 보이게 한다.
-const BG_SCALE = 0.3;
-// 방이 작아서 스크롤이 필요 없다 — 방 전체 높이(rows*TILE)가 내부 해상도
-// 1080px 에 꼭 맞는 배율로 고정해 카메라가 플레이어를 따라다니지 않고
-// 방 전체를 계속 보여주게 한다(세로 기준: 가로 1920 에 맞추면 위아래가
-// 잘린다 — 방 가로세로비가 화면보다 좁아서 좌우에 약간의 여백이 남는 대신
-// 위아래는 절대 안 잘리는 쪽을 택했다).
-const CAMERA_ZOOM = 1080 / (hqData.rows * hqData.tileSize);
+// 플레이어(튜토리얼 전용 외형): 256×256 프레임, 인물은 y[0,176] 영역(실측) —
+// 정수리가 프레임 맨 위에 닿아 있어 발-정수리 높이가 곧 인물 높이(176px)다.
+// 화면에 얼마로 보일지는 맵이 정한다 (hq.json 의 charHeight).
+const PLAYER_ORIGIN_Y = 176 / 256;
+const PLAYER_CONTENT_HEIGHT = 176;
+/** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
+const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
 // 브란트(간부) 아이들 모션: 432×432 프레임, 인물은 그 안의 대략 x[66,360]·
 // y[18,426] 영역을 차지한다(대표 프레임 실측 — 프레임마다 자세가 살짝 달라
-// ±수 px 흔들리는 건 아이들 모션 자체다). 발-정수리 높이가 1.75타일(56px)이
-// 되도록, 인물 실제 높이(408px) 기준으로 프레임 전체를 함께 축소한다.
+// ±수 px 흔들리는 건 아이들 모션 자체다). 플레이어와 키를 맞춘다.
 const OFFICER_FRAME = 432;
 const OFFICER_CONTENT_HEIGHT = 408;
-const OFFICER_HEIGHT = 56;
+const OFFICER_HEIGHT = PLAYER_HEIGHT;
 const OFFICER_SCALE = OFFICER_HEIGHT / OFFICER_CONTENT_HEIGHT;
 const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
+
+/** 이름표·신뢰도 표시를 인물 머리 위 어디에 둘지 (월드 px, 발 기준) */
+const LABEL_DY = PLAYER_HEIGHT + 8;
+const TRUST_DY = PLAYER_HEIGHT + 22;
 
 // 동료 3인(레나·미아·오토) 아이들 모션: 256×256 프레임. 발 위치(216px)는 셋 다
 // 같지만 인물 키(정수리 위치)는 캐릭터마다 달라 실측치로 따로 잡는다.
@@ -54,9 +54,6 @@ const ALLY_ORIGIN_Y = ALLY_CONTENT_BOTTOM / ALLY_FRAME;
 const ALLY_CONTENT_TOP = { t1: 26, t2: 58, t3: 26 };
 const ALLY_ANIM = { t1: 't1Idle', t2: 't2Idle', t3: 't3Idle' };
 
-// 플레이어(튜토리얼 전용 외형): 256×256 프레임, 인물은 y[0,176] 영역(실측) —
-// 정수리가 프레임 맨 위에 닿아 있어 발-정수리 높이가 곧 인물 높이(176px)다.
-// 다른 캐릭터와 같은 1.75타일(56px)로 맞춘다.
 const PLAYER_ANIM = {
   idle: 'tutorialPlayerIdle',
   walkDown: 'tutorialPlayerWalkDown',
@@ -64,10 +61,6 @@ const PLAYER_ANIM = {
   walkLeft: 'tutorialPlayerWalkLeft',
   walkRight: 'tutorialPlayerWalkRight',
 };
-const PLAYER_ORIGIN_Y = 176 / 256;
-const PLAYER_CONTENT_HEIGHT = 176;
-/** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
-const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
 const LABEL_STYLE = {
   fontFamily: FONTS.body,
@@ -93,9 +86,8 @@ export class TutorialScene extends Phaser.Scene {
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
 
-    // 거리·저택과 같은 방식 — 바닥·벽·가구·조명을 한 장에 구운 배경을 깔고
-    // 충돌만 따로 세운다 (scripts/gen-hq-art.js).
-    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
+    // 거리·저택·수로와 같은 방식 — 가구까지 한 장에 구운 배경을 1:1 로 깔고 충돌만 따로 세운다.
+    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setDepth(-100);
     this.walls = buildColliders(this, hqData, hqProps);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     // 충돌 판정은 이 안 보이는 스프라이트가 그대로 맡고, 화면에는 방향 애니메이션이
@@ -110,11 +102,10 @@ export class TutorialScene extends Phaser.Scene {
       PLAYER_HEIGHT,
     );
     // 여기까지가 월드 — NPC 는 /start 응답 후에 생기므로 asWorld 로 따로 등록한다.
-    setupCameras(this, hqData, this.player, CAMERA_ZOOM);
-    // 방 전체가 한 화면에 들어오므로 따라다닐 필요가 없다 — 방 한가운데 고정한다.
-    this.cameras.main.stopFollow();
-    this.cameras.main.centerOn((hqData.cols * hqData.tileSize) / 2, (hqData.rows * hqData.tileSize) / 2);
-    this.interact = new InteractionManager(this, this.dialogue);
+    // 줌은 나머지 세 맵과 같은 기본값(2)이다. 방(60×40칸)이 화면(30×17칸)보다 커서
+    // 카메라가 플레이어를 따라다닌다 — 예전처럼 방 전체를 한 화면에 담지 않는다.
+    setupCameras(this, hqData, this.player);
+    this.interact = new InteractionManager(this, this.dialogue, PLAYER_HEIGHT);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -169,7 +160,7 @@ export class TutorialScene extends Phaser.Scene {
     const officerLabel = worldLabel(
       this,
       ox,
-      oy - 64,
+      oy - LABEL_DY,
       `${this.state.officer.name} (${this.state.officer.role})`,
       LABEL_STYLE,
     );
@@ -187,9 +178,9 @@ export class TutorialScene extends Phaser.Scene {
         .setOrigin(0.5, ALLY_ORIGIN_Y)
         .setDisplaySize(ALLY_FRAME * scale, ALLY_FRAME * scale)
         .play(ALLY_ANIM[ally.id]);
-      const label = worldLabel(this, x, y - 64, ally.name, LABEL_STYLE);
+      const label = worldLabel(this, x, y - LABEL_DY, ally.name, LABEL_STYLE);
       // 신뢰도는 튜토리얼에만 있는 규칙이라 여기서만 화면에 세운다.
-      const trust = worldLabel(this, x, y - 78, '', {
+      const trust = worldLabel(this, x, y - TRUST_DY, '', {
         ...LABEL_STYLE,
         fontSize: '12px',
         color: CSS.brass,

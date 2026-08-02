@@ -103,11 +103,15 @@ export const WORLD_ZOOM = 2;
  * scene.asWorld(...) / scene.asUi(...) 로 소속을 밝혀야 한다. 밝히지 않으면 양쪽
  * 카메라에 이중으로 그려진다 (UI 카메라 쪽에는 줌 없이 좌상단에 작게 나타난다).
  *
- * @param {number} [zoom] 기본은 WORLD_ZOOM(2). 타일 크기가 다른 맵(예: 배경 그림을
- *   축소해 깐 본부)은 화면에 보이는 칸 수를 맞추려면 다른 배율이 필요할 수 있다 —
- *   그때만 넘긴다. 정수를 써야 픽셀 아트가 뭉개지지 않는다(WORLD_ZOOM 주석 참고).
+ * @param {number} [zoom] 안 주면 맵 json 의 `cameraZoom`, 그것도 없으면 WORLD_ZOOM(2).
+ *
+ *   줌은 맵마다 다를 수 있다 — 캐릭터 크기(charHeight)는 **그림의 축척**이 정하는데,
+ *   화면에 인물이 몇 명분 보이는지는 그 둘의 곱(charHeight × zoom)이 정하기 때문이다.
+ *   본부처럼 그림이 크게 그려진 맵(charHeight 96)은 줌 2 면 세로로 인물 5.6명분밖에
+ *   안 보여 코앞만 보인다. 그래서 그림 축척은 charHeight 로, 화면에 담는 양은 zoom 으로
+ *   따로 잡는다. 정수를 써야 픽셀 아트가 뭉개지지 않는다(WORLD_ZOOM 주석 참고).
  */
-export function setupCameras(scene, mapData, player, zoom = WORLD_ZOOM) {
+export function setupCameras(scene, mapData, player, zoom = mapData.cameraZoom ?? WORLD_ZOOM) {
   const TILE = mapData.tileSize;
   const w = mapData.cols * TILE;
   const h = mapData.rows * TILE;
@@ -192,6 +196,16 @@ export const DEFAULT_CHAR_HEIGHT = 32;
 const BODY_W_RATIO = 16 / DEFAULT_CHAR_HEIGHT;
 const BODY_H_RATIO = 14 / DEFAULT_CHAR_HEIGHT;
 
+/**
+ * 걷는 속도 / 캐릭터 높이.
+ *
+ * 속도를 200 으로 못박아 두면 그림이 큰 맵에서 발이 느려 보인다 — 같은 200px/s 라도
+ * 32px 캐릭터에게는 초당 여섯 걸음이고 96px 캐릭터에게는 두 걸음이다. 눈이 재는 것은
+ * 절대 픽셀이 아니라 **제 키의 몇 배를 갔는가** 라서, 키에 비례시켜야 어느 맵에서나
+ * 같은 발놀림이 된다. 32px 에서는 예전 값(200)과 정확히 같다.
+ */
+const SPEED_RATIO = 200 / DEFAULT_CHAR_HEIGHT;
+
 /** 플레이어 — 맵이 지정한 스폰 칸 중앙에 두고 벽과 충돌시킨다. */
 export function createPlayer(scene, mapData, walls, frame = 0) {
   const TILE = mapData.tileSize;
@@ -212,6 +226,9 @@ export function createPlayer(scene, mapData, walls, frame = 0) {
   const bw = Math.max(4, Math.round(charHeight * BODY_W_RATIO));
   const bh = Math.max(4, Math.round(charHeight * BODY_H_RATIO));
   player.body.setSize(bw, bh).setOffset((player.width - bw) / 2, player.height / 2);
+
+  // 걷는 속도도 이 맵의 축척을 따른다 — applyMovement 가 기본값으로 읽는다.
+  player.walkSpeed = Math.round(charHeight * SPEED_RATIO);
 
   scene.physics.add.collider(player, walls);
   return player;
@@ -275,8 +292,11 @@ export function createPlayerVisual(
   };
 }
 
-/** 방향키 + WASD → 속도. 대화 입력 중 정지는 호출하는 씬이 판단한다. */
-export function applyMovement(player, { cursors, wasd, speed = 200 }) {
+/**
+ * 방향키 + WASD → 속도. 대화 입력 중 정지는 호출하는 씬이 판단한다.
+ * speed 를 안 주면 createPlayer 가 맵 축척으로 잡아 둔 값을 쓴다.
+ */
+export function applyMovement(player, { cursors, wasd, speed = player.walkSpeed ?? 200 }) {
   const left = cursors.left.isDown || wasd.A.isDown;
   const right = cursors.right.isDown || wasd.D.isDown;
   const up = cursors.up.isDown || wasd.W.isDown;

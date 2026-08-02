@@ -20,17 +20,12 @@ import hqProps from '../assets/hq-props.json';
  *
  * 여기엔 규칙이 없다. 걸어가서 [E] 한 번이 전부다.
  */
-// hq.json 은 배경 그림을 0.3배로 줄여 깔아서 tileSize 가 9.6 이다 (TutorialScene:24-36).
+// 본부는 튜토리얼과 같은 맵·같은 규격이다 — 값이 갈라지면 두 씬의 화면이 달라진다.
 const TILE = hqData.tileSize;
-const BG_SCALE = 0.3;
-/** 방 전체가 한 화면에 들어가는 배율 — 2.8125 */
-const CAMERA_ZOOM = 1080 / (hqData.rows * hqData.tileSize);
 
-// 브란트(간부) 아이들 모션 — TutorialScene:42-46 과 같은 값
+// 브란트(간부) 아이들 모션 — TutorialScene 과 같은 값
 const OFFICER_FRAME = 432;
 const OFFICER_CONTENT_HEIGHT = 408;
-const OFFICER_HEIGHT = 56;
-const OFFICER_SCALE = OFFICER_HEIGHT / OFFICER_CONTENT_HEIGHT;
 const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
 
 // 플레이어는 튜토리얼과 같은 외형이다 — TutorialScene 의 값과 같아야 한다.
@@ -49,6 +44,8 @@ const PLAYER_ORIGIN_Y = 176 / 256;
 const PLAYER_CONTENT_HEIGHT = 176;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
+/** 간부도 플레이어와 키를 맞춘다 (TutorialScene 과 같은 값이어야 한다). */
+const OFFICER_SCALE = PLAYER_HEIGHT / OFFICER_CONTENT_HEIGHT;
 
 /**
  * 간부. 자리는 `hq.json` 의 `spawns.officer` 를 그대로 쓴다 — 좌표를 여기 적으면
@@ -77,7 +74,7 @@ export class EndingScene extends Phaser.Scene {
   create() {
     this.dialogue = new DialogueBox();
 
-    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
+    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setDepth(-100);
     // props 를 통째로 넘긴다 — walk(손으로 칠한 걷는 길)가 충돌의 원본이다.
     // 한동안 `hqProps.blocked` 를 넘기고 있었는데, 그러면 walk 가 undefined 라 판정이
     // 조용히 옛 layout 경로로 떨어져 이 씬에는 가구 충돌이 사실상 없었다 (본부 layout 의
@@ -97,17 +94,11 @@ export class EndingScene extends Phaser.Scene {
       .setDisplaySize(OFFICER_FRAME * OFFICER_SCALE, OFFICER_FRAME * OFFICER_SCALE)
       .play('officerIdle');
 
-    // 월드를 다 깐 직후·UI 를 만들기 전. 방 전체가 한 화면에 들어가므로 따라다니지 않고
-    // 한가운데 고정한다 (TutorialScene:111-114 와 같다).
-    setupCameras(this, hqData, this.player, CAMERA_ZOOM);
-    this.cameras.main.stopFollow();
-    this.cameras.main.centerOn(
-      (hqData.cols * TILE) / 2,
-      (hqData.rows * TILE) / 2,
-    );
+    // 월드를 다 깐 직후·UI 를 만들기 전. 줌·카메라 추적 모두 TutorialScene 과 같다.
+    setupCameras(this, hqData, this.player);
 
     // InteractionManager 는 대화창을 직접 부린다 — 생성자가 dialogue 를 받는다.
-    this.interact = new InteractionManager(this, this.dialogue);
+    this.interact = new InteractionManager(this, this.dialogue, PLAYER_HEIGHT);
     // onInteract 가 있으면 type 별 기본 동작을 제치고 이쪽이 불린다 (interact.js:129-132).
     this.interact.register({
       id: 'officer',
