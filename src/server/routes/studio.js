@@ -2,7 +2,9 @@ import express from 'express';
 import { readFile, writeFile } from 'node:fs/promises';
 import { generateOne, generateAssociations } from '../ai/wordGen.js';
 import { judgeDuplicates } from '../ai/judge.js';
-import { streamAllyReply } from '../ai/dialogue.js';
+import { streamAllyReply, streamMansionReply } from '../ai/dialogue.js';
+import { judgeStance } from '../ai/stance.js';
+import { generateRobotQuestion, judgeAsRobot, judgeAsSystem } from '../ai/interrogation.js';
 import { templateNames, loadTemplate } from '../ai/promptStore.js';
 
 /**
@@ -459,6 +461,129 @@ router.post('/preview/dialogue', async (req, res, next) => {
       promptOverride,
     });
     res.json({ reply, elapsedMs: Date.now() - t0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── 스테이지 2 미리보기 ────────────────────────────────────────────
+//
+// 저택은 **말이 곧 규칙**인 스테이지라(반브루주아 발언이 동료의 호감과 민간인의 의심을
+// 동시에 움직인다) 대화와 성향 판정을 따로 돌려볼 수 있어야 한다. 게임에서는 이 둘이
+// 나란히 돌지만 여기서는 갈라 놓는다 — 어느 쪽 프롬프트가 문제인지 가려야 하기 때문이다.
+
+/**
+ * POST /api/studio/preview/mansion-dialogue
+ * { npc, room, favor, suspicion, clueTopic?, message, promptOverride?, kindOverride? }
+ *
+ * favor·suspicion 은 0~3 단계다. 수치 자체는 게임에서 화면에 안 나가지만(대사에 숫자가
+ * 새면 이 스테이지가 깨진다) 연기의 온도를 정하므로 미리보기에서는 골라 볼 수 있어야 한다.
+ */
+router.post('/preview/mansion-dialogue', async (req, res, next) => {
+  try {
+    const { npc, room = '홀', favor = 0, suspicion = 0, clueTopic = null, message, promptOverride, kindOverride } =
+      req.body ?? {};
+    if (!npc?.name || !npc?.kind || !message?.trim()) {
+      return res.status(400).json({ error: 'npc(name·kind) 와 message 가 필요합니다.' });
+    }
+    const t0 = Date.now();
+    const reply = await streamMansionReply({
+      npc: { ...npc, favor: Number(favor) || 0, suspicion: Number(suspicion) || 0 },
+      room,
+      clueTopic: clueTopic?.trim() || null,
+      history: [],
+      userMessage: message.trim(),
+      onText: () => {},
+      promptOverride,
+      kindOverride,
+    });
+    res.json({ reply, elapsedMs: Date.now() - t0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/studio/preview/mansion-stance  { message, clues?, promptOverride? }
+ * clues 는 [{id, topic}] — 발언이 그중 한 화제를 실제로 꺼냈는지까지 본다.
+ */
+router.post('/preview/mansion-stance', async (req, res, next) => {
+  try {
+    const { message, clues = [], promptOverride } = req.body ?? {};
+    if (!message?.trim()) return res.status(400).json({ error: 'message 가 필요합니다.' });
+    const t0 = Date.now();
+    const verdict = await judgeStance({
+      message: message.trim(),
+      clues: Array.isArray(clues) ? clues.filter((c) => c?.id && c?.topic) : [],
+      promptOverride,
+    });
+    res.json({ ...verdict, elapsedMs: Date.now() - t0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── 스테이지 3 미리보기 ────────────────────────────────────────────
+
+/**
+ * POST /api/studio/preview/escape-question
+ * { child, asked?, questionMax?, history?, promptOverride? }
+ */
+router.post('/preview/escape-question', async (req, res, next) => {
+  try {
+    const { child, asked = 0, questionMax = 8, history = [], promptOverride } = req.body ?? {};
+    if (!child?.backstory || !child?.personality) {
+      return res.status(400).json({ error: 'child(backstory·personality) 가 필요합니다.' });
+    }
+    const t0 = Date.now();
+    const out = await generateRobotQuestion({
+      history: Array.isArray(history) ? history : [],
+      asked: Number(asked) || 0,
+      questionMax: Number(questionMax) || 8,
+      persona: child,
+      promptOverride,
+    });
+    res.json({ ...out, elapsedMs: Date.now() - t0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/studio/preview/escape-judge
+ * { child, identityWord, question, answer, history?, systemOverride?, robotOverride? }
+ *
+ * **두 판정을 한 번에 돌려 나란히 보여준다.** 이 심문의 설계 전체가 "시스템은 신분 단어를
+ * 알고 로봇은 모른다"는 정보 격리에 걸려 있어서, 따로 보면 그게 지켜지는지 알 수 없다.
+ * 로봇 쪽에는 identityWord 를 **넘길 자리가 없다** — judgeAsRobot 의 시그니처가 그렇다.
+ */
+router.post('/preview/escape-judge', async (req, res, next) => {
+  try {
+    const { child, identityWord, question, answer, history = [], systemOverride, robotOverride } = req.body ?? {};
+    if (!child?.backstory || !child?.personality) {
+      return res.status(400).json({ error: 'child(backstory·personality) 가 필요합니다.' });
+    }
+    if (!identityWord?.trim() || !question?.trim() || !answer?.trim()) {
+      return res.status(400).json({ error: 'identityWord, question, answer 가 필요합니다.' });
+    }
+    const hist = Array.isArray(history) ? history : [];
+    const t0 = Date.now();
+    const [system, robot] = await Promise.all([
+      judgeAsSystem({
+        identityWord: identityWord.trim(),
+        question: question.trim(),
+        answer: answer.trim(),
+        promptOverride: systemOverride,
+      }),
+      judgeAsRobot({
+        history: hist,
+        question: question.trim(),
+        answer: answer.trim(),
+        persona: child,
+        promptOverride: robotOverride,
+      }),
+    ]);
+    res.json({ system, robot, elapsedMs: Date.now() - t0 });
   } catch (err) {
     next(err);
   }

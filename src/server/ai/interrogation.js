@@ -40,14 +40,18 @@ const FALLBACK_QUESTION = '"아저씨는 아침에 제일 먼저 뭘 만져요?"
  * 로봇의 다음 질문을 만든다.
  * 실패해도 예외를 던지지 않는다 — 캔 질문으로 심문을 계속 진행시킨다.
  */
-export async function generateRobotQuestion({ history, asked, questionMax, persona }) {
-  const system = await renderPrompt('escape-question', {
-    asked,
-    questionMax,
-    historyBlock: formatHistory(history),
-    backstory: persona.backstory,
-    personality: persona.personality,
-  });
+export async function generateRobotQuestion({ history, asked, questionMax, persona, promptOverride }) {
+  const system = await renderPrompt(
+    'escape-question',
+    {
+      asked,
+      questionMax,
+      historyBlock: formatHistory(history),
+      backstory: persona.backstory,
+      personality: persona.personality,
+    },
+    promptOverride,
+  );
 
   try {
     const message = await anthropic.beta.messages.parse({
@@ -81,8 +85,8 @@ const SystemVerdictSchema = z.object({
  * 실패 시 fail-open(감점 없음). API 장애로 지면 플레이어는 자기가 뭘 잘못했는지
  * 알 수 없고, 시연이라면 그대로 사고다 (checkpoint.js 와 같은 정책).
  */
-export async function judgeAsSystem({ identityWord, question, answer }) {
-  const system = await renderPrompt('escape-system-judge', { identityWord });
+export async function judgeAsSystem({ identityWord, question, answer, promptOverride }) {
+  const system = await renderPrompt('escape-system-judge', { identityWord }, promptOverride);
 
   // 심사 대상 텍스트를 시스템이 아니라 user 메시지에 둔다 — 규칙과 입력이 섞이지
   // 않아야 프롬프트 주입이 규칙을 덮어쓰지 못한다.
@@ -123,12 +127,16 @@ const FALLBACK_REPLY = '"…음. 그렇구나."';
  * 대사(reply)도 여기서 나온다. 단어를 모르는 쪽이 말하므로 대사가 정답을 흘릴
  * 경로 자체가 없다.
  */
-export async function judgeAsRobot({ history, question, answer, persona }) {
-  const system = await renderPrompt('escape-robot-judge', {
-    historyBlock: formatHistory(history),
-    backstory: persona.backstory,
-    personality: persona.personality,
-  });
+export async function judgeAsRobot({ history, question, answer, persona, promptOverride }) {
+  const system = await renderPrompt(
+    'escape-robot-judge',
+    {
+      historyBlock: formatHistory(history),
+      backstory: persona.backstory,
+      personality: persona.personality,
+    },
+    promptOverride,
+  );
 
   const content = `[네가 방금 던진 질문]\n${question}\n\n[상대의 답변]\n${answer}`;
 

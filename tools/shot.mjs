@@ -13,6 +13,7 @@
  *                  (한 번 눌렀다 떼면 한 프레임만 움직여 충돌을 못 확인한다).
  *                  예: --keys "Escape,W:900,A:600"
  *   --url <주소>   기본 http://localhost:5173
+ *   --full         화면 밖까지 포함해 페이지 전체를 찍는다 (프롬프트 스튜디오처럼 긴 문서용)
  *
  * 크롬의 `--screenshot` 은 못 쓴다 — `--virtual-time-budget` 이 타이머만 앞당기고
  * 네트워크 응답은 실시간이라, 세션 fetch 가 돌아오기 전에 찍힌다 (본부 NPC 가 없는
@@ -44,6 +45,7 @@ const out = flag('-o', 'shot.png');
 const waitMs = Number(flag('--wait', 6000));
 const keys = (flag('--keys', '') || '').split(',').filter(Boolean);
 const base = flag('--url', 'http://localhost:5173');
+const full = args.includes('--full');
 const target = base + path0;
 
 /** 안 쓰는 포트 하나 — 이미 돌던 크롬 디버거에 잘못 붙는 걸 막는다. */
@@ -143,7 +145,7 @@ try {
     await sleep(hold ? 200 : 400);
   }
 
-  const { data } = await send('Page.captureScreenshot', { format: 'png' });
+  const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: full });
   fs.writeFileSync(out, Buffer.from(data, 'base64'));
   console.log(`→ ${out}  (${(fs.statSync(out).size / 1024).toFixed(0)}KB)`);
   if (logs.length) {

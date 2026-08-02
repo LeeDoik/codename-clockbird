@@ -258,6 +258,70 @@
         </section>
 
         <section>
+          <h2>저택 대화 미리보기 <span class="note" style="font-weight:400;font-size:12px;color:var(--faint)">— 위에서 선택한 저택 인물 초안으로 실행</span></h2>
+          <div class="legend">
+            게임에서는 대화와 성향 판정이 <b>나란히</b> 돌지만 여기서는 갈라 놓았습니다 —
+            대사가 이상한 건지 판정이 이상한 건지 가려야 하기 때문입니다.<br />
+            호감도·의심도 수치는 게임 화면에 <b>절대 안 나갑니다</b>(대사에 숫자가 새면 이
+            스테이지가 깨집니다). 연기의 온도만 정하므로 여기서 단계를 바꿔 보세요.
+          </div>
+          <div class="row">
+            <div style="flex:1">
+              <label>호감도 (동료일 때)</label>
+              <select id="pv-favor"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+            </div>
+            <div style="flex:1">
+              <label>의심도 (민간인일 때)</label>
+              <select id="pv-susp"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+            </div>
+          </div>
+          <label>플레이어가 찾아낸 단서 화제 (비워도 됩니다)</label>
+          <input type="text" id="pv-clue" placeholder="예: 배급 장부에 적히지 않은 물량" />
+          <label>플레이어의 말</label>
+          <input type="text" id="pv-mansion-msg" value="요즘 위에서 내려오는 지시가 좀 지나치지 않아요?" />
+          <div class="row">
+            <button class="action" id="pv-mansion-talk">대화 미리보기</button>
+            <button class="action" id="pv-mansion-stance">성향 판정만</button>
+            <span class="status" id="pv-mansion-status"></span>
+          </div>
+          <div class="out" id="pv-mansion-out">저택 인물 탭에서 사람을 고르고 실행해 보세요. ≈ 2~5초.</div>
+        </section>
+
+        <section>
+          <h2>심문 미리보기 (스테이지 3)</h2>
+          <div class="legend">
+            <b>두 판정을 한 번에 돌려 나란히 보여줍니다.</b> 이 심문의 설계 전체가
+            "시스템은 신분 단어를 알고 <b>로봇은 모른다</b>"는 정보 격리에 걸려 있어서,
+            따로 보면 그게 지켜지는지 알 수 없습니다. 로봇 쪽에는 신분 단어를 넘길 자리
+            자체가 없습니다(<code>judgeAsRobot</code> 의 시그니처가 그렇습니다) —
+            <b>로봇의 대사에 신분 단어가 나오면 그건 프롬프트가 유추를 유도한 것</b>입니다.
+          </div>
+          <div class="row">
+            <div style="flex:1">
+              <label>지금까지 던진 질문 수</label>
+              <select id="pv-asked"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select>
+            </div>
+            <div style="flex:1">
+              <label>상대가 고른 신분 (시스템만 안다)</label>
+              <input type="text" id="pv-identity" value="시계공" />
+            </div>
+          </div>
+          <div class="row">
+            <button class="action" id="pv-escape-q">질문 생성</button>
+            <span class="status" id="pv-escape-q-status"></span>
+          </div>
+          <label>꼬마의 질문 (생성하거나 직접 입력)</label>
+          <input type="text" id="pv-question" placeholder="[질문 생성] 을 누르면 채워집니다" />
+          <label>플레이어의 답변</label>
+          <input type="text" id="pv-answer" value="아침마다 태엽을 감아요. 손끝이 기억하죠." />
+          <div class="row">
+            <button class="action" id="pv-escape-judge">양쪽 판정</button>
+            <span class="status" id="pv-escape-j-status"></span>
+          </div>
+          <div class="out" id="pv-escape-out">질문과 답변을 넣고 실행해 보세요. ≈ 3~8초.</div>
+        </section>
+
+        <section>
           <details>
             <summary>도움말 — 무엇을 만지면 안전한가</summary>
             <div class="legend" style="line-height:1.9">
@@ -770,6 +834,133 @@
           setStatus('pv-talk-status', '완료', 'ok');
         } catch (e) { setStatus('pv-talk-status', e.message, 'err'); }
         busy(['pv-talk'], false);
+      };
+
+      // ── 스테이지 2 미리보기 ───────────────────────────────────
+      //
+      // 초안(state.prompts) 을 그대로 넘긴다 — 저장하기 전의 글을 실제 호출에 태워 봐야
+      // 튜닝이 된다. 게임 경로는 이 override 를 절대 쓰지 않는다.
+
+      const clueList = () => {
+        const topic = $('pv-clue').value.trim();
+        return topic ? [{ id: 'preview-clue', topic }] : [];
+      };
+
+      $('pv-mansion-talk').onclick = async () => {
+        collectMansionFields();
+        const npc = currentMansion();
+        const message = $('pv-mansion-msg').value.trim();
+        if (!message) return setStatus('pv-mansion-status', '플레이어의 말을 입력하세요.', 'err');
+        busy(['pv-mansion-talk', 'pv-mansion-stance'], true);
+        setStatus('pv-mansion-status', `${npc.name} 이(가) 대답하는 중…`);
+        try {
+          const r = await api('/preview/mansion-dialogue', {
+            method: 'POST',
+            body: JSON.stringify({
+              npc,
+              room: npc.room,
+              favor: $('pv-favor').value,
+              suspicion: $('pv-susp').value,
+              clueTopic: $('pv-clue').value.trim() || null,
+              message,
+              promptOverride: state.prompts['mansion-dialogue'],
+              kindOverride: state.prompts[npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ'],
+            }),
+          });
+          const tag = npc.kind === 'ally' ? '동료' : '민간인';
+          $('pv-mansion-out').innerHTML =
+            `<b>${npc.name}</b> <span class="meta">(${tag} · ${npc.room})</span>: ${r.reply}` +
+            `\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
+          setStatus('pv-mansion-status', '완료', 'ok');
+        } catch (e) { setStatus('pv-mansion-status', e.message, 'err'); }
+        busy(['pv-mansion-talk', 'pv-mansion-stance'], false);
+      };
+
+      $('pv-mansion-stance').onclick = async () => {
+        const message = $('pv-mansion-msg').value.trim();
+        if (!message) return setStatus('pv-mansion-status', '플레이어의 말을 입력하세요.', 'err');
+        busy(['pv-mansion-talk', 'pv-mansion-stance'], true);
+        setStatus('pv-mansion-status', '판정 중…');
+        try {
+          const r = await api('/preview/mansion-stance', {
+            method: 'POST',
+            body: JSON.stringify({
+              message,
+              clues: clueList(),
+              promptOverride: state.prompts['mansion-stance'],
+            }),
+          });
+          // anti = 동료의 호감이 오르고 민간인의 의심도 같이 오른다. 이 한 판정이 양쪽을 움직인다.
+          const label = { anti: '반체제(anti)', pro: '체제 옹호(pro)', neutral: '중립(neutral)' }[r.stance] ?? r.stance;
+          $('pv-mansion-out').innerHTML =
+            `<b>판정</b>: ${label}\n<b>이유</b>: ${r.reason}\n` +
+            `<b>꺼낸 단서</b>: ${r.usedClueId ?? '없음'}` +
+            `\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
+          setStatus('pv-mansion-status', '완료', 'ok');
+        } catch (e) { setStatus('pv-mansion-status', e.message, 'err'); }
+        busy(['pv-mansion-talk', 'pv-mansion-stance'], false);
+      };
+
+      // ── 스테이지 3 미리보기 ───────────────────────────────────
+
+      $('pv-escape-q').onclick = async () => {
+        collectEscapeChildFields();
+        busy(['pv-escape-q', 'pv-escape-judge'], true);
+        setStatus('pv-escape-q-status', '꼬마가 질문을 고르는 중…');
+        try {
+          const r = await api('/preview/escape-question', {
+            method: 'POST',
+            body: JSON.stringify({
+              child: state.escapeChild,
+              asked: $('pv-asked').value,
+              questionMax: 8,
+              history: [],
+              promptOverride: state.prompts['escape-question'],
+            }),
+          });
+          $('pv-question').value = r.question;
+          setStatus('pv-escape-q-status', r.fallback ? '캔 질문으로 대체됨 (API 오류)' : '완료', r.fallback ? 'err' : 'ok');
+        } catch (e) { setStatus('pv-escape-q-status', e.message, 'err'); }
+        busy(['pv-escape-q', 'pv-escape-judge'], false);
+      };
+
+      $('pv-escape-judge').onclick = async () => {
+        collectEscapeChildFields();
+        const question = $('pv-question').value.trim();
+        const answer = $('pv-answer').value.trim();
+        const identityWord = $('pv-identity').value.trim();
+        if (!question || !answer || !identityWord) {
+          return setStatus('pv-escape-j-status', '신분·질문·답변을 모두 채우세요.', 'err');
+        }
+        busy(['pv-escape-q', 'pv-escape-judge'], true);
+        setStatus('pv-escape-j-status', '양쪽이 동시에 판정 중…');
+        try {
+          const r = await api('/preview/escape-judge', {
+            method: 'POST',
+            body: JSON.stringify({
+              child: state.escapeChild,
+              identityWord, question, answer, history: [],
+              systemOverride: state.prompts['escape-system-judge'],
+              robotOverride: state.prompts['escape-robot-judge'],
+            }),
+          });
+          // 로봇 대사에 신분 단어가 그대로 나오면 정보 격리가 뚫린 것이다 — 눈에 띄게 경고한다.
+          const leaked = r.robot.reply.includes(identityWord) || r.robot.reason.includes(identityWord);
+          $('pv-escape-out').innerHTML =
+            `<b>시스템 판정</b> <span class="meta">(신분 단어를 안다)</span>\n` +
+            `  거짓말: ${r.system.lie ? '예' : '아니오'} · 단어 노출: ${r.system.reveal ? '예' : '아니오'}\n` +
+            `  ${r.system.reason}\n\n` +
+            `<b>로봇 판정</b> <span class="meta">(신분 단어를 모른다)</span>\n` +
+            `  모순: ${r.robot.contradiction ? '예' : '아니오'} · 확신도: ${r.robot.confidence}\n` +
+            `  대사: ${r.robot.reply}\n  ${r.robot.reason}` +
+            (leaked
+              ? `\n\n<b style="color:var(--danger)">⚠ 로봇 쪽 출력에 신분 단어 「${identityWord}」 가 그대로 나왔습니다.</b>\n` +
+                `  로봇은 이 단어를 받지 않습니다 — 프롬프트가 유추를 유도하고 있는지 보세요.`
+              : '') +
+            `\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
+          setStatus('pv-escape-j-status', leaked ? '완료 — 경고 있음' : '완료', leaked ? 'err' : 'ok');
+        } catch (e) { setStatus('pv-escape-j-status', e.message, 'err'); }
+        busy(['pv-escape-q', 'pv-escape-judge'], false);
       };
 
       // ── 초기 로드 ─────────────────────────────────────────────

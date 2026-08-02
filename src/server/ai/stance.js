@@ -29,14 +29,18 @@ const StanceSchema = z.object({
   usedClueId: z.string().nullable().describe('발언이 실질적으로 꺼낸 단서의 id. 없으면 null'),
 });
 
-export async function judgeStance({ message, clues = [] }) {
+/**
+ * @param {string} [promptOverride] 파일 대신 쓸 템플릿 원문 — 스튜디오의 "저장 전 미리보기"용.
+ *   게임 경로에서는 넘기지 않는다.
+ */
+export async function judgeStance({ message, clues = [], promptOverride }) {
   const clueBlock = clues.length
     ? `\n[단서 대조]\n플레이어가 저택을 조사해 알아낸 것들:\n${clues
         .map((c) => `- id "${c.id}": ${c.topic}`)
         .join('\n')}\n플레이어의 말이 위 중 하나의 화제를 실질적으로 꺼내고 있으면(지나가는 단어 일치가 아니라 그 내용을 화제로 삼으면) usedClueId 에 해당 id 를 적어라. 아니면 null.`
     : '';
 
-  const system = await renderPrompt('mansion-stance', { clueBlock });
+  const system = await renderPrompt('mansion-stance', { clueBlock }, promptOverride);
 
   const res = await anthropic.beta.messages.parse({
     model: MODEL_CHAT,

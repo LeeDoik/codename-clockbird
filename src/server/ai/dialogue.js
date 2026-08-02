@@ -129,10 +129,15 @@ export async function streamMansionReply({
   userMessage,
   onText,
   promptOverride,
+  // 동료/민간인 태도 조각(mansion-ally · mansion-civ)의 저장 전 미리보기용.
+  // 이 둘도 스튜디오에서 편집하므로 덮어쓸 자리가 있어야 한다.
+  kindOverride,
 }) {
-  const kindBlock = await renderPrompt(npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ', {
-    mood: npc.kind === 'ally' ? pick(FAVOR_WORDS, npc.favor) : pick(SUSPICION_WORDS, npc.suspicion),
-  });
+  const kindBlock = await renderPrompt(
+    npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ',
+    { mood: npc.kind === 'ally' ? pick(FAVOR_WORDS, npc.favor) : pick(SUSPICION_WORDS, npc.suspicion) },
+    kindOverride,
+  );
 
   // 플레이어가 이 NPC 관련 단서를 조사로 찾았으면, 그 화제를 프롬프트에 얹어 반응하게 한다.
   const clueBlock = clueTopic
