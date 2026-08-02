@@ -24,17 +24,25 @@ import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
  * 길은 ㄹ자 한 줄이라 잃을 수 없다. 어려운 것은 길이 아니라 **언제 지나가느냐**다.
  */
 
-// 플레이어는 저택과 같은 인물·같은 외형이다 (MansionScene 과 같은 값).
+/**
+ * 플레이어는 튜토리얼부터 엔딩까지 **같은 인물**이다 (2026-08-02 확정).
+ * 스테이지마다 다른 스프라이트를 쓰면 사람이 바뀐 것처럼 보인다.
+ *
+ * 앞의 두 상수는 **그 스프라이트 시트 안에서 인물이 어디 있는가**라, 시트를 바꾸면
+ * 같이 바뀐다 (tutorial 시트 실측값 — TutorialScene 과 동일).
+ * PLAYER_HEIGHT 만 다르다: 그건 **이 맵에서 화면에 얼마로 보일지**이고, 본부(9.6px 타일)와
+ * 여기(32px 타일)는 월드 배율이 다르다. 여기서는 chars.png NPC(32px 무배율)와 키를 맞춘다.
+ */
 const PLAYER_FRAME = 0;
 const PLAYER_ANIM = {
-  idle: 'stage2PlayerIdle',
-  walkDown: 'stage2PlayerWalkDown',
-  walkUp: 'stage2PlayerWalkUp',
-  walkLeft: 'stage2PlayerWalkLeft',
-  walkRight: 'stage2PlayerWalkRight',
+  idle: 'tutorialPlayerIdle',
+  walkDown: 'tutorialPlayerWalkDown',
+  walkUp: 'tutorialPlayerWalkUp',
+  walkLeft: 'tutorialPlayerWalkLeft',
+  walkRight: 'tutorialPlayerWalkRight',
 };
-const PLAYER_ORIGIN_Y = 218 / 256;
-const PLAYER_CONTENT_HEIGHT = 197;
+const PLAYER_ORIGIN_Y = 176 / 256;
+const PLAYER_CONTENT_HEIGHT = 176;
 const PLAYER_HEIGHT = 32;
 
 /**
