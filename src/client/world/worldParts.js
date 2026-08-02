@@ -197,6 +197,18 @@ const BODY_W_RATIO = 16 / DEFAULT_CHAR_HEIGHT;
 const BODY_H_RATIO = 14 / DEFAULT_CHAR_HEIGHT;
 
 /**
+ * 발밑 판정의 **상한** — 타일 대비.
+ *
+ * 충돌은 타일 격자로 표현된다. 몸이 한 타일보다 굵어지면 격자가 표현할 수 있는 가장
+ * 좁은 길(한 칸짜리 골목)을 못 지나간다 — 거리 맵에는 그런 칸이 220개 넘게 있었다.
+ * 사람이 커졌으니 발도 커져야 맞지만, 못 지나가는 길이 생기는 것보다는 발이 조금
+ * 작은 편이 낫다 (걸리면 판이 끝나고, 겹쳐 보이는 건 눈에 잘 띄지도 않는다).
+ * 32px 캐릭터에서는 상한에 안 걸려 예전 값(16×14) 그대로다.
+ */
+const BODY_MAX_W = 0.75;
+const BODY_MAX_H = 0.65;
+
+/**
  * 걷는 속도 / 캐릭터 높이.
  *
  * 속도를 200 으로 못박아 두면 그림이 큰 맵에서 발이 느려 보인다 — 같은 200px/s 라도
@@ -223,8 +235,8 @@ export function createPlayer(scene, mapData, walls, frame = 0) {
   // 세로 앵커는 프레임 한가운데 = createPlayerVisual 이 발을 맞추는 지점이라(originY),
   // 판정 사각형은 발에서 아래로 깔린다 — 그림자를 밟고 선 자리라고 보면 된다.
   const charHeight = mapData.charHeight ?? DEFAULT_CHAR_HEIGHT;
-  const bw = Math.max(4, Math.round(charHeight * BODY_W_RATIO));
-  const bh = Math.max(4, Math.round(charHeight * BODY_H_RATIO));
+  const bw = Math.max(4, Math.round(Math.min(charHeight * BODY_W_RATIO, TILE * BODY_MAX_W)));
+  const bh = Math.max(4, Math.round(Math.min(charHeight * BODY_H_RATIO, TILE * BODY_MAX_H)));
   player.body.setSize(bw, bh).setOffset((player.width - bw) / 2, player.height / 2);
 
   // 걷는 속도도 이 맵의 축척을 따른다 — applyMovement 가 기본값으로 읽는다.

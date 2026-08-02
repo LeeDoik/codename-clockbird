@@ -57,7 +57,11 @@ export class Patrol {
     this.facing = 0;
 
     const start = waypoints[0];
-    this.sprite = scene.add.sprite(start.x, start.y, 'chars', 7);
+    // chars.png 는 한 프레임이 32px 이라 무배율로 두면 이 맵의 사람들(charHeight)보다
+    // 절반 크기로 선다 — 새 광장 그림에서 로봇만 인형처럼 작았다.
+    this.sprite = scene.add
+      .sprite(start.x, start.y, 'chars', 7)
+      .setScale((mapData.charHeight ?? 32) / 32);
     // 시야 콘은 반투명이라 위에 겹쳐 그려도 아래가 보인다. 오히려 "지금 내가 빛
     // 안에 있다"가 즉시 읽혀서 스텔스 게임에서는 이 편이 낫다.
     this.cone = scene.add.graphics();

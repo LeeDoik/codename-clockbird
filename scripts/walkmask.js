@@ -10,6 +10,11 @@
  *     지금 판정을 그대로 칠해 넣은 밑그림을 design/walkmask/<맵>-walk.png 로 낸다.
  *     배경은 회색조라 초록/빨강이 절대 섞이지 않는다 — 칠한 것만 색이 있다.
  *
+ *   node scripts/walkmask.js seed <맵>
+ *     template 과 같은 밑그림을 내되, **지금 판정 대신 그림에서 뽑아낸 초안**을 칠해 준다.
+ *     AI 배틀맵은 색이 이미 갈려 있어서 기계가 첫 판을 뽑을 수 있다 (아래 SEED).
+ *     초안은 답이 아니다 — 내고 나서 눈으로 고친 뒤 import 한다.
+ *
  *   node scripts/walkmask.js import <hq|mansion|street>
  *     그 파일을 다시 읽어 props json 의 walk 격자를 갈아끼우고,
  *     실제 배경에 결과를 덮어 그린 확인용 그림(<맵>-walk-applied.png)을 낸다.
@@ -35,6 +40,33 @@ const MAPS = {
   street: { map: 'src/client/assets/map.json', bg: 'src/client/assets/street-bg.png', props: 'src/client/assets/street-props.json' },
 };
 const MASK_DIR = 'design/walkmask';
+
+/**
+ * 걷는 길 **초안**을 그림에서 뽑는 규칙 (`seed`). 맵마다 그림이 달라 규칙도 다르다.
+ *
+ * - `base` — 바닥/벽을 가를 때 볼 그림. **소품이 없는 판**이 있으면 그쪽이 훨씬 잘 갈린다
+ *   (거리: clean_town_square_base). 없으면 배경 자체를 본다. 배경과 칸 수가 같아야 한다.
+ * - `floor` — "여기는 바닥인가". 절대 밝기로는 못 가른다 — 이 그림들은 가장자리가 어둡게
+ *   깔려 있어(비네트) 광장 자갈이 건물 지붕보다 어두운 자리가 생긴다. 대신 **크게 흐린
+ *   자기 자신과 비교**한다: 건물은 주변 땅보다 국소적으로 어둡다는 성질을 쓴다.
+ * - `props` — base 와 배경이 달라진 칸 = 나중에 놓인 소품(가판·나무·상자) → 막는다.
+ *   `max` 는 **칸의 몇 할이 달라져야 막을 것인가**다. 이 값이 낮으면 벤치 모서리가
+ *   걸친 칸까지 벽이 되어 광장 전체가 한 칸짜리 골목이 된다 — 0.45 로 뽑았더니
+ *   걷는 칸 1256개 중 여유 있는 칸이 8개뿐이었다. 0.65 에서 140개가 된다 (실측).
+ *   `ignoreSmoke` 는 굴뚝 연기를 뺀다. 연기는 그림만 달라졌지 벽이 아닌데, 그냥 두면
+ *   굴뚝마다 위로 뻗는 **보이지 않는 벽**이 선다.
+ * - `openIsolated` — 이웃 여덟 칸 중 이만큼이 뚫려 있으면 그 막힌 칸을 도로 연다.
+ *   화분 하나, 상자 하나처럼 옆으로 비켜 지나갈 수 있는 것들이다. 바닥 판정을 통과한
+ *   칸에만 적용하므로 건물 모서리는 안 열린다.
+ */
+const SEED = {
+  street: {
+    base: 'design/맵/_png/clean_town_square_base.png',
+    floor: { blur: 60, ratio: 0.97, min: 0.55 },
+    props: { diff: 52, max: 0.65, ignoreSmoke: true },
+    openIsolated: 6,
+  },
+};
 
 /** 칠한 색으로 볼 최소 채널 차이. 격자선(곱하기로 어둡게 한 것)은 색상비를 지키므로 이 밑으로 안 내려간다. */
 const THRESHOLD = 18;
@@ -101,14 +133,133 @@ function flood(grid, map) {
   return { seen, n };
 }
 
+// ── seed — 그림에서 초안 뽑기 ─────────────────────────────────────
+
+/** 분리 가능 박스 흐리기 3번 ≈ 가우시안. 국소 밝기 비교용이라 이 정도면 충분하다. */
+function boxBlur(lum, w, h, radius) {
+  let src = Float32Array.from(lum);
+  let dst = new Float32Array(w * h);
+  for (let pass = 0; pass < 3; pass++) {
+    for (const horizontal of [true, false]) {
+      const n = horizontal ? w : h;
+      const outer = horizontal ? h : w;
+      for (let o = 0; o < outer; o++) {
+        const at = (i) => (horizontal ? o * w + i : i * w + o);
+        let sum = 0;
+        for (let i = 0; i <= radius && i < n; i++) sum += src[at(i)];
+        let count = Math.min(radius + 1, n);
+        for (let i = 0; i < n; i++) {
+          dst[at(i)] = sum / count;
+          const add = i + radius + 1;
+          const drop = i - radius;
+          if (add < n) { sum += src[at(add)]; count++; }
+          if (drop >= 0) { sum -= src[at(drop)]; count--; }
+        }
+      }
+      [src, dst] = [dst, src];
+    }
+  }
+  return src;
+}
+
+/**
+ * 그림에서 걷는 길 초안을 뽑는다. 자세한 근거는 SEED 주석에 있다.
+ * @returns {Uint8Array[]} rows[r][c] === 1 이면 걸을 수 있다
+ */
+function seedWalk(name, map, bg) {
+  const rule = SEED[name];
+  if (!rule) {
+    throw new Error(`${name} 에는 seed 규칙이 없다 — scripts/walkmask.js 의 SEED 에 적어라`);
+  }
+  const base = rule.base ? decodePng(fs.readFileSync(rule.base)) : bg;
+  if (base.w !== bg.w || base.h !== bg.h) {
+    throw new Error(
+      `바닥 판정 그림(${base.w}×${base.h})과 배경(${bg.w}×${bg.h})의 크기가 다르다 — ` +
+        '같은 자르기를 거친 판을 써야 칸이 맞는다',
+    );
+  }
+
+  const { w, h } = base;
+  const lum = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    lum[i] = 0.299 * base.data[i * 4] + 0.587 * base.data[i * 4 + 1] + 0.114 * base.data[i * 4 + 2];
+  }
+  const blurred = boxBlur(lum, w, h, rule.floor.blur);
+
+  const cw = w / map.cols;
+  const chh = h / map.rows;
+  // 칸 가장자리는 이웃 칸의 색이 섞이므로 안쪽만 본다.
+  const inset = Math.max(1, Math.round(Math.min(cw, chh) * 0.12));
+  const grid = Array.from({ length: map.rows }, () => new Uint8Array(map.cols));
+  const floorOk = Array.from({ length: map.rows }, () => new Uint8Array(map.cols));
+
+  for (let r = 0; r < map.rows; r++) {
+    for (let c = 0; c < map.cols; c++) {
+      let n = 0;
+      let floor = 0;
+      let changed = 0;
+      const y0 = Math.round(r * chh) + inset;
+      const y1 = Math.round((r + 1) * chh) - inset;
+      const x0 = Math.round(c * cw) + inset;
+      const x1 = Math.round((c + 1) * cw) - inset;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const p = y * w + x;
+          n++;
+          if (lum[p] > blurred[p] * rule.floor.ratio) floor++;
+          if (!rule.props) continue;
+          const i = p * 4;
+          const d = Math.max(
+            Math.abs(base.data[i] - bg.data[i]),
+            Math.abs(base.data[i + 1] - bg.data[i + 1]),
+            Math.abs(base.data[i + 2] - bg.data[i + 2]),
+          );
+          if (d <= rule.props.diff) continue;
+          if (rule.props.ignoreSmoke) {
+            // 연기 = 세 채널이 다 밝아지고 색이 거의 없다. 벽이 아니라 그림일 뿐이다.
+            const brighter =
+              bg.data[i] > base.data[i] && bg.data[i + 1] > base.data[i + 1] && bg.data[i + 2] > base.data[i + 2];
+            const sat =
+              Math.max(bg.data[i], bg.data[i + 1], bg.data[i + 2]) -
+              Math.min(bg.data[i], bg.data[i + 1], bg.data[i + 2]);
+            if (brighter && sat < 26) continue;
+          }
+          changed++;
+        }
+      }
+      const isFloor = floor / n > rule.floor.min;
+      const isProp = rule.props ? changed / n >= rule.props.max : false;
+      floorOk[r][c] = isFloor ? 1 : 0;
+      grid[r][c] = isFloor && !isProp ? 1 : 0;
+    }
+  }
+
+  // 옆으로 비켜 지나갈 수 있는 소품 한 칸짜리는 도로 연다 (SEED.openIsolated 주석 참고).
+  if (rule.openIsolated) {
+    const before = grid.map((row) => Uint8Array.from(row));
+    const at = (c, r) => (r >= 0 && r < map.rows && c >= 0 && c < map.cols ? before[r][c] : 0);
+    for (let r = 0; r < map.rows; r++) {
+      for (let c = 0; c < map.cols; c++) {
+        if (before[r][c] || !floorOk[r][c]) continue;
+        let open = 0;
+        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+          open += at(c + dc, r + dr);
+        }
+        if (open >= rule.openIsolated) grid[r][c] = 1;
+      }
+    }
+  }
+  return grid;
+}
+
 // ── template ──────────────────────────────────────────────────────
 
-function template(name) {
+function template(name, { seed = false } = {}) {
   const cfg = MAPS[name];
   const map = readJson(cfg.map);
   const props = fs.existsSync(cfg.props) ? readJson(cfg.props) : {};
   const bg = decodePng(fs.readFileSync(cfg.bg));
-  const grid = currentWalk(map, props);
+  const grid = seed ? seedWalk(name, map, bg) : currentWalk(map, props);
 
   const { w, h, data } = bg;
   const out = new Uint8ClampedArray(w * h * 4);
@@ -138,7 +289,9 @@ function template(name) {
   let walkable = 0;
   for (const row of grid) for (const v of row) walkable += v;
   console.log(`→ ${file}  (${w}×${h}, ${map.cols}×${map.rows}칸 · 한 칸 ${cw}×${chh}px)`);
-  console.log(`   지금 걸을 수 있는 칸 ${walkable} / ${map.cols * map.rows}`);
+  console.log(
+    `   ${seed ? '그림에서 뽑은 초안' : '지금'} 걸을 수 있는 칸 ${walkable} / ${map.cols * map.rows}`,
+  );
   console.log('   초록 = 걸을 수 있다 · 빨강 = 막힌다. 고쳐 칠하고 같은 자리에 덮어써라.');
   console.log(`   그 다음: node scripts/walkmask.js import ${name}`);
 }
@@ -252,12 +405,13 @@ export function keepWalk(name) {
 // 직접 실행할 때만 CLI 다 (gen-*-art.js 는 keepWalk 만 가져다 쓴다).
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, name] = process.argv.slice(2);
-  if (!MAPS[name] || (cmd !== 'template' && cmd !== 'import')) {
-    console.error(`사용법: node scripts/walkmask.js <template|import> <${Object.keys(MAPS).join('|')}>`);
+  if (!MAPS[name] || !['template', 'seed', 'import'].includes(cmd)) {
+    console.error(`사용법: node scripts/walkmask.js <template|seed|import> <${Object.keys(MAPS).join('|')}>`);
     process.exit(1);
   }
   try {
-    (cmd === 'template' ? template : importMask)(name);
+    if (cmd === 'import') importMask(name);
+    else template(name, { seed: cmd === 'seed' });
   } catch (e) {
     console.error(`오류: ${e.message}`);
     process.exit(1);

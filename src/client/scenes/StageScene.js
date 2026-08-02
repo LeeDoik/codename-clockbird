@@ -56,14 +56,10 @@ const ALLY_ANIM = {
 };
 // 네 시트 모두 256×256 프레임 안에서 발이 218px, 정수리가 23px 에 있다
 // (scripts/measure-sprite.js 실측). 발바닥을 스폰 지점에 놓고 — 플레이어·튜토리얼과
-// 같은 규칙 — 인물 높이를 이 씬의 기존 캐릭터 크기(32px)에 맞춘다.
+// 같은 규칙 — 인물 높이를 맵이 정한 charHeight 에 맞춘다.
 const ALLY_SPRITE_FRAME = 256;
 const ALLY_SPRITE_ORIGIN_Y = 218 / ALLY_SPRITE_FRAME;
-const ALLY_SPRITE_SCALE = 32 / 196;
-// 이름표는 정수리 위에 둔다. chars.png 동료는 스프라이트 중심이 스폰 지점이라 -24 로
-// 충분하지만, 전용 스프라이트는 발이 스폰 지점이라 인물 높이만큼 더 올려야 한다.
-const ALLY_LABEL_DY = -24;
-const ALLY_SPRITE_LABEL_DY = -40;
+const ALLY_SPRITE_CONTENT = 196;
 
 /**
  * 플레이어는 튜토리얼부터 엔딩까지 **같은 인물**이다 (2026-08-02 확정).
@@ -71,8 +67,7 @@ const ALLY_SPRITE_LABEL_DY = -40;
  *
  * 앞의 두 상수는 **그 시트 안에서 인물이 어디 있는가**라 시트를 바꾸면 같이 바뀐다
  * (tutorial 시트 실측값 — TutorialScene 과 동일).
- * PLAYER_HEIGHT 만 이 씬 고유다: 그건 **이 맵에서 화면에 얼마로 보일지**이고,
- * 여기서는 다른 NPC(chars.png, 32px 무배율)와 키를 맞춘다.
+ * PLAYER_HEIGHT 만 이 씬 고유다: 그건 **이 맵에서 화면에 얼마로 보일지**이고, 맵이 정한다.
  */
 const PLAYER_ANIM = {
   idle: 'tutorialPlayerIdle',
@@ -85,6 +80,20 @@ const PLAYER_ORIGIN_Y = 176 / 256;
 const PLAYER_CONTENT_HEIGHT = 176;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = mapData.charHeight ?? DEFAULT_CHAR_HEIGHT;
+
+/**
+ * chars.png(32×32 한 프레임) 로 세우는 인물 — 시민·접선책·순찰 로봇·전용 아트가 없는 동료.
+ *
+ * 시트가 32px 로 그려져 있어서 무배율로 두면 이 맵의 다른 인물(charHeight)보다 절반
+ * 크기로 선다. 실제로 새 광장 그림에서 순찰 로봇만 인형처럼 작게 서 있었다.
+ */
+const CHARS_FRAME = 32;
+const CHARS_SCALE = PLAYER_HEIGHT / CHARS_FRAME;
+const ALLY_SPRITE_SCALE = PLAYER_HEIGHT / ALLY_SPRITE_CONTENT;
+// 이름표는 정수리 위에 둔다. chars.png 인물은 스프라이트 **중심**이 스폰 지점이라 절반만
+// 올리면 되고, 전용 스프라이트는 **발**이 스폰 지점이라 인물 높이만큼 올려야 한다.
+const ALLY_LABEL_DY = -(PLAYER_HEIGHT * 0.5 + 8);
+const ALLY_SPRITE_LABEL_DY = -(PLAYER_HEIGHT + 8);
 
 export class StageScene extends Phaser.Scene {
   constructor() {
@@ -163,7 +172,7 @@ export class StageScene extends Phaser.Scene {
               ALLY_SPRITE_FRAME * ALLY_SPRITE_SCALE,
             )
             .play(anim)
-        : this.add.sprite(pos.x, pos.y, 'chars', ALLY_FRAME[ally.id] ?? i + 1);
+        : this.add.sprite(pos.x, pos.y, 'chars', ALLY_FRAME[ally.id] ?? i + 1).setScale(CHARS_SCALE);
       if (ally.arrested) node.setTint(0x9a9088);
 
       const labelDy = anim ? ALLY_SPRITE_LABEL_DY : ALLY_LABEL_DY;
@@ -184,8 +193,8 @@ export class StageScene extends Phaser.Scene {
     const bpos = bz
       ? { x: bz.col * TILE + TILE / 2, y: bz.row * TILE + TILE / 2 }
       : this.state.broker.spawn;
-    this.brokerNode = this.add.sprite(bpos.x, bpos.y, 'chars', BROKER_FRAME);
-    worldLabel(this, bpos.x, bpos.y - 24, this.state.broker.name, {
+    this.brokerNode = this.add.sprite(bpos.x, bpos.y, 'chars', BROKER_FRAME).setScale(CHARS_SCALE);
+    worldLabel(this, bpos.x, bpos.y + ALLY_LABEL_DY, this.state.broker.name, {
       fontFamily: FONTS.body,
       fontSize: '11px',
       color: CSS.paperDim,
@@ -450,8 +459,8 @@ export class StageScene extends Phaser.Scene {
   }
 
   #buildMap() {
-    // 거리는 저택과 같은 방식이다 — 자갈·건물·나무·가로등·조명을 한 장에 구워
-    // 배경으로 깔고 충돌만 따로 세운다 (scripts/gen-street-art.js).
+    // 네 맵이 같은 방식이다 — 가구까지 한 장에 구운 배경을 1:1 로 깔고 충돌만 따로
+    // 세운다. street-bg.png 는 scripts/import-map-art.js 가 AI 배틀맵에서 굽는다.
     this.add.image(0, 0, 'street-bg').setOrigin(0, 0).setDepth(-100);
     this.walls = buildColliders(this, mapData, streetProps);
 
@@ -459,8 +468,8 @@ export class StageScene extends Phaser.Scene {
     for (const [i, z] of (mapData.spawns.citizens ?? []).entries()) {
       const x = z.col * TILE + TILE / 2;
       const y = z.row * TILE + TILE / 2;
-      this.add.sprite(x, y, 'chars', CITIZEN_FRAME);
-      worldLabel(this, x, y - 24, `마을 사람 ${i + 1}`, {
+      this.add.sprite(x, y, 'chars', CITIZEN_FRAME).setScale(CHARS_SCALE);
+      worldLabel(this, x, y + ALLY_LABEL_DY, `마을 사람 ${i + 1}`, {
         fontFamily: FONTS.body,
         fontSize: '11px',
         color: CSS.paperDim,
@@ -933,7 +942,7 @@ export class StageScene extends Phaser.Scene {
       '구출',
       jailed === 0
         ? '감옥은 비어 있다.\n지금 빼낼 동료는 없다.'
-        : `감옥에 ${jailed}명이 붙잡혀 있다.\n창살 바로 앞(지도 좌측 상단)까지 다가가서 [R].`,
+        : `감옥에 ${jailed}명이 붙잡혀 있다.\n창살 바로 앞(지도 좌측 아래)까지 다가가서 [R].`,
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
