@@ -76,7 +76,14 @@ export class EndingScene extends Phaser.Scene {
     this.dialogue = new DialogueBox();
 
     this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
-    this.walls = buildColliders(this, hqData, hqProps);
+    // .blocked 로 넘긴다 — 커밋된 worldParts.js 의 buildColliders(scene, mapData, blocked=[])
+    // 는 세 번째 인자를 [[c,r], ...] 배열로 순회한다(`for (const [c, r] of blocked)`).
+    // 저장소 주인은 작업 트리에서 이 함수를 buildColliders(scene, mapData, props={walk,blocked})
+    // 로 바꾸는 중이라(그땐 hqProps 를 통째로 넘겨야 한다) TutorialScene.js 도 함께 바뀌어
+    // 있다 — 커밋되지 않은 상태다. 이 커밋은 지금 커밋된 worldParts.js 기준으로 동작해야
+    // 하므로 옛 시그니처를 쓴다. 주인이 그 이행을 커밋할 때 TutorialScene.js:97 과
+    // 이 줄을 함께 hqProps 전체로 바꿔야 한다 — 한쪽만 고치면 다시 깨진다.
+    this.walls = buildColliders(this, hqData, hqProps.blocked);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     this.player.setVisible(false);
     this.playerVisual = createPlayerVisual(
