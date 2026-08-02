@@ -1,4 +1,4 @@
-import { nearestOf } from './worldParts.js';
+import { nearestOf, worldToScreen } from './worldParts.js';
 
 /**
  * 공통 인터랙션 레이어 (스펙 §2).
@@ -22,22 +22,32 @@ export class InteractionManager {
     this.#buildBubble();
   }
 
-  /** 말풍선 — 검은 바탕 + 황동 테두리의 작은 라벨. 월드 좌표를 따라다닌다. */
+  /**
+   * 말풍선 — 검은 바탕 + 황동 테두리의 작은 라벨. 대상의 머리 위를 따라다닌다.
+   *
+   * 그리는 쪽은 월드가 아니라 **UI 카메라**다. 월드에 두면 카메라 줌만큼 확대되는데
+   * pixelArt(NEAREST) 라 보간 없이 늘어나, 본부(줌 2.8125)에서는 글자가 아니라
+   * 노란 얼룩이 됐다. 위치만 worldToScreen 으로 옮기면 어떤 맵에서도 같은 크기로 또렷하다.
+   */
   #buildBubble() {
     const s = this.scene;
     this.bubbleText = s.add
-      .text(0, 0, '', { fontFamily: 'Gowun Batang, serif', fontSize: '11px', color: '#e8c15a' })
+      .text(0, 0, '', { fontFamily: 'Gowun Batang, serif', fontSize: '22px', color: '#e8c15a' })
       .setOrigin(0.5, 1)
       .setDepth(40);
     this.bubbleBg = s.add.graphics().setDepth(39);
     this.bubbleText.setVisible(false);
     this.bubbleBg.setVisible(false);
     // setupCameras 이후에 만들어질 수 있으므로 소속을 밝힌다 (없으면 no-op)
-    s.asWorld?.(this.bubbleText, this.bubbleBg);
+    s.asUi?.(this.bubbleText, this.bubbleBg);
   }
 
+  /** @param {number} x @param {number} y 대상의 **월드** 좌표 */
   #drawBubble(x, y, text) {
-    this.bubbleText.setText(text).setPosition(x, y - 30).setVisible(true);
+    // 머리 위 30px 은 월드 기준이다 — 화면으로 옮기기 전에 더해야 줌이 달라도
+    // 인물과의 간격이 그대로 유지된다.
+    const p = worldToScreen(this.scene.cameras.main, x, y - 30);
+    this.bubbleText.setText(text).setPosition(Math.round(p.x), Math.round(p.y)).setVisible(true);
     const b = this.bubbleText.getBounds();
     this.bubbleBg
       .clear()

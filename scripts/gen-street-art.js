@@ -16,6 +16,7 @@
  */
 import fs from 'node:fs';
 import zlib from 'node:zlib';
+import { keepWalk } from './walkmask.js';
 
 const map = JSON.parse(fs.readFileSync('src/client/assets/map.json', 'utf8'));
 const T = map.tileSize;
@@ -894,6 +895,7 @@ fs.writeFileSync(
     blocked: list,
     // 씬이 여기에 김 파티클을 세운다 — 배경에 굽지 않는 이유는 김이 움직여야 김이기 때문.
     vents,
+    ...keepWalk('street'),
   }) + '\n',
 );
 

@@ -24,9 +24,12 @@ const map = JSON.parse(await readFile(new URL('../src/client/assets/map.json', i
 const props = JSON.parse(await readFile(new URL('../src/client/assets/street-props.json', import.meta.url), 'utf8'));
 const blocked = new Set((props.blocked ?? []).map(([c, r]) => `${c},${r}`));
 
+// props.walk 는 배경 그림 위에 칠한 걷는 길(scripts/walkmask.js) — 있으면 그게 원본이다.
 const walkable = (c, r) =>
   r >= 0 && r < map.rows && c >= 0 && c < map.cols &&
-  map.layout[r][c] >= 0 && !map.tiles[map.layout[r][c]].solid && !blocked.has(`${c},${r}`);
+  (props.walk
+    ? props.walk[r][c] === '1'
+    : map.layout[r][c] >= 0 && !map.tiles[map.layout[r][c]].solid && !blocked.has(`${c},${r}`));
 
 const distToSeg = (p, a, b) => {
   const dx = b.x - a.x, dy = b.y - a.y;

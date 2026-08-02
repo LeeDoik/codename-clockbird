@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { Hud } from '../ui/Hud.js';
 import {
   buildColliders,
   createPlayer,
   createPlayerVisual,
   applyMovement,
   setupCameras,
+  worldLabel,
 } from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
@@ -59,6 +61,7 @@ const PLAYER_ANIM = {
   walkDown: 'tutorialPlayerWalkDown',
   walkUp: 'tutorialPlayerWalkUp',
   walkLeft: 'tutorialPlayerWalkLeft',
+  walkRight: 'tutorialPlayerWalkRight',
 };
 const PLAYER_ORIGIN_Y = 176 / 256;
 const PLAYER_CONTENT_HEIGHT = 176;
@@ -91,7 +94,7 @@ export class TutorialScene extends Phaser.Scene {
     // 거리·저택과 같은 방식 — 바닥·벽·가구·조명을 한 장에 구운 배경을 깔고
     // 충돌만 따로 세운다 (scripts/gen-hq-art.js).
     this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
-    this.walls = buildColliders(this, hqData, hqProps.blocked);
+    this.walls = buildColliders(this, hqData, hqProps);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     // 충돌 판정은 이 안 보이는 스프라이트가 그대로 맡고, 화면에는 방향 애니메이션이
     // 있는 별도 그림(playerVisual)을 얹어 위치만 따라가게 한다.
@@ -118,18 +121,9 @@ export class TutorialScene extends Phaser.Scene {
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
 
-    this.asUi(
-      this.add.text(20, 16, '레지스탕스 본부 — 훈련', {
-        fontFamily: FONTS.body,
-        fontSize: '22px',
-        color: CSS.paperDim,
-      }),
-      this.add.text(20, this.scale.height - 40, '[E] 대화    [F] 접선 코드', {
-        fontFamily: FONTS.body,
-        fontSize: '20px',
-        color: CSS.faint,
-      }),
-    );
+    this.hud = new Hud();
+    this.hud.status('레지스탕스 본부 — 훈련');
+    this.hud.keys('[E] 대화    [F] 접선 코드');
 
     this.#start();
   }
@@ -170,9 +164,13 @@ export class TutorialScene extends Phaser.Scene {
       .setOrigin(0.5, OFFICER_ORIGIN_Y)
       .setDisplaySize(OFFICER_FRAME * OFFICER_SCALE, OFFICER_FRAME * OFFICER_SCALE)
       .play('officerIdle');
-    const officerLabel = this.add
-      .text(ox, oy - 64, `${this.state.officer.name} (${this.state.officer.role})`, LABEL_STYLE)
-      .setOrigin(0.5);
+    const officerLabel = worldLabel(
+      this,
+      ox,
+      oy - 64,
+      `${this.state.officer.name} (${this.state.officer.role})`,
+      LABEL_STYLE,
+    );
     this.asWorld(this.officerNode, officerLabel);
 
     this.state.allies.forEach((ally, i) => {
@@ -187,11 +185,13 @@ export class TutorialScene extends Phaser.Scene {
         .setOrigin(0.5, ALLY_ORIGIN_Y)
         .setDisplaySize(ALLY_FRAME * scale, ALLY_FRAME * scale)
         .play(ALLY_ANIM[ally.id]);
-      const label = this.add.text(x, y - 64, ally.name, LABEL_STYLE).setOrigin(0.5);
+      const label = worldLabel(this, x, y - 64, ally.name, LABEL_STYLE);
       // 신뢰도는 튜토리얼에만 있는 규칙이라 여기서만 화면에 세운다.
-      const trust = this.add
-        .text(x, y - 78, '', { ...LABEL_STYLE, fontSize: '12px', color: CSS.brass })
-        .setOrigin(0.5);
+      const trust = worldLabel(this, x, y - 78, '', {
+        ...LABEL_STYLE,
+        fontSize: '12px',
+        color: CSS.brass,
+      });
       this.asWorld(node, label, trust);
 
       this.allyNodes.push({ ally, node, label, trust });

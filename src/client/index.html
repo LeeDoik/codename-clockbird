@@ -64,6 +64,58 @@
       /* 픽셀 아트 확대가 흐릿해지지 않게 — CSS 업스케일 단계의 보간을 끈다 */
       #game-canvas canvas { display: block; image-rendering: pixelated; }
 
+      /* ── 화면 고정 HUD ───────────────────────────────────
+         캔버스가 아니라 DOM 인 이유(ui/Hud.js 와 짝):
+         캔버스는 1920×1080 버퍼에 그려진 뒤 창 크기에 맞춰 정수가 아닌 배율로
+         늘어나는데, pixelArt(NEAREST) + image-rendering:pixelated 때문에 그
+         확대에 보간이 없다. 타일 아트는 그러라고 켠 설정이지만, 획이 1~2px 인
+         글자는 획마다 두께가 들쭉날쭉해져 깨져 보인다. DOM 은 브라우저가 실제
+         화면 해상도로 직접 그리므로 배율과 무관하게 또렷하다. */
+      #hud {
+        position: absolute;
+        inset: 0;
+        pointer-events: none; /* 클릭·드래그는 전부 캔버스로 흘려보낸다 */
+        font-family: var(--font-body);
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.85);
+      }
+      /* 좌상단 진행 상태. 거리 씬의 디버그 표시는 여러 줄이 될 수 있다. */
+      #hud-status {
+        position: absolute;
+        left: calc(20 * var(--s));
+        top: calc(16 * var(--s));
+        right: calc(20 * var(--s));
+        font-size: calc(22 * var(--s));
+        line-height: 1.35;
+        color: var(--paper-dim);
+        white-space: pre-wrap;
+      }
+      /* 좌하단 조작 안내 — 씬마다 다르다. 공백을 그대로 살려 칸을 맞춘다. */
+      #hud-keys {
+        position: absolute;
+        left: calc(20 * var(--s));
+        bottom: calc(22 * var(--s));
+        font-size: calc(20 * var(--s));
+        color: #6b6152; /* ui/theme.js 의 CSS.faint — :root 에 짝 없음 */
+        white-space: pre;
+      }
+      /* 방 이름 — 들어간 순간 잠깐 떴다가 700ms 에 걸쳐 사라진다 (저택). */
+      #hud-room {
+        position: absolute;
+        left: 50%;
+        top: calc(92 * var(--s));
+        transform: translate(-50%, -50%);
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(40 * var(--s));
+        letter-spacing: 0.05em;
+        color: var(--brass);
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 700ms ease;
+      }
+      /* 켤 때는 즉시, 끌 때는 위 transition 을 타고 서서히. */
+      #hud-room.visible { opacity: 1; transition: none; }
+
       /* ── 스팀펑크 공용 부품 ─────────────────────────────── */
       /* 황동 프레임 패널: 가죽 바탕 + 바깥 어두운/안쪽 밝은 이중 선 + 모서리 리벳 4개 */
       .sp-panel {
@@ -438,6 +490,60 @@
       }
       #docpanel-hint { margin-top: calc(26 * var(--s)); opacity: 0.5; font-size: calc(19 * var(--s)); text-align: right; }
 
+      /* ── 단서 수첩 ([C]) ─────────────────────────────────
+         ui/ClueBook.js 와 짝. 캔버스 컨테이너를 그대로 옮긴 것이라 치수도 그때
+         좌표 그대로다 — 화면 한가운데 760×560 패널, 제목 30 / 본문 24 / 안내 20px. */
+      #cluebook {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        /* 배경을 어둡게 덮지 않고 클릭도 캔버스로 흘려보낸다 — 수첩은 판을 멈추는
+           창이 아니라 걸어 다니며 곁눈질하는 물건이다 (캔버스 시절과 같다). */
+        pointer-events: none;
+      }
+      #cluebook.visible { display: flex; }
+      /* 황동 액자는 .sp-panel 이 그린다 (캔버스의 drawOrnateFrame 자리).
+         안내 문구를 바닥에 붙이려고 기준 상자를 세운다. */
+      #cluebook-card {
+        position: relative;
+        width: calc(760 * var(--s));
+        height: calc(560 * var(--s));
+        padding: calc(22 * var(--s)) calc(44 * var(--s));
+      }
+      /* 제목 + 그 아래 가로줄. 줄이 좌우 여백(44)보다 8px 씩 넓던 캔버스 쪽
+         치수(688px)를 지키려고 음수 마진으로 밀어낸다. */
+      #cluebook-title {
+        margin: 0 calc(-8 * var(--s));
+        padding-bottom: calc(17 * var(--s));
+        border-bottom: calc(2 * var(--s)) solid #3a3120; /* 캔버스 전용 색 — :root 에 짝 없음 */
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(30 * var(--s));
+        line-height: calc(36 * var(--s));
+        color: var(--brass);
+        text-align: center;
+      }
+      /* line-height 1.8 이 Phaser 의 lineSpacing 14 와 같은 줄 간격이다
+         (#docpanel-body 와 같은 값). */
+      #cluebook-body {
+        margin-top: calc(24 * var(--s));
+        font-size: calc(24 * var(--s));
+        line-height: 1.8;
+        color: var(--paper);
+        white-space: pre-wrap;
+      }
+      #cluebook-hint {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: calc(20 * var(--s));
+        font-size: calc(20 * var(--s));
+        color: var(--paper-dim);
+        text-align: center;
+      }
+
       /* 미니게임 부품 — 퍼즐과 타이밍 게임이 함께 쓴다. */
       .mg-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
       .mg-row + .mg-row { margin-top: 12px; }
@@ -532,6 +638,22 @@
     <header>코드네임: 태엽새</header>
     <div id="game-root">
       <div id="game-canvas"></div>
+      <!-- 화면 고정 HUD. 대화창·패널보다 앞에 적어 두면 그것들이 위를 덮는다. -->
+      <div id="hud">
+        <div id="hud-status"></div>
+        <div id="hud-room"></div>
+        <div id="hud-keys"></div>
+      </div>
+      <!-- 단서 수첩([C]). #hud 보다 뒤(= 위)에, 대화창보다 앞(= 아래)에 적는다 —
+           캔버스 시절에도 수첩은 UI 카메라에 그려졌고 대화창은 캔버스 전체를 덮는
+           DOM 이라 그보다 위였다. 그 겹침 순서를 그대로 옮긴 자리다. -->
+      <div id="cluebook">
+        <div id="cluebook-card" class="sp-panel">
+          <div id="cluebook-title">단서 수첩</div>
+          <div id="cluebook-body"></div>
+          <div id="cluebook-hint">[C] 닫기</div>
+        </div>
+      </div>
       <!-- 오프닝 영상. 파일이 없으면 IntroScene 이 패널 오프닝으로 돌아간다. -->
       <div id="intro-video">
         <video id="intro-video-el" playsinline preload="auto"></video>

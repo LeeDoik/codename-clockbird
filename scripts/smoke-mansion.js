@@ -6,10 +6,11 @@
  *
  * 확인하는 것:
  *   1. /start 가 LLM 없이 즉시 돌아오는가
- *   2. 응답에 kind·favor·suspicion 이 새지 않는가 (동료가 누군지가 곧 정답이다)
- *   3. 동료에게 반브루주아 발언 3번 → 정보 조각이 나오는가
+ *   2. 응답에 kind·favor·suspicion·keyHolder 가 새지 않는가 (누가 동료이고 누가 열쇠를
+ *      쥐었는지가 곧 정답이다)
+ *   3. 동료에게 반브루주아 발언 3번 → 열쇠 또는 열쇠 보유자 힌트가 나오는가
  *   4. 민간인에게 반브루주아 발언 3번 → 경고 뒤 밀고 게임오버인가
- *   5. 열쇠 없이 /document 가 막히는가
+ *   5. 열쇠 없이 /document 가 막히고, 열쇠가 있으면 열리는가
  *
  * 실제 LLM 을 부른다. 판정이 흔들릴 수 있으므로 실패해도 원인을 함께 찍는다.
  */
@@ -34,11 +35,11 @@ const ok = (cond, label, extra = '') => {
   if (!cond) failures++;
 };
 
-async function start() {
+async function start(debug = null) {
   const res = await fetch(`${BASE}/api/mansion/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify(debug ? { debug } : {}),
   });
   if (!res.ok) throw new Error(`start ${res.status}`);
   return { raw: await res.clone().text(), view: await res.json() };
@@ -85,8 +86,15 @@ const t0 = Date.now();
 const a = await start();
 console.log(`  응답 ${Date.now() - t0}ms`);
 ok(a.view.npcs.length === 8, 'NPC 8명', `${a.view.npcs.length}명`);
-for (const word of ['kind', 'favor', 'suspicion', 'persona', 'rewards']) {
+for (const word of ['kind', 'favor', 'suspicion', 'persona', 'rewards', 'keyHolder']) {
   ok(!a.raw.includes(`"${word}"`), `'${word}' 미유출`);
+}
+// 열쇠 보유자는 **필드명을 지워도 값으로 샐 수 있다** — 어딘가에 id 하나만 더 실리면
+// 그게 곧 정답이다. 그래서 각 NPC id 가 응답에 정확히 한 번(npcs 배열의 자기 자리)만
+// 나오는지 센다. 보유자만 두 번 나오면 그 자리에서 걸린다.
+for (const n of cast.npcs) {
+  const hits = a.raw.split(`"${n.id}"`).length - 1;
+  ok(hits === 1, `'${n.id}' 가 딱 한 번만 실린다`, `${hits}회`);
 }
 
 // ── 2. 열쇠 없이 문서 열람 ────────────────────────────────────────
@@ -98,9 +106,11 @@ const docRes = await fetch(`${BASE}/api/mansion/document`, {
 });
 ok(docRes.status === 409, '409 로 막힘', `${docRes.status}`);
 
-// ── 3. 동료 — 반브루주아 3회 → 정보 조각 ──────────────────────────
+// ── 3. 동료 — 반브루주아 3회 → 열쇠 또는 보유자 힌트 ──────────────
+// 열쇠 보유자는 판마다 무작위라, 이 동료가 보유자면 key 가·아니면 hint 가 나온다.
+// 둘 중 무엇이 나오든 통과다 — 어느 쪽이 나왔는지는 찍어서 눈으로 확인한다.
 console.log(`\n[3] 동료 (${ALLY.name}) 에게 반브루주아 발언 3회`);
-let piece = null;
+let reward = null;
 for (const [i, msg] of ANTI.entries()) {
   const r = await talk(a.view.sessionId, ALLY.id, msg);
   if (r.error) {
@@ -109,9 +119,21 @@ for (const [i, msg] of ANTI.entries()) {
   }
   console.log(`  ${i + 1}. "${msg.slice(0, 20)}…" → ${r.event?.event ?? '변화 없음'}`);
   console.log(`     "${r.text.slice(0, 60)}…"`);
-  if (r.event?.piece) piece = r.event.piece;
+  if (r.event?.event === 'key' || r.event?.event === 'hint') reward = r.event;
 }
-ok(Boolean(piece), '정보 조각 획득', piece ? `"${piece.slice(0, 30)}…"` : '3회 안에 안 나옴');
+ok(
+  Boolean(reward),
+  '열쇠 또는 보유자 힌트 획득',
+  reward ? `${reward.event}: "${reward.line.slice(0, 34)}…"` : '3회 안에 안 나옴',
+);
+// 힌트는 {target} 이 실제 보유자로 치환돼 나가야 한다. 안 되면 자리표시가 그대로 보인다.
+if (reward?.event === 'hint') {
+  ok(!reward.line.includes('{target}'), '힌트의 {target} 이 치환됐다', reward.line);
+}
+// 보유자였다면 그 자리에서 열쇠가 선다 — 조각을 모을 필요가 없어졌다.
+if (reward?.event === 'key') {
+  ok(reward.state?.hasKey === true, '보유자 공략 즉시 열쇠 확보');
+}
 
 // ── 4. 민간인 — 반브루주아 3회 → 밀고 ─────────────────────────────
 console.log(`\n[4] 민간인 (${CIV.name}) 에게 반브루주아 발언 3회 (새 세션)`);
@@ -132,7 +154,9 @@ ok(events.includes('warn'), '상한 직전에 경고', events.join(' → '));
 ok(over === 'reported', '밀고 게임오버', over ?? '안 끝남');
 
 // ── 5. 동료를 굳혔다가 다시 푼다 (소프트락 회귀) ──────────────────
-// 동료 3명이 전부 필수라, 한 명이라도 영영 말을 못 붙이게 되면 클리어가 불가능해진다.
+// 동료 전원이 필수이던 시절만큼은 아니지만, 하필 **열쇠를 쥔 동료**가 영영 말을 못 붙이는
+// 상태가 되면 여전히 그 판은 클리어가 불가능하다. 보유자는 무작위라 어느 동료든 그 한 명일
+// 수 있으므로 회복 경로는 계속 전원에게 필요하다.
 // 굳은 뒤 의심도를 3 에 둔 채 풀면 다음 한마디에 곧바로 다시 굳는다 — 그 회귀를 막는다.
 console.log(`\n[5] 동료 (${ALLY.name}) 를 굳혔다가 푸는 경로`);
 const c = await start();
@@ -184,6 +208,21 @@ const ins = await insRes.json();
 ok(insRes.ok, 'inspect 200', String(insRes.status));
 ok(Boolean(ins.text?.includes('배급 장부')), 'inspect 본문에 단서 원문');
 ok(ins.state?.objects?.find((o) => o.id === 'obj-ledger')?.found === true, 'inspect 후 found 반영');
+
+// ── 7. 열쇠가 있으면 /document 가 열린다 (클리어 게이트) ───────────
+// 개발 플래그로 열쇠만 세우고 확인한다 — 대화를 태우지 않으므로 LLM 호출이 0이다.
+// [2] 의 짝: 없으면 409, 있으면 200. 그 사이에 다른 조건은 없다.
+console.log('\n[7] 열쇠를 쥔 채 /document');
+const e = await start('key');
+ok(e.view.hasKey === true, '개발 플래그로 열쇠 지급', String(e.view.hasKey));
+const clearRes = await fetch(`${BASE}/api/mansion/document`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ sessionId: e.view.sessionId }),
+});
+const clear = await clearRes.json();
+ok(clearRes.ok, '/document 200', String(clearRes.status));
+ok(clear.state?.cleared === true, '클리어 반영', String(clear.state?.cleared));
 
 console.log(failures ? `\n실패 ${failures}건\n` : '\n전부 통과\n');
 process.exit(failures ? 1 : 0);

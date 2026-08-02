@@ -44,17 +44,19 @@ router.post('/start', async (req, res, next) => {
     // 개발용 — 클라이언트의 ?stage2&key 가 여기까지 온다. 열쇠는 **서버가** 쥐고 있으므로
     // 클라이언트에서만 세우면 문서 열람이 409 로 막힌다. 프로덕션에서는 통째로 무시한다.
     if (!isProd && req.body?.debug === 'key') {
-      session.pieces = Object.entries(data.rewards)
-        .filter(([k]) => !k.startsWith('_'))
-        .map(([, v]) => v);
       session.hasKey = true;
-      for (const n of session.npcs) if (n.kind === 'ally') n.gave = true;
+      const holder = getMansionNpc(session, session.keyHolder);
+      if (holder) holder.gave = true;
       console.log(`[mansion] 세션 ${sessionId.slice(0, 8)} — 개발 플래그: 열쇠 지급`);
     }
 
-    // 서버 콘솔에만 정답(누가 동료인가)을 남긴다 — 개발용.
+    // 서버 콘솔에만 정답(누가 동료이고 누가 열쇠를 쥐었는가)을 남긴다 — 개발용.
     const allies = session.npcs.filter((n) => n.kind === 'ally').map((n) => n.name);
-    console.log(`[mansion] 세션 ${sessionId.slice(0, 8)} 시작 — 동료: ${allies.join(', ')}`);
+    const holderName = getMansionNpc(session, session.keyHolder)?.name ?? '?';
+    console.log(
+      `[mansion] 세션 ${sessionId.slice(0, 8)} 시작 — 동료: ${allies.join(', ')}` +
+        ` · 열쇠: ${holderName}`,
+    );
 
     res.json(toMansionView(session));
   } catch (err) {
@@ -119,14 +121,14 @@ router.post('/talk', async (req, res) => {
     pushMansionDialogue(session, npcId, 'assistant', reply);
 
     const { stance, reason, usedClueId } = await stancePromise;
-    const { event, piece } = applyStance(session, npc, stance, usedClueId);
+    const { event, line } = applyStance(session, npc, stance, usedClueId);
     console.log(
       `[mansion] ${npc.name} ← ${stance} (${reason})` +
         ` · 호감 ${npc.favor} 의심 ${npc.suspicion}${event ? ` → ${event}` : ''}`,
     );
 
     // 수치는 싣지 않는다. 벌어진 사건과 화이트리스트 상태만 내려간다.
-    send({ type: 'event', event, piece, state: toMansionView(session) });
+    send({ type: 'event', event, line, state: toMansionView(session) });
     send({ type: 'done' });
   } catch (err) {
     console.error('[mansion/talk]', err);

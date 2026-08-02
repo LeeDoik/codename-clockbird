@@ -43,12 +43,17 @@ export function buildTilemap(scene, mapData, textureKey = 'tiles') {
  * 저택(스테이지 2)은 바닥·벽·가구·조명을 통째로 구운 이미지를 깔기 때문에 타일을
  * 한 칸씩 그릴 필요가 없다. 그래도 벽은 막아야 하므로 렌더와 충돌을 갈라 놓는다.
  *
- * @param {Array<[number, number]>} blocked 가구가 막는 칸 (바닥 위에 놓인 것들)
+ * @param {object} props 맵의 *-props.json. 두 형식을 받는다:
+ *   walk 가 있으면 그게 유일한 원본이다 — 배경 그림 위에 손으로 칠한 걷는 길을
+ *   scripts/walkmask.js 가 옮겨 적은 행 문자열('1' = 걸을 수 있다)로, layout 의
+ *   solid 도 blocked 도 보지 않는다. 그림과 판정이 어긋날 자리가 없어진다.
+ *   walk 가 없으면 옛 방식 — layout 의 solid 타일 + blocked(가구가 막는 칸).
  * @returns {Phaser.Physics.Arcade.StaticGroup}
  */
-export function buildColliders(scene, mapData, blocked = []) {
+export function buildColliders(scene, mapData, props = {}) {
   const TILE = mapData.tileSize;
   const { layout, tiles, rows, cols } = mapData;
+  const { walk, blocked = [] } = props;
   const walls = scene.physics.add.staticGroup();
 
   const add = (c, r) => {
@@ -58,6 +63,13 @@ export function buildColliders(scene, mapData, blocked = []) {
     walls.add(zone);
     return zone;
   };
+
+  if (Array.isArray(walk) && walk.length === rows) {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) if (walk[r][c] !== '1') add(c, r);
+    }
+    return walls;
+  }
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) if (tiles[layout[r][c]].solid) add(c, r);
@@ -110,8 +122,52 @@ export function setupCameras(scene, mapData, player, zoom = WORLD_ZOOM) {
   ui.ignore(scene.children.list);
 
   scene.uiCam = ui;
+  // worldLabel 이 글자를 몇 배로 구울지 정하는 데 쓴다.
+  scene.worldZoom = zoom;
   scene.asWorld = (...objs) => ui.ignore(objs);
   scene.asUi = (...objs) => main.ignore(objs);
+}
+
+/**
+ * 월드에 놓이는 작은 글자 — 인물 이름표처럼 대상 옆에 붙어 있어야 하는 것들.
+ *
+ * 월드 텍스트는 카메라 줌만큼 확대되는데 pixelArt(NEAREST) 라 그 확대에 보간이 없다.
+ * 11px 로 구워 본부의 2.8125 배 줌으로 늘리면 글자가 아니라 얼룩이 된다. 그래서
+ * **화면에서 보일 크기로 크게 굽고 월드에서 그만큼 축소해 둔다** — 카메라를 지나면
+ * 배율이 정확히 1 이 되어 구운 그대로 찍힌다. 월드에서 차지하는 크기는 예전과 같아
+ * 배치(y 오프셋 등)는 손댈 것이 없다.
+ *
+ * style.fontSize 는 지금까지처럼 **월드 기준** 크기로 적는다 — 화면용 크기 계산은
+ * 여기서 한다.
+ *
+ * 배율은 setupCameras 가 scene.worldZoom 에 남긴 값을 쓰고, 아직 안 불렀으면
+ * 기본 배율로 굽는다 — 거리 씬은 이름표를 먼저 만들고 카메라를 나중에 세운다
+ * (setupCameras 의 호출 시점 규약 때문이고, 거리의 줌은 그 기본값과 같다).
+ */
+export function worldLabel(scene, x, y, text, style) {
+  const world = parseFloat(style.fontSize) || 11;
+  const px = Math.max(1, Math.round(world * (scene.worldZoom ?? WORLD_ZOOM)));
+  return scene.add
+    .text(x, y, text, { ...style, fontSize: `${px}px` })
+    .setScale(world / px)
+    .setOrigin(0.5);
+}
+
+/**
+ * 월드 좌표 → 화면 좌표 (회전 없는 카메라 기준).
+ *
+ * 월드에 놓인 것은 카메라 줌만큼 확대되는데, pixelArt(NEAREST) 라 그 확대에 보간이
+ * 없다 — 타일 아트는 그러라고 켠 설정이지만 글자는 획이 1~2px 이라 통째로 뭉개진다
+ * (본부의 2.8125 배 줌에서 11px 말풍선이 노란 얼룩이 되던 이유). 글자는 줌 없는 UI
+ * 카메라에 두고 위치만 이 함수로 옮기면, 어떤 맵의 어떤 줌에서도 같은 크기로 또렷하다.
+ */
+export function worldToScreen(cam, x, y) {
+  const ox = cam.width * cam.originX;
+  const oy = cam.height * cam.originY;
+  return {
+    x: (x - cam.scrollX - ox) * cam.zoomX + cam.x + ox,
+    y: (y - cam.scrollY - oy) * cam.zoomY + cam.y + oy,
+  };
 }
 
 /** 플레이어 — 맵이 지정한 스폰 칸 중앙에 두고 벽과 충돌시킨다. */
@@ -137,10 +193,12 @@ export function createPlayer(scene, mapData, walls, frame = 0) {
  * 매 프레임 위치만 따라가므로, 그림의 배율·원점을 얼마로 잡든 body.setSize/setOffset
  * (createPlayer 가 이미 세운 발밑 판정)에는 영향이 없다.
  *
- * 오른쪽 방향 그림은 따로 없다 — 왼쪽 걷기 프레임을 좌우 반전(flipX)해서 쓴다.
+ * 네 방향 모두 전용 프레임이 있다 — 왼쪽을 반전(flipX)해서 오른쪽에 쓰지 않는다.
+ * 인물의 고글·가방·멜빵이 좌우 비대칭이라, 반전하면 방향을 바꿀 때마다 장비가
+ * 반대쪽 어깨로 옮겨 다닌다.
  * createPlayer 직후, setupCameras 이전에 불러야 별도로 asWorld 등록할 필요가 없다.
  *
- * @param {{idle: string, walkDown: string, walkUp: string, walkLeft: string}} anims 애니메이션 키
+ * @param {{idle: string, walkDown: string, walkUp: string, walkLeft: string, walkRight: string}} anims 애니메이션 키
  * @param {number} originY 발 위치(0~1, 프레임 높이 기준 — 프레임마다 인물 배치가 달라 실측해야 한다)
  * @param {number} contentHeight 프레임 안 인물의 실제 높이(px, 정수리~발)
  * @param {number} displayHeight 화면에 표시할 발-정수리 높이(world px)
@@ -149,7 +207,7 @@ export function createPlayer(scene, mapData, walls, frame = 0) {
 export function createPlayerVisual(
   scene,
   player,
-  { idle, walkDown, walkUp, walkLeft },
+  { idle, walkDown, walkUp, walkLeft, walkRight },
   originY,
   contentHeight,
   displayHeight,
@@ -180,8 +238,7 @@ export function createPlayerVisual(
         return;
       }
       if (Math.abs(vx) > Math.abs(vy)) {
-        visual.setFlipX(vx > 0);
-        play(walkLeft);
+        play(vx > 0 ? walkRight : walkLeft);
       } else {
         play(vy > 0 ? walkDown : walkUp);
       }

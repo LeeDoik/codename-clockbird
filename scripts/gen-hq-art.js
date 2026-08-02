@@ -11,6 +11,7 @@
  */
 import fs from 'node:fs';
 import zlib from 'node:zlib';
+import { keepWalk } from './walkmask.js';
 
 const map = JSON.parse(fs.readFileSync('src/client/assets/hq.json', 'utf8'));
 const T = map.tileSize;
@@ -518,7 +519,7 @@ fs.writeFileSync('src/client/assets/hq-bg.png', encodePng(W, H, buf));
 const list = [...blocked].map((k) => k.split(',').map(Number));
 fs.writeFileSync(
   'src/client/assets/hq-props.json',
-  JSON.stringify({ _comment: '가구가 막는 칸. scripts/gen-hq-art.js 가 낸다.', blocked: list }) + '\n',
+  JSON.stringify({ _comment: '가구가 막는 칸. scripts/gen-hq-art.js 가 낸다.', blocked: list, ...keepWalk('hq') }) + '\n',
 );
 
 // ── 도달성 재검사 ─────────────────────────────────────────────────

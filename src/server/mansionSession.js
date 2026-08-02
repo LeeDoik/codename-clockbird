@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
  *
  * 이 파일이 쥐고 클라이언트로 내보내지 않는 것:
  *   - `kind` (동료냐 민간인이냐) — 알아내는 것이 이 스테이지의 퍼즐이다
+ *   - `keyHolder` — 동료 셋 중 누가 열쇠를 쥐었는가. 이 판의 정답이다
  *   - `favor` / `suspicion` — 수치 비노출, 대화 뉘앙스로만 유추한다 (계획서 §4.4)
  *   - `backstory` / `personality` / `rewards` — 프롬프트 재료와 아직 안 준 보상
  *   - `objects` 의 `npcId`·`topic`·`text` — 단서와 인물을 잇는 연결과 그 본문
@@ -16,26 +17,36 @@ import { randomUUID } from 'node:crypto';
  */
 const sessions = new Map();
 
-/** 동료 호감도가 여기 닿으면 정보 조각을 준다 */
+/** 동료 호감도가 여기 닿으면 열쇠 또는 열쇠 보유자 힌트를 준다 */
 export const FAVOR_MAX = 3;
 /** 의심도 상한 — 민간인이면 밀고(게임오버), 동료면 대화 중단 */
 export const SUSPICION_MAX = 3;
-/** 정보 조각을 이만큼 모으면 연구실 열쇠가 나온다 */
-export const PIECES_FOR_KEY = 3;
 
 export function createMansionSession({ escort, npcs, rewards, objects = [] }) {
   const id = randomUUID();
+
+  /**
+   * 열쇠를 쥔 동료를 매 판 새로 뽑는다.
+   *
+   * 고정해 두면 그 방에 먼저 들어간 판은 세 마디로 끝나고 — 나머지 동료도 조사 오브젝트도
+   * 아무 의미가 없어진다. 무작위면 "누가 쥐었나"를 좁히는 일이 생겨서, 운 좋게 첫 상대가
+   * 보유자여도(최소 3회) 아니어도(힌트 → 보유자, 6회) 바닥과 천장이 같이 생긴다.
+   */
+  const allies = npcs.filter((n) => n.kind === 'ally');
+  const keyHolder = allies[Math.floor(Math.random() * allies.length)]?.id ?? null;
+
   sessions.set(id, {
     id,
     escort,
     rewards,
+    keyHolder,
     npcs: npcs.map((n) => ({
       ...n,
       favor: 0,
       suspicion: 0,
       /** 의심도 상한에 닿은 동료 — 다른 NPC 와 한 번 이상 대화해야 풀린다 */
       halted: false,
-      /** 정보 조각을 이미 줬는가 */
+      /** 보상(열쇠 또는 힌트)을 이미 줬는가 */
       gave: false,
       /** 이 NPC 에게 이미 써먹은 단서 id — 같은 단서로 반복 파밍하지 못하게 */
       usedClues: [],
@@ -43,7 +54,8 @@ export function createMansionSession({ escort, npcs, rewards, objects = [] }) {
     })),
     /** 조사 오브젝트 — found 는 서버가 쥔다 */
     objects: objects.map((o) => ({ ...o, found: false })),
-    pieces: [],
+    /** 보유자가 아닌 동료에게서 받은 힌트 대사 — 이미 읽은 것이라 내보내도 안전하다 */
+    hints: [],
     hasKey: false,
     cleared: false,
     /** 게임오버 사유. null 이면 진행 중 */
@@ -89,7 +101,7 @@ export function toMansionView(session) {
     objects: session.objects.map((o) => ({
       id: o.id, name: o.name, col: o.col, row: o.row, room: o.room, found: o.found,
     })),
-    pieces: session.pieces,
+    hints: session.hints,
     hasKey: session.hasKey,
     cleared: session.cleared,
     over: session.over,
@@ -101,7 +113,7 @@ export function toMansionView(session) {
  *
  * @param {'anti'|'pro'|'neutral'} stance
  * @param {string|null} usedClueId 이번 발언이 실질적으로 꺼낸 단서 id (judgeStance 가 판정)
- * @returns {{event: string|null, piece: string|null}} 클라이언트가 연출할 사건
+ * @returns {{event: string|null, line: string|null}} 클라이언트가 연출할 사건과 그때 붙일 대사
  */
 export function applyStance(session, npc, stance, usedClueId = null) {
   // 다른 NPC 와 대화했으니 굳어 있던 동료들이 풀린다 (수정안 p.22 [확정]).
@@ -133,27 +145,33 @@ export function applyStance(session, npc, stance, usedClueId = null) {
   if (npc.suspicion >= SUSPICION_MAX) {
     if (npc.kind === 'civ') {
       session.over = 'reported';
-      return { event: 'reported', piece: null };
+      return { event: 'reported', line: null };
     }
     npc.halted = true;
-    return { event: 'halted', piece: null };
+    return { event: 'halted', line: null };
   }
 
   if (npc.kind === 'ally' && !npc.gave && npc.favor >= FAVOR_MAX) {
     npc.gave = true;
-    const piece = session.rewards[npc.id] ?? '';
-    session.pieces.push(piece);
-    if (session.pieces.length >= PIECES_FOR_KEY) {
+    const reward = session.rewards[npc.id] ?? {};
+
+    if (npc.id === session.keyHolder) {
       session.hasKey = true;
-      return { event: 'key', piece };
+      return { event: 'key', line: reward.key ?? '' };
     }
-    return { event: 'piece', piece };
+
+    // 보유자가 아닌 동료는 **누가 쥐었는지**를 가리킨다. 가리키는 말(pointer)은 보유자
+    // 쪽 데이터에 있다 — 같은 대사가 판마다 다른 사람을 가리켜야 하기 때문이다.
+    const pointer = session.rewards[session.keyHolder]?.pointer ?? '누군가';
+    const line = (reward.hint ?? '').replace('{target}', pointer);
+    session.hints.push(line);
+    return { event: 'hint', line };
   }
 
   // 의심도가 처음 올라간 순간은 경고로 알린다 — 상한까지 조용히 가면 게임오버가 가혹하다.
-  if (npc.suspicion === SUSPICION_MAX - 1) return { event: 'warn', piece: null };
+  if (npc.suspicion === SUSPICION_MAX - 1) return { event: 'warn', line: null };
 
-  return { event: null, piece: null };
+  return { event: null, line: null };
 }
 
 /** 대화 이력에 한 턴 추가 */
