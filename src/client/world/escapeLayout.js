@@ -16,6 +16,12 @@ export const TILE = 32;
 export const COLS = 60;
 export const ROWS = 34;
 
+/**
+ * 인물이 화면에 보일 높이(월드 px). escape.json 의 `charHeight` 로 구워져 씬과
+ * worldParts(발밑 판정 크기)가 같이 읽는다 — worldParts.DEFAULT_CHAR_HEIGHT 참고.
+ */
+export const CHAR_HEIGHT = 32;
+
 /** 타일 좌표 → 픽셀 중심 */
 export const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 });
 

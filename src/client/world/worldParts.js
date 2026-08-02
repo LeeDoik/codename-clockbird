@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { readWalk } from './los.js';
 
 /**
  * 씬 사이에서 공유하는 월드 조각.
@@ -53,7 +54,9 @@ export function buildTilemap(scene, mapData, textureKey = 'tiles') {
 export function buildColliders(scene, mapData, props = {}) {
   const TILE = mapData.tileSize;
   const { layout, tiles, rows, cols } = mapData;
-  const { walk, blocked = [] } = props;
+  // 길이가 맵과 안 맞으면 여기서 던진다 — 조용히 옛 경로로 되돌아가지 않는다 (los.readWalk).
+  const walk = readWalk(mapData, props);
+  const { blocked = [] } = props;
   const walls = scene.physics.add.staticGroup();
 
   const add = (c, r) => {
@@ -64,7 +67,7 @@ export function buildColliders(scene, mapData, props = {}) {
     return zone;
   };
 
-  if (Array.isArray(walk) && walk.length === rows) {
+  if (walk) {
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) if (walk[r][c] !== '1') add(c, r);
     }
@@ -170,6 +173,25 @@ export function worldToScreen(cam, x, y) {
   };
 }
 
+/**
+ * 인물이 화면에 보일 높이(월드 px) — 맵이 `charHeight` 로 정한다.
+ *
+ * 그림마다 내부 축척이 달라서(같은 벤치가 거리에서는 64px, 저택에서는 96px) 캐릭터 크기는
+ * 맵마다 다른 값이어야 한다. 씬 상수로 흩어져 있던 것을 맵 json 으로 옮겨, 배경을 갈아끼울
+ * 때 그림과 캐릭터가 한 파일에서 같이 정해지게 한다.
+ */
+export const DEFAULT_CHAR_HEIGHT = 32;
+
+/**
+ * 발밑 판정의 비례 — 캐릭터 높이 대비.
+ *
+ * 예전엔 setSize(16,14) 로 못박혀 있었다. 32px 캐릭터에 맞춘 값이라 그림을 3배로 키우면
+ * 몸통만 그대로 남아, 사람은 커졌는데 발은 예전 크기인 채로 좁은 틈을 빠져나간다.
+ * 32px 에서는 옛 값과 정확히 같은 수(16×14)가 나오도록 잡았다.
+ */
+const BODY_W_RATIO = 16 / DEFAULT_CHAR_HEIGHT;
+const BODY_H_RATIO = 14 / DEFAULT_CHAR_HEIGHT;
+
 /** 플레이어 — 맵이 지정한 스폰 칸 중앙에 두고 벽과 충돌시킨다. */
 export function createPlayer(scene, mapData, walls, frame = 0) {
   const TILE = mapData.tileSize;
@@ -182,8 +204,15 @@ export function createPlayer(scene, mapData, walls, frame = 0) {
   );
   scene.physics.add.existing(player);
   player.body.setCollideWorldBounds(true);
+
   // 충돌 판정은 발밑 위주로 좁혀 스프라이트 여백이 벽에 걸리지 않게 한다.
-  player.body.setSize(16, 14).setOffset(8, 16);
+  // 세로 앵커는 프레임 한가운데 = createPlayerVisual 이 발을 맞추는 지점이라(originY),
+  // 판정 사각형은 발에서 아래로 깔린다 — 그림자를 밟고 선 자리라고 보면 된다.
+  const charHeight = mapData.charHeight ?? DEFAULT_CHAR_HEIGHT;
+  const bw = Math.max(4, Math.round(charHeight * BODY_W_RATIO));
+  const bh = Math.max(4, Math.round(charHeight * BODY_H_RATIO));
+  player.body.setSize(bw, bh).setOffset((player.width - bw) / 2, player.height / 2);
+
   scene.physics.add.collider(player, walls);
   return player;
 }

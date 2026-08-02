@@ -20,6 +20,10 @@ src/client/assets/*-blocked-debug.png
 # 칠하는 원본인 design/walkmask/*-walk.png 는 커밋한다 — 그게 충돌의 출처다.
 design/walkmask/*-walk-applied.png
 
+# 원본 webp 를 푼 중간 산물 (tools/webp2png.py 가 언제든 다시 만든다).
+# 원본 design/맵/**/*.webp 는 커밋한다.
+design/맵/_png/
+
 # Claude Code 로컬 설정
 .claude/settings.local.json
 

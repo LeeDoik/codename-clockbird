@@ -6,7 +6,7 @@
  * los.js 는 Phaser 를 import 하지 않는 순수 함수다. 그래서 브라우저 없이 여기서 돌린다 —
  * 시야 판정은 눈으로 확인하기 가장 어려운 규칙이라 자동 검증이 특히 값지다.
  */
-import { hasLineOfSight, makeBlockedLookup, rayDistance } from '../src/client/world/los.js';
+import { hasLineOfSight, makeBlockedLookup, rayDistance, readWalk } from '../src/client/world/los.js';
 
 let failures = 0;
 const ok = (cond, label, extra = '') => {
@@ -89,7 +89,23 @@ const oobMapData = {
 const oobBlocked = makeBlockedLookup(oobMapData);
 ok(oobBlocked(0, 0) === true, 'tiles 범위 밖 인덱스는 막힌 것으로 본다');
 
-console.log('\n[4] rayDistance — Sentry 콘이 벽에 잘리는가');
+console.log('\n[4] readWalk — 칸 수가 어긋난 마스크는 조용히 넘어가지 않는다');
+// 맵 크기를 바꾸고 마스크를 다시 안 칠하면 예전엔 layout 경로로 **조용히** 떨어졌다.
+// 게임은 멀쩡히 뜨고 벽만 옛 좌표에 서 있어서, 걸어가 보기 전엔 아무도 모른다.
+const threw = (fn) => {
+  try {
+    fn();
+    return false;
+  } catch {
+    return true;
+  }
+};
+ok(readWalk(mapData, {}) === null, 'walk 가 없으면 null (옛 layout 경로로 간다)');
+ok(readWalk(mapData, props) === props.walk, '칸 수가 맞으면 그대로 돌려준다');
+ok(threw(() => readWalk(mapData, { walk: ['11011', '11011'] })), '행 수가 모자라면 던진다');
+ok(threw(() => readWalk(mapData, { walk: ['1101', '11011', '11011'] })), '행 길이가 다르면 던진다');
+
+console.log('\n[5] rayDistance — Sentry 콘이 벽에 잘리는가');
 // col3(row1, 열린 칸, x=112,y=48)에서 오른쪽(col4)으로 40px 만 본다. col4 는 끝까지
 // 열려 있고 맵은 5칸(160px)까지라 40px 안에는 아무것도 없다 — maxDist 그대로.
 ok(

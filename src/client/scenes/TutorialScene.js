@@ -8,6 +8,7 @@ import {
   applyMovement,
   setupCameras,
   worldLabel,
+  DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
@@ -65,7 +66,8 @@ const PLAYER_ANIM = {
 };
 const PLAYER_ORIGIN_Y = 176 / 256;
 const PLAYER_CONTENT_HEIGHT = 176;
-const PLAYER_HEIGHT = 56;
+/** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
+const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
 const LABEL_STYLE = {
   fontFamily: FONTS.body,

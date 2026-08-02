@@ -54,9 +54,20 @@ const readJson = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
  */
 function currentWalk(map, props) {
   const grid = Array.from({ length: map.rows }, () => new Uint8Array(map.cols));
-  if (Array.isArray(props.walk) && props.walk.length === map.rows) {
-    for (let r = 0; r < map.rows; r++) for (let c = 0; c < map.cols; c++) grid[r][c] = props.walk[r][c] === '1' ? 1 : 0;
-    return grid;
+  const walk = props.walk;
+  if (Array.isArray(walk)) {
+    // 여기서는 던지지 않는다 — 맵 크기를 바꾼 직후 옛 마스크를 버리고 다시 칠하려고
+    // template 을 부르는 것이 정상 흐름이다. 대신 조용히 넘어가지는 않는다
+    // (게임 쪽 los.readWalk 는 같은 상황에서 던진다 — 거기선 사고니까).
+    const fits = walk.length === map.rows && walk.every((row) => row.length === map.cols);
+    if (fits) {
+      for (let r = 0; r < map.rows; r++) for (let c = 0; c < map.cols; c++) grid[r][c] = walk[r][c] === '1' ? 1 : 0;
+      return grid;
+    }
+    console.warn(
+      `⚠ 기존 walk 격자(${walk.length}행)가 맵(${map.rows}×${map.cols})과 안 맞는다 — 버리고 layout 에서 다시 시작한다.\n` +
+        '  맵 크기를 바꿨다면 정상이다. 아니라면 props json 을 되돌려라.',
+    );
   }
   for (let r = 0; r < map.rows; r++) {
     for (let c = 0; c < map.cols; c++) {

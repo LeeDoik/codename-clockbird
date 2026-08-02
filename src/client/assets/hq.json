@@ -2,6 +2,7 @@
   "format": "clockbird-tilemap",
   "version": 1,
   "tileSize": 9.6,
+  "charHeight": 56,
   "cols": 60,
   "rows": 40,
   "tileset": "hq-bg.png",

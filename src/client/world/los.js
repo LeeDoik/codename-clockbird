@@ -12,6 +12,38 @@
 export const LOS_STEP = 8;
 
 /**
+ * props.walk 를 검증해 돌려준다 — 없으면 null.
+ *
+ * **칸 수가 어긋나면 던진다.** 예전에는 길이가 안 맞으면 조용히 옛 layout 경로로
+ * 되돌아갔는데, 맵 크기를 바꾸는 작업에서 이건 가장 알아채기 어려운 사고다 — 게임은
+ * 멀쩡히 뜨고 벽만 옛 좌표에 서 있다. 눈에는 아무 문제가 없고 걸어 봐야 안다.
+ *
+ * @param {object} mapData cols·rows
+ * @param {object} [props] *-props.json
+ * @returns {string[]|null} 행마다 '1'(걸을 수 있다)/'0' 인 문자열
+ */
+export function readWalk(mapData, props = {}) {
+  const { walk } = props;
+  if (!Array.isArray(walk)) return null;
+
+  const { rows, cols } = mapData;
+  if (walk.length !== rows) {
+    throw new Error(
+      `walk 행 수(${walk.length})가 맵 rows(${rows})와 다르다 — ` +
+        'scripts/walkmask.js 로 마스크를 다시 내라',
+    );
+  }
+  const bad = walk.findIndex((row) => row.length !== cols);
+  if (bad >= 0) {
+    throw new Error(
+      `walk[${bad}] 길이(${walk[bad].length})가 맵 cols(${cols})와 다르다 — ` +
+        'scripts/walkmask.js 로 마스크를 다시 내라',
+    );
+  }
+  return walk;
+}
+
+/**
  * 맵에서 "이 칸이 시야를 막는가" 를 묻는 함수를 만든다.
  *
  * **충돌과 같은 원본을 봐야 한다** — worldParts.buildColliders 가 walk 를 쓰면 여기도
@@ -24,9 +56,9 @@ export const LOS_STEP = 8;
  */
 export function makeBlockedLookup(mapData, props = {}) {
   const { rows, cols, layout, tiles } = mapData;
-  const { walk } = props;
+  const walk = readWalk(mapData, props);
 
-  if (Array.isArray(walk) && walk.length === rows) {
+  if (walk) {
     return (col, row) => {
       if (row < 0 || row >= rows || col < 0 || col >= cols) return true;
       return walk[row][col] !== '1';

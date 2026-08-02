@@ -10,7 +10,7 @@
  * 그림 없는 임시 렌더에만 쓰인다 — worldParts.buildColliders 가 walk 를 우선한다.
  */
 import { writeFile } from 'node:fs/promises';
-import { CORRIDORS, CHECKPOINTS, COLS, ROWS, TILE } from '../src/client/world/escapeLayout.js';
+import { CHAR_HEIGHT, CORRIDORS, CHECKPOINTS, COLS, ROWS, TILE } from '../src/client/world/escapeLayout.js';
 
 const layout = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => 1));
 for (const { rect } of CORRIDORS) {
@@ -29,6 +29,7 @@ const map = {
     '스크립트 생성물 — 손으로 고치지 마라. 좌표의 출처는 src/client/world/escapeLayout.js 이고, ' +
     'node scripts/gen-escape-map.js 로 다시 굽는다.',
   tileSize: TILE,
+  charHeight: CHAR_HEIGHT,
   cols: COLS,
   rows: ROWS,
   tileset: 'escape-bg.png',

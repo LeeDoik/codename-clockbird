@@ -1,61 +1,42 @@
 import Phaser from 'phaser';
 import mapData from '../assets/map.json';
+import streetProps from '../assets/street-props.json';
 import { hasLineOfSight, makeBlockedLookup, LOS_STEP } from '../world/los.js';
+import {
+  MAX_LEVEL,
+  PATROL_ROUTES as ROUTE_TILES,
+  RADIUS_BASE,
+  RADIUS_PER_LEVEL,
+  SPEED_BASE,
+  SPEED_PER_LEVEL,
+  routeToPixels,
+} from '../world/streetLayout.js';
 
 /**
  * 순찰 로봇.
  *
- * 웨이포인트를 하드코딩한다 — 맵이 1장뿐인 게임에서 map.json 포맷을 확장하는 건
- * 과투자다. 경로가 바뀔 일이 생기면 아래 상수만 고치면 된다.
- *
- * 밸런스 상수를 파일 맨 위에 모아 둔 이유: 플레이테스트 후 손댈 곳이 여기뿐이어야
- * 하기 때문이다. 순찰 속도는 어떤 경계 레벨에서도 플레이어(200)보다 느리다 —
- * 걸리면 무조건 검문이지 도망칠 방법이 없는 게임은 만들지 않는다.
+ * 경로와 밸런스 상수는 `world/streetLayout.js` 에 있다 — node 로 도는 스폰 안전 검사와
+ * **같은 파일**을 봐야 하기 때문이다 (그 파일 머리말 참고).
  */
-const SPEED_BASE = 60;
-const SPEED_PER_LEVEL = 15;
-/**
- * 감지 반경.
- *
- * 로봇은 눈이 아니라 **감지기**로 사람을 찾는다 — 그래서 앞뒤를 가리지 않는 원이다.
- * 부채꼴이던 때는 뒤로 돌아가면 코앞에서도 안 걸려, 로봇을 피하는 것이 아니라
- * 등 뒤에 붙어 따라다니는 것이 최적 전략이 됐다.
- *
- * 맵이 30×18 에서 60×48 로 넓어져 반경도 같이 키웠다. 예전 값(70)은 새 거리에서
- * 타일 두 칸 남짓이라 그냥 지나쳐도 안 걸렸다.
- */
-const RADIUS_BASE = 150;
-const RADIUS_PER_LEVEL = 26;
-/** 경계 레벨이 아무리 올라도 이 이상 빨라지지 않는다 (min(alert, MAX_LEVEL)). 레벨 3 은 발각 즉사 단계다. */
-const MAX_LEVEL = 3;
+
 /** 웨이포인트 도착 판정 반경 (px) */
 const ARRIVE_EPS = 5;
 
 const TILE = mapData.tileSize;
-/** 거리 맵은 walkmask 를 쓰지 않는다 — layout 의 solid 가 원본이다. */
-const IS_BLOCKED = makeBlockedLookup(mapData);
-/** 타일 좌표 → 픽셀 중심 */
-const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 });
-
 /**
- * 순찰 경로 — 거리 맵(60×48)의 큰 축을 따라 왕복한다.
- *
- * 좌표는 docs/archive/스테이지1 거리 맵.dc.html 의 baseGuards 를 옮긴 것이다.
- * 세 축이 시가지를 열십자로 가르므로 어느 구역에 있든 한 번은 마주치게 된다.
- *
- * 상주 셋 + 증원 하나로 나눈 이유: 맵이 넓어져 한 기로는 존재감이 없고, 그렇다고
- * 처음부터 넷을 돌리면 조용히 푸는 판에서도 검문이 잦아진다. 넷째는 경계 2
- * (증원 단계)부터 붙어, 소동을 일으킨 판에서만 축이 하나 더 생긴다.
+ * 시야가 보는 벽은 **충돌이 보는 벽과 같아야 한다**.
+ * 거리도 이제 walkmask(street-props.json 의 walk)가 충돌의 원본이라 시야도 같은 것을
+ * 넘긴다. 예전엔 여기만 layout 의 solid 를 봤는데, 마스크를 새로 칠하는 순간 로봇이
+ * 그림에 없는 벽에 막히거나 있는 벽을 뚫어 보게 된다 — 플레이어는 이유를 알 수 없다.
  */
-export const PATROL_ROUTES = {
-  avenue: [at(19, 6), at(19, 42)], // 세로 축 — 중앙 대로를 오르내린다
-  crossing: [at(6, 15), at(54, 15)], // 가로 축 — 시가지를 가로지른다
-  wharf: [at(52, 31), at(24, 31)], // 아래쪽 가로 축 — 부두 방면
-  reinforce: [at(39, 8), at(39, 40)], // 증원 — 경계 2 이상에서만
-};
+const IS_BLOCKED = makeBlockedLookup(mapData, streetProps);
 
-/** 하부 홀 증원이 붙는 경계 레벨 (스토리보드: 레벨 2 = 증원) */
-export const REINFORCE_AT = 2;
+/** 순찰 경로 — 타일 좌표(streetLayout)를 이 맵의 픽셀로 옮긴 것 */
+export const PATROL_ROUTES = Object.fromEntries(
+  Object.entries(ROUTE_TILES).map(([key, route]) => [key, routeToPixels(route, TILE)]),
+);
+
+export { REINFORCE_AT } from '../world/streetLayout.js';
 
 const clampLevel = (alertLevel) => Math.min(alertLevel, MAX_LEVEL);
 

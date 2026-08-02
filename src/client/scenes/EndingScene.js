@@ -6,6 +6,7 @@ import {
   createPlayer,
   createPlayerVisual,
   setupCameras,
+  DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
 import hqData from '../assets/hq.json';
@@ -46,7 +47,8 @@ const PLAYER_ANIM = {
 // 따른다 (task-13-report.md 참고).
 const PLAYER_ORIGIN_Y = 176 / 256;
 const PLAYER_CONTENT_HEIGHT = 176;
-const PLAYER_HEIGHT = 56;
+/** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
+const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
 /**
  * 간부. 자리는 `hq.json` 의 `spawns.officer` 를 그대로 쓴다 — 좌표를 여기 적으면
@@ -76,14 +78,11 @@ export class EndingScene extends Phaser.Scene {
     this.dialogue = new DialogueBox();
 
     this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
-    // .blocked 로 넘긴다 — 커밋된 worldParts.js 의 buildColliders(scene, mapData, blocked=[])
-    // 는 세 번째 인자를 [[c,r], ...] 배열로 순회한다(`for (const [c, r] of blocked)`).
-    // 저장소 주인은 작업 트리에서 이 함수를 buildColliders(scene, mapData, props={walk,blocked})
-    // 로 바꾸는 중이라(그땐 hqProps 를 통째로 넘겨야 한다) TutorialScene.js 도 함께 바뀌어
-    // 있다 — 커밋되지 않은 상태다. 이 커밋은 지금 커밋된 worldParts.js 기준으로 동작해야
-    // 하므로 옛 시그니처를 쓴다. 주인이 그 이행을 커밋할 때 TutorialScene.js:97 과
-    // 이 줄을 함께 hqProps 전체로 바꿔야 한다 — 한쪽만 고치면 다시 깨진다.
-    this.walls = buildColliders(this, hqData, hqProps.blocked);
+    // props 를 통째로 넘긴다 — walk(손으로 칠한 걷는 길)가 충돌의 원본이다.
+    // 한동안 `hqProps.blocked` 를 넘기고 있었는데, 그러면 walk 가 undefined 라 판정이
+    // 조용히 옛 layout 경로로 떨어져 이 씬에는 가구 충돌이 사실상 없었다 (본부 layout 의
+    // solid 는 바깥 테두리뿐이다). TutorialScene 과 반드시 같은 인자를 써야 한다.
+    this.walls = buildColliders(this, hqData, hqProps);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     this.player.setVisible(false);
     this.playerVisual = createPlayerVisual(

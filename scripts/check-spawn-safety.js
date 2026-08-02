@@ -1,28 +1,28 @@
 /**
  * 동료 스폰 안전 검사 — 스폰 지점이 (1) 걸을 수 있는 바닥이고
- * (2) 모든 순찰 경로 선분에서 최대 감지 반경(228px)+여유 밖인지 확인한다.
+ * (2) 모든 순찰 경로 선분에서 최대 감지 반경 + 여유 밖인지 확인한다.
  * 불합격이면 해당 지점 주변에서 조건을 만족하는 가장 가까운 칸을 제안한다.
  *
- * Patrol.js 의 경로를 import 하지 않는 이유: Phaser 의존이라 노드에서 안 돈다.
- * 좌표를 여기 복사해 두고, Patrol.js 를 고치면 여기도 고친다 (파일 상단 주석 계약).
+ * 경로·반경은 `src/client/world/streetLayout.js` 에서 가져온다 — Phaser 를 import 하지
+ * 않는 파일이라 node 에서 그대로 돌고, Patrol.js 와 같은 좌표를 본다. 예전엔 여기에
+ * 좌표를 손으로 복사해 뒀는데, 한쪽만 고치면 이 검사가 **옛 경로를 재면서 통과**했다.
  */
 import { readFile } from 'node:fs/promises';
+import {
+  PATROL_ROUTES,
+  RADIUS_MAX,
+  routeToPixels,
+} from '../src/client/world/streetLayout.js';
 
-const TILE = 32;
-const RADIUS_MAX = 150 + 26 * 3; // Patrol.js RADIUS_BASE + PER_LEVEL * MAX_LEVEL
 const MARGIN = 16;
-const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 });
-// Patrol.js PATROL_ROUTES 사본
-const ROUTES = [
-  [at(19, 6), at(19, 42)],
-  [at(6, 15), at(54, 15)],
-  [at(52, 31), at(24, 31)],
-  [at(39, 8), at(39, 40)],
-];
 
 const map = JSON.parse(await readFile(new URL('../src/client/assets/map.json', import.meta.url), 'utf8'));
 const props = JSON.parse(await readFile(new URL('../src/client/assets/street-props.json', import.meta.url), 'utf8'));
 const blocked = new Set((props.blocked ?? []).map(([c, r]) => `${c},${r}`));
+
+const TILE = map.tileSize;
+const at = (col, row) => ({ x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 });
+const ROUTES = Object.values(PATROL_ROUTES).map((route) => routeToPixels(route, TILE));
 
 // props.walk 는 배경 그림 위에 칠한 걷는 길(scripts/walkmask.js) — 있으면 그게 원본이다.
 const walkable = (c, r) =>

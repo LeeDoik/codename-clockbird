@@ -5,6 +5,7 @@ import {
   createPlayer,
   createPlayerVisual,
   setupCameras,
+  DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
 import escapeData from '../assets/escape.json';
 import { Sentry } from '../entities/Sentry.js';
@@ -43,7 +44,8 @@ const PLAYER_ANIM = {
 };
 const PLAYER_ORIGIN_Y = 176 / 256;
 const PLAYER_CONTENT_HEIGHT = 176;
-const PLAYER_HEIGHT = 32;
+/** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
+const PLAYER_HEIGHT = escapeData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
 /**
  * 발각 게이지 — 0 에서 시작해 오르고 100 에서 터진다.

@@ -2,6 +2,7 @@
   "format": "clockbird-tilemap",
   "version": 1,
   "tileSize": 32,
+  "charHeight": 32,
   "cols": 60,
   "rows": 35,
   "tileset": "mansion.png",
