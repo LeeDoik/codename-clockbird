@@ -107,7 +107,8 @@
       .status { font-size: 12px; color: var(--faint); min-height: 1.4em; margin-top: 6px; }
       .status.err { color: var(--danger); }
       .status.ok { color: #7fae9b; }
-      details summary { cursor: pointer; color: var(--brass); font-weight: 700; margin-bottom: 8px; }
+      details summary { cursor: pointer; color: var(--brass); font-weight: 700; font-size: 15px; }
+      details[open] summary { margin-bottom: 10px; }
     </style>
   </head>
   <body>
@@ -117,71 +118,199 @@
     </header>
 
     <main>
-      <!-- ══════════ 왼쪽: 편집 ══════════ -->
+      <!-- ══════════ 왼쪽: 편집 (섹션마다 접었다 펼 수 있음) ══════════ -->
       <div>
         <section id="sec-personas">
-          <h2>동료 페르소나 <span class="dirty" id="personas-dirty" hidden>● 저장 안 됨</span></h2>
-          <div class="tabs" id="npc-tabs"></div>
-          <label>이름</label>
-          <input type="text" id="p-name" />
-          <label>직업</label>
-          <input type="text" id="p-role" />
-          <label>배경 (직업·이력 — "무엇이 먼저 보이는가". 연상 단어 생성과 자유 대화 양쪽에 주입됨)</label>
-          <textarea id="p-backstory" rows="4"></textarea>
-          <label>성격·특징 (말투·태도 — 힌트를 얼마나 직접적으로 줄지의 다이얼)</label>
-          <textarea id="p-personality" rows="3"></textarea>
-          <div class="row">
-            <button class="primary" id="save-personas">페르소나 5인 저장</button>
-            <span class="status" id="personas-status"></span>
-          </div>
+          <details>
+            <summary>동료 페르소나 <span class="dirty" id="personas-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="tabs" id="npc-tabs"></div>
+              <label>이름</label>
+              <input type="text" id="p-name" />
+              <label>직업</label>
+              <input type="text" id="p-role" />
+              <label>배경 (직업·이력 — "무엇이 먼저 보이는가". 연상 단어 생성과 자유 대화 양쪽에 주입됨)</label>
+              <textarea id="p-backstory" rows="4"></textarea>
+              <label>성격·특징 (말투·태도 — 힌트를 얼마나 직접적으로 줄지의 다이얼)</label>
+              <textarea id="p-personality" rows="3"></textarea>
+              <div class="row">
+                <button class="primary" id="save-personas">페르소나 5인 저장</button>
+                <span class="status" id="personas-status"></span>
+              </div>
+            </div>
+          </details>
         </section>
 
         <section>
-          <h2>연상 단어 프롬프트 <span class="dirty" id="wordgen-dirty" hidden>● 저장 안 됨</span></h2>
-          <div class="warn">
-            ⚠ <b>여길 만질 땐 반드시 오른쪽 [5인 전원 생성 + 중복 판정]으로 확인하세요.</b><br />
-            연상 단어를 "더 직접적으로" 몰면 5인이 같은 단어로 수렴해 중복(체포)이 폭등하고,
-            시작하자마자 단서가 사라져 <b>오히려 못 푸는 판</b>이 됩니다 (실측된 함정).
-            대규모 측정은 터미널에서 <code>npm run exp:diff</code>.
-          </div>
-          <div class="legend">치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> — 접선 코드는 유저 메시지로 별도 전달됨</div>
-          <textarea id="t-wordgen" rows="16" spellcheck="false"></textarea>
-          <div class="row">
-            <button class="primary" id="save-wordgen">연상 단어 프롬프트 저장</button>
-            <span class="status" id="wordgen-status"></span>
-          </div>
+          <details>
+            <summary>연상 단어 프롬프트 <span class="dirty" id="wordgen-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="warn">
+                ⚠ <b>여길 만질 땐 반드시 오른쪽 [5인 전원 생성 + 중복 판정]으로 확인하세요.</b><br />
+                연상 단어를 "더 직접적으로" 몰면 5인이 같은 단어로 수렴해 중복(체포)이 폭등하고,
+                시작하자마자 단서가 사라져 <b>오히려 못 푸는 판</b>이 됩니다 (실측된 함정).
+                대규모 측정은 터미널에서 <code>npm run exp:diff</code>.
+              </div>
+              <div class="legend">치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> — 접선 코드는 유저 메시지로 별도 전달됨</div>
+              <textarea id="t-wordgen" rows="16" spellcheck="false"></textarea>
+              <div class="row">
+                <button class="primary" id="save-wordgen">연상 단어 프롬프트 저장</button>
+                <span class="status" id="wordgen-status"></span>
+              </div>
+            </div>
+          </details>
         </section>
 
         <section>
-          <h2>자유 대화 프롬프트 <span class="dirty" id="dialogue-dirty" hidden>● 저장 안 됨</span></h2>
-          <div class="legend">
-            치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> <code>{{word}}</code>
-            <code>{{alertLevel}}</code> <code>{{arrestedCount}}</code><br />
-            안전 설계: 접선 코드는 이 프롬프트에 <b>주입 자체가 안 되므로</b> 어떻게 고쳐도 코드가 유출될 수 없습니다. 톤·힌트 강도는 자유롭게 조율하세요.
-          </div>
-          <textarea id="t-dialogue" rows="20" spellcheck="false"></textarea>
-          <div class="row">
-            <button class="primary" id="save-dialogue">자유 대화 프롬프트 저장</button>
-            <span class="status" id="dialogue-status"></span>
-          </div>
+          <details>
+            <summary>자유 대화 프롬프트 <span class="dirty" id="dialogue-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="legend">
+                치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> <code>{{word}}</code>
+                <code>{{alertLevel}}</code> <code>{{arrestedCount}}</code><br />
+                안전 설계: 접선 코드는 이 프롬프트에 <b>주입 자체가 안 되므로</b> 어떻게 고쳐도 코드가 유출될 수 없습니다. 톤·힌트 강도는 자유롭게 조율하세요.
+              </div>
+              <textarea id="t-dialogue" rows="20" spellcheck="false"></textarea>
+              <div class="row">
+                <button class="primary" id="save-dialogue">자유 대화 프롬프트 저장</button>
+                <span class="status" id="dialogue-status"></span>
+              </div>
+            </div>
+          </details>
         </section>
 
         <section>
-          <h2>접선 코드 단어 풀 <span class="dirty" id="pool-dirty" hidden>● 저장 안 됨</span></h2>
-          <div class="legend">
-            스테이지 시작 때 이 풀에서 무작위로 접선 코드가 뽑힙니다. 분류·단어 모두 추가·삭제·수정 가능.<br />
-            분류 이름과 글자 수는 플레이어에게 <b>힌트로 공개</b>되니, 분류 이름이 정답을 좁혀주는 정도도 난이도 레버입니다.
-          </div>
-          <div class="tabs" id="cat-tabs"></div>
-          <label>분류 이름</label>
-          <input type="text" id="c-name" />
-          <label>단어 목록 (쉼표 또는 줄바꿈으로 구분)</label>
-          <textarea id="c-words" rows="4" spellcheck="false"></textarea>
-          <div class="row">
-            <button class="primary" id="save-pool">단어 풀 저장</button>
-            <button id="del-cat">이 분류 삭제</button>
-            <span class="status" id="pool-status"></span>
-          </div>
+          <details>
+            <summary>저택 NPC 페르소나 (2스테이지) <span class="dirty" id="mpersona-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="legend">
+                id·좌표·room 은 여기서 못 바꿉니다 — 배치·충돌과 얽혀 있어서 이 화면만으론 안전하지 않습니다.
+              </div>
+              <div class="warn">
+                ⚠ <b>동료 여부(동료/민간인)는 항상 정확히 3명이 "동료"여야 합니다.</b> 접선책 대사가
+                "안쪽에 우리 사람이 있어. 셋이야"라고 못박고 있고, 열쇠도 정보 조각 3개를 모아야
+                나옵니다. 3명이 아니면 저장이 거절됩니다. 이름은 전부 직책 형태로 통일돼 있는데,
+                이름 자체에서 "이 사람이 동료"라는 게 드러나지 않게 유지하세요 — 그게 이 스테이지의
+                정답을 숨기는 장치입니다.
+              </div>
+              <div class="tabs" id="mp-tabs"></div>
+              <label>이름 (직책 형태 유지 — 정체가 새지 않게)</label>
+              <input type="text" id="mp-name" />
+              <label>동료 여부</label>
+              <select id="mp-kind"><option value="ally">동료</option><option value="civ">민간인</option></select>
+              <label>첫 문장 (동료라면 반브루주아 뉘앙스를 옅게 까는 힌트 역할)</label>
+              <input type="text" id="mp-line" />
+              <label>배경 (이력 — 대화·판단 양쪽에 주입됨)</label>
+              <textarea id="mp-backstory" rows="4"></textarea>
+              <label>성격·특징 (말투·태도 — 판단 프롬프트가 "이 사람이라면 어떻게 반응할지" 빙의하는 재료)</label>
+              <textarea id="mp-personality" rows="3"></textarea>
+              <label>보상 정보 (동료일 때만 사용 — 마음을 열면 이 문구를 정보 조각으로 줍니다)</label>
+              <textarea id="mp-reward" rows="2"></textarea>
+              <div class="row">
+                <button class="primary" id="save-mpersona">저택 NPC 8인 저장</button>
+                <span class="status" id="mpersona-status"></span>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section>
+          <details>
+            <summary>저택 대화 프롬프트 (2스테이지) <span class="dirty" id="mdialogue-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="legend">
+                치환 변수: <code>{{name}}</code> <code>{{role}}</code> <code>{{backstory}}</code> <code>{{personality}}</code>
+                <code>{{room}}</code> <code>{{kindBlock}}</code> <code>{{clueBlock}}</code><br />
+                <code>{{kindBlock}}</code> 은 아래 "동료/민간인 태도" 프롬프트가 렌더된 결과가 그대로 꽂힙니다.
+                이 사람이 동료인지 민간인인지는 여기 프롬프트가 절대 먼저 밝히면 안 됩니다 — 그게 이 스테이지의 정답입니다.
+              </div>
+              <textarea id="t-mdialogue" rows="14" spellcheck="false"></textarea>
+              <div class="row">
+                <button class="primary" id="save-mdialogue">저택 대화 프롬프트 저장</button>
+                <span class="status" id="mdialogue-status"></span>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section>
+          <details>
+            <summary>저택 동료 태도 <span class="dirty" id="mally-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="legend">
+                치환 변수: <code>{{personality}}</code><br />
+                대사 톤만 담당합니다(경계하는지 누그러졌는지). "언제 마음을 여는가"는 여기가 아니라
+                아래 [저택 판단 프롬프트]가 정합니다.
+              </div>
+              <textarea id="t-mally" rows="8" spellcheck="false"></textarea>
+              <div class="row">
+                <button class="primary" id="save-mally">동료 태도 저장</button>
+                <span class="status" id="mally-status"></span>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section>
+          <details>
+            <summary>저택 민간인 태도 <span class="dirty" id="mciv-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="legend">
+                치환 변수: <code>{{personality}}</code><br />
+                대사 톤만 담당합니다(불편해하는지 편하게 대하는지). "언제 신고하는가"는 여기가 아니라
+                아래 [저택 판단 프롬프트]가 정합니다.
+              </div>
+              <textarea id="t-mciv" rows="8" spellcheck="false"></textarea>
+              <div class="row">
+                <button class="primary" id="save-mciv">민간인 태도 저장</button>
+                <span class="status" id="mciv-status"></span>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section>
+          <details>
+            <summary>저택 판단 프롬프트 <span class="dirty" id="mdisposition-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="warn">
+                ⚠ <b>이 프롬프트가 "언제 신고당하는가 / 언제 마음을 여는가"를 정합니다.</b> 숫자 문턱이
+                아니라, 매 턴 대화 전체와 이 인물의 성격을 보고 "지금 확신이 서서 행동할지, 아직
+                지켜볼지"를 통째로 다시 판정합니다 — 그래서 같은 대사를 반복해도 캐릭터에 따라, 그리고
+                그때그때 다르게 반응할 수 있습니다(의도된 설계 — 살아있는 느낌 우선, 정밀한 밸런싱은
+                이 스테이지의 목표가 아닙니다). 오른쪽 [저택 NPC 대화 테스트]로 실제로 여러 번 말을
+                걸어보며 반응이 극단적으로 둔감하거나 예민하지 않은지만 확인하세요.
+              </div>
+              <div class="legend">치환 변수: <code>{{name}}</code> <code>{{backstory}}</code> <code>{{personality}}</code> <code>{{kindLabel}}</code> <code>{{clueBlock}}</code></div>
+              <textarea id="t-mdisposition" rows="16" spellcheck="false"></textarea>
+              <div class="row">
+                <button class="primary" id="save-mdisposition">판단 프롬프트 저장</button>
+                <span class="status" id="mdisposition-status"></span>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section>
+          <details>
+            <summary>접선 코드 단어 풀 <span class="dirty" id="pool-dirty" hidden>● 저장 안 됨</span></summary>
+            <div class="details-body">
+              <div class="legend">
+                스테이지 시작 때 이 풀에서 무작위로 접선 코드가 뽑힙니다. 분류·단어 모두 추가·삭제·수정 가능.<br />
+                분류 이름과 글자 수는 플레이어에게 <b>힌트로 공개</b>되니, 분류 이름이 정답을 좁혀주는 정도도 난이도 레버입니다.
+              </div>
+              <div class="tabs" id="cat-tabs"></div>
+              <label>분류 이름</label>
+              <input type="text" id="c-name" />
+              <label>단어 목록 (쉼표 또는 줄바꿈으로 구분)</label>
+              <textarea id="c-words" rows="4" spellcheck="false"></textarea>
+              <div class="row">
+                <button class="primary" id="save-pool">단어 풀 저장</button>
+                <button id="del-cat">이 분류 삭제</button>
+                <span class="status" id="pool-status"></span>
+              </div>
+            </div>
+          </details>
         </section>
       </div>
 
@@ -224,6 +353,35 @@
         </section>
 
         <section>
+          <h2>저택 NPC 대화 테스트 (2스테이지) <span class="note" style="font-weight:400;font-size:12px;color:var(--faint)">— 왼쪽 저택 프롬프트 초안으로 실행 · 세션을 안 만드므로 이 화면에서만 이력이 누적</span></h2>
+          <div class="tabs" id="mnpc-tabs"></div>
+          <div class="legend" id="mnpc-info"></div>
+
+          <div class="row">
+            <div style="flex:1">
+              <label>현재 판정 상태</label>
+              <div class="out" id="mnpc-meter" style="margin-top:0;min-height:auto;padding:8px 12px;"></div>
+            </div>
+            <button id="mnpc-reset">이 NPC 초기화</button>
+          </div>
+
+          <label>
+            <input type="checkbox" id="mnpc-clue-on" style="width:auto;vertical-align:middle;" />
+            이 NPC 관련 단서를 조사로 이미 찾았다고 가정 (판정이 참고 자료로 씀)
+          </label>
+          <input type="text" id="mnpc-clue-text" placeholder="예: 배급 장부 숫자가 실제 반입량과 다르다" style="margin-top:6px;" />
+
+          <div class="out" id="mnpc-history" style="max-height:260px;overflow-y:auto;"></div>
+
+          <label>플레이어의 말</label>
+          <input type="text" id="mnpc-message" value="요즘 저택 분위기가 좀 이상한 것 같은데, 어떻게 생각해요?" />
+          <div class="row">
+            <button class="action" id="mnpc-send">보내기</button>
+            <span class="status" id="mnpc-status"></span>
+          </div>
+        </section>
+
+        <section>
           <details>
             <summary>도움말 — 무엇을 만지면 안전한가</summary>
             <div class="legend" style="line-height:1.9">
@@ -248,7 +406,12 @@
     <script>
       const $ = (id) => document.getElementById(id);
       // pool 은 [{ name, text }] — text 는 textarea 원문 그대로 두고 저장·dirty 판정 때만 파싱한다.
-      const state = { allies: [], prompts: {}, pool: [], selected: 0, selectedCat: 0, saved: null };
+      const state = {
+        allies: [], prompts: {}, pool: [], selected: 0, selectedCat: 0, saved: null,
+        // 저택(2스테이지) NPC 대화 테스트 — 실제 세션을 안 만드므로 이 화면이 직접 들고 다닌다.
+        mansionNpcs: [], mSelected: 0, mSessions: {}, // id → {gave,history,turns}
+        mpSelected: 0, // 저택 NPC 페르소나 편집 탭에서 고른 인덱스 (mSelected 와 별개)
+      };
 
       const api = async (path, opts = {}) => {
         const res = await fetch('/api/studio' + path, {
@@ -273,7 +436,7 @@
       const normalizedPool = () => state.pool.map((c) => ({ name: c.name.trim(), words: parseWords(c.text) }));
 
       function snapshot() {
-        state.saved = JSON.stringify({ allies: state.allies, prompts: state.prompts, pool: normalizedPool() });
+        state.saved = JSON.stringify({ allies: state.allies, prompts: state.prompts, pool: normalizedPool(), mansionNpcs: state.mansionNpcs });
         refreshDirty();
       }
       function collectPersonaFields() {
@@ -290,7 +453,14 @@
           JSON.stringify(now.allies.map(({ id, name, role, backstory, personality }) => ({ id, name, role, backstory, personality })));
         $('wordgen-dirty').hidden = state.prompts['wordgen-system'] === now.prompts['wordgen-system'];
         $('dialogue-dirty').hidden = state.prompts['dialogue-system'] === now.prompts['dialogue-system'];
+        $('mdialogue-dirty').hidden = state.prompts['mansion-dialogue'] === now.prompts['mansion-dialogue'];
+        $('mally-dirty').hidden = state.prompts['mansion-ally'] === now.prompts['mansion-ally'];
+        $('mciv-dirty').hidden = state.prompts['mansion-civ'] === now.prompts['mansion-civ'];
+        $('mdisposition-dirty').hidden = state.prompts['mansion-disposition'] === now.prompts['mansion-disposition'];
         $('pool-dirty').hidden = JSON.stringify(normalizedPool()) === JSON.stringify(now.pool);
+        const mpKey = (list) =>
+          JSON.stringify(list.map(({ id, name, kind, line, backstory, personality, reward }) => ({ id, name, kind, line, backstory, personality, reward: reward ?? '' })));
+        $('mpersona-dirty').hidden = mpKey(state.mansionNpcs) === mpKey(now.mansionNpcs ?? []);
       }
 
       function renderTabs() {
@@ -321,8 +491,56 @@
       for (const id of ['p-name', 'p-role', 'p-backstory', 'p-personality']) {
         $(id).addEventListener('input', () => { collectPersonaFields(); refreshDirty(); });
       }
+
+      // ── 저택 NPC 페르소나 편집 (name·kind·line·backstory·personality·reward) ──
+      const currentMPersona = () => state.mansionNpcs[state.mpSelected];
+      function collectMPersonaFields() {
+        const n = currentMPersona();
+        if (!n) return;
+        n.name = $('mp-name').value;
+        n.kind = $('mp-kind').value;
+        n.line = $('mp-line').value;
+        n.backstory = $('mp-backstory').value;
+        n.personality = $('mp-personality').value;
+        n.reward = $('mp-reward').value;
+      }
+      function renderMPTabs() {
+        const tabs = $('mp-tabs');
+        tabs.innerHTML = '';
+        state.mansionNpcs.forEach((n, i) => {
+          const b = document.createElement('button');
+          b.textContent = `${n.name} (${n.kind === 'ally' ? '동료' : '민간인'})`;
+          b.className = i === state.mpSelected ? 'active' : '';
+          b.onclick = () => {
+            collectMPersonaFields();
+            state.mpSelected = i;
+            renderMPTabs();
+            renderMPersonaFields();
+            refreshDirty();
+          };
+          tabs.appendChild(b);
+        });
+      }
+      function renderMPersonaFields() {
+        const n = currentMPersona();
+        if (!n) return;
+        $('mp-name').value = n.name;
+        $('mp-kind').value = n.kind;
+        $('mp-line').value = n.line;
+        $('mp-backstory').value = n.backstory;
+        $('mp-personality').value = n.personality;
+        $('mp-reward').value = n.reward ?? '';
+      }
+      for (const id of ['mp-name', 'mp-kind', 'mp-line', 'mp-backstory', 'mp-personality', 'mp-reward']) {
+        $(id).addEventListener('input', () => { collectMPersonaFields(); refreshDirty(); });
+      }
+      $('mp-kind').addEventListener('change', () => { collectMPersonaFields(); renderMPTabs(); refreshDirty(); });
       $('t-wordgen').addEventListener('input', () => { state.prompts['wordgen-system'] = $('t-wordgen').value; refreshDirty(); });
       $('t-dialogue').addEventListener('input', () => { state.prompts['dialogue-system'] = $('t-dialogue').value; refreshDirty(); });
+      $('t-mdialogue').addEventListener('input', () => { state.prompts['mansion-dialogue'] = $('t-mdialogue').value; refreshDirty(); });
+      $('t-mally').addEventListener('input', () => { state.prompts['mansion-ally'] = $('t-mally').value; refreshDirty(); });
+      $('t-mciv').addEventListener('input', () => { state.prompts['mansion-civ'] = $('t-mciv').value; refreshDirty(); });
+      $('t-mdisposition').addEventListener('input', () => { state.prompts['mansion-disposition'] = $('t-mdisposition').value; refreshDirty(); });
 
       // ── 접선 코드 단어 풀 편집 ─────────────────────────────────
       const currentCat = () => state.pool[state.selectedCat];
@@ -429,6 +647,41 @@
         } catch (e) { setStatus('personas-status', e.message, 'err'); }
       };
 
+      $('save-mpersona').onclick = async () => {
+        collectMPersonaFields();
+        const allyCount = state.mansionNpcs.filter((n) => n.kind === 'ally').length;
+        if (allyCount !== 3) {
+          return setStatus('mpersona-status', `동료가 정확히 3명이어야 합니다 (현재 ${allyCount}명).`, 'err');
+        }
+        try {
+          const r = await api('/mansion-npcs', {
+            method: 'PUT',
+            body: JSON.stringify({
+              npcs: state.mansionNpcs.map(({ id, name, kind, line, backstory, personality, reward }) => ({
+                id, name, kind, line, backstory, personality, reward,
+              })),
+            }),
+          });
+          const byId = Object.fromEntries(r.npcs.map((n) => [n.id, n]));
+          for (const n of state.mansionNpcs) {
+            const inc = byId[n.id];
+            if (!inc) continue;
+            n.name = inc.name;
+            n.kind = inc.kind;
+            n.line = inc.line;
+            n.backstory = inc.backstory;
+            n.personality = inc.personality;
+            n.reward = r.rewards[n.id] ?? '';
+          }
+          snapshot();
+          setStatus('mpersona-status', '저장됨 — 다음 대화부터 반영됩니다.', 'ok');
+          renderMPTabs();
+          renderMPersonaFields();
+          renderMNpcTabs();
+          renderMNpcPanel();
+        } catch (e) { setStatus('mpersona-status', e.message, 'err'); }
+      };
+
       const savePrompt = (name, textareaId, statusId) => async () => {
         try {
           const r = await api('/prompts/' + name, { method: 'PUT', body: JSON.stringify({ text: $(textareaId).value }) });
@@ -439,6 +692,10 @@
       };
       $('save-wordgen').onclick = savePrompt('wordgen-system', 't-wordgen', 'wordgen-status');
       $('save-dialogue').onclick = savePrompt('dialogue-system', 't-dialogue', 'dialogue-status');
+      $('save-mdialogue').onclick = savePrompt('mansion-dialogue', 't-mdialogue', 'mdialogue-status');
+      $('save-mally').onclick = savePrompt('mansion-ally', 't-mally', 'mally-status');
+      $('save-mciv').onclick = savePrompt('mansion-civ', 't-mciv', 'mciv-status');
+      $('save-mdisposition').onclick = savePrompt('mansion-disposition', 't-mdisposition', 'mdisposition-status');
 
       // ── 미리보기 ──────────────────────────────────────────────
       const busy = (btns, on) => btns.forEach((id) => ($(id).disabled = on));
@@ -513,6 +770,101 @@
         busy(['pv-talk'], false);
       };
 
+      // ── 저택(2스테이지) NPC 대화 테스트 ─────────────────────────
+      const EVENT_LABEL = {
+        reported: '🚨 신고됨 — 게임오버',
+        halted: '😶 대화 중단 — 동료가 경계해 입을 닫음 (다른 NPC 와 대화하면 풀림)',
+        reveal: '😊 마음을 엶 — 정보 조각을 줌',
+      };
+
+      const currentMNpc = () => state.mansionNpcs[state.mSelected];
+      const mSession = (npc) => (state.mSessions[npc.id] ??= { gave: false, history: [], turns: [] });
+
+      function renderMNpcTabs() {
+        const tabs = $('mnpc-tabs');
+        tabs.innerHTML = '';
+        state.mansionNpcs.forEach((n, i) => {
+          const b = document.createElement('button');
+          b.textContent = `${n.name} (${n.kind === 'ally' ? '동료' : '민간인'})`;
+          b.className = i === state.mSelected ? 'active' : '';
+          b.onclick = () => { state.mSelected = i; renderMNpcTabs(); renderMNpcPanel(); };
+          tabs.appendChild(b);
+        });
+      }
+
+      function renderMNpcPanel() {
+        const npc = currentMNpc();
+        if (!npc) return;
+        const s = mSession(npc);
+        $('mnpc-info').innerHTML =
+          `<b style="color:var(--paper)">${npc.name}</b> · ${npc.room} · <span style="color:${npc.kind === 'ally' ? 'var(--ok)' : 'var(--danger)'}">${npc.kind === 'ally' ? '동료' : '민간인'}</span><br/>` +
+          `${npc.backstory}<br/>${npc.personality}`;
+        const lastTurn = s.turns[s.turns.length - 1];
+        $('mnpc-meter').textContent = lastTurn
+          ? `마지막 판정: ${lastTurn.decision}${lastTurn.direction ? '/' + lastTurn.direction : ''} — ${lastTurn.reason}${s.gave ? ' · 이미 정보를 줌' : ''}`
+          : `아직 판정 없음 (wait)${s.gave ? ' · 이미 정보를 줌' : ''}`;
+        $('mnpc-history').innerHTML = s.history.length
+          ? s.history.map((h) => h.role === 'user'
+              ? `<div><span class="meta">플레이어</span> ${h.content}</div>`
+              : `<div><b>${npc.name}</b> ${h.content}</div>`).join('')
+          : '<span class="meta">아직 대화 없음.</span>';
+        $('mnpc-history').scrollTop = $('mnpc-history').scrollHeight;
+      }
+
+      $('mnpc-reset').onclick = () => {
+        const npc = currentMNpc();
+        if (!npc) return;
+        state.mSessions[npc.id] = { gave: false, history: [], turns: [] };
+        setStatus('mnpc-status', '초기화됨.', 'ok');
+        renderMNpcPanel();
+      };
+
+      $('mnpc-send').onclick = async () => {
+        const npc = currentMNpc();
+        const message = $('mnpc-message').value.trim();
+        if (!npc) return;
+        if (!message) return setStatus('mnpc-status', '메시지를 입력하세요.', 'err');
+        const s = mSession(npc);
+
+        const clueOn = $('mnpc-clue-on').checked;
+        const clueText = $('mnpc-clue-text').value.trim();
+        const clues = clueOn && clueText ? [{ id: `studio-clue-${npc.id}`, topic: clueText }] : [];
+
+        busy(['mnpc-send'], true);
+        setStatus('mnpc-status', `${npc.name} 이(가) 대답하는 중…`);
+        try {
+          const r = await api('/preview/mansion-talk', {
+            method: 'POST',
+            body: JSON.stringify({
+              npc: { id: npc.id, name: npc.name, kind: npc.kind, room: npc.room, backstory: npc.backstory, personality: npc.personality },
+              message,
+              history: s.history,
+              gave: s.gave,
+              clueTopic: clueOn ? clueText : null,
+              clues,
+              promptOverrides: {
+                mansionDialogue: $('t-mdialogue').value,
+                mansionAlly: $('t-mally').value,
+                mansionCiv: $('t-mciv').value,
+                mansionDisposition: $('t-mdisposition').value,
+              },
+            }),
+          });
+
+          s.history.push({ role: 'user', content: message });
+          s.history.push({ role: 'assistant', content: r.reply });
+          s.gave = r.gave;
+          s.turns.push({ decision: r.decision, direction: r.direction, reason: r.reason });
+
+          renderMNpcPanel();
+          setStatus('mnpc-status', `판정: ${r.decision}${r.direction ? '/' + r.direction : ''} (${r.reason}) · ${(r.elapsedMs / 1000).toFixed(1)}초${r.event ? ' · ' + EVENT_LABEL[r.event] : ''}`, r.event === 'reported' ? 'err' : 'ok');
+          $('mnpc-message').value = '';
+        } catch (e) {
+          setStatus('mnpc-status', e.message, 'err');
+        }
+        busy(['mnpc-send'], false);
+      };
+
       // ── 초기 로드 ─────────────────────────────────────────────
       (async () => {
         try {
@@ -520,14 +872,24 @@
           state.allies = data.allies;
           state.prompts = data.prompts;
           state.pool = Object.entries(data.categories).map(([name, words]) => ({ name, text: words.join(', ') }));
+          const rewards = data.mansionRewards ?? {};
+          state.mansionNpcs = (data.mansionNpcs ?? []).map((n) => ({ ...n, reward: rewards[n.id] ?? '' }));
           $('t-wordgen').value = data.prompts['wordgen-system'];
           $('t-dialogue').value = data.prompts['dialogue-system'];
+          $('t-mdialogue').value = data.prompts['mansion-dialogue'];
+          $('t-mally').value = data.prompts['mansion-ally'];
+          $('t-mciv').value = data.prompts['mansion-civ'];
+          $('t-mdisposition').value = data.prompts['mansion-disposition'];
           renderDatalist(data.categories);
           snapshot();
           renderTabs();
           renderPersonaFields();
           renderCatTabs();
           renderCatFields();
+          renderMNpcTabs();
+          renderMNpcPanel();
+          renderMPTabs();
+          renderMPersonaFields();
         } catch (e) {
           document.body.innerHTML = `<header><h1>⚙ 태엽새 프롬프트 스튜디오</h1></header><main><section><b style="color:var(--danger)">로드 실패:</b> ${e.message}<br/><span class="legend">서버(npm run dev 또는 npm run dev:server)가 떠 있는지 확인하세요.</span></section></main>`;
         }

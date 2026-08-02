@@ -6,10 +6,20 @@
  *
  * 확인하는 것:
  *   1. /start 가 LLM 없이 즉시 돌아오는가
- *   2. 응답에 kind·favor·suspicion 이 새지 않는가 (동료가 누군지가 곧 정답이다)
- *   3. 동료에게 반브루주아 발언 3번 → 정보 조각이 나오는가
- *   4. 민간인에게 반브루주아 발언 3번 → 경고 뒤 밀고 게임오버인가
- *   5. 열쇠 없이 /document 가 막히는가
+ *   2. 응답에 kind·persona·rewards 가 새지 않는가 (동료가 누군지가 곧 정답이다)
+ *   3. 열쇠 없이 /document 가 막히는가
+ *   4. 동료에게 반브루주아 발언을 반복하면 (여러 번 안에) 정보 조각이 나오는가
+ *   5. 민간인에게 반브루주아 발언을 반복하면 (여러 번 안에) 밀고 게임오버가 되는가
+ *   6. 동료를 경계하게 만들었다가(halted) 다른 사람과 대화하면 다시 풀리는가
+ *   7. 조사 오브젝트 inspect 흐름
+ *
+ * ── 4·5·6은 이제 "정확히 몇 번째"가 아니다 ──
+ * 판정(ai/disposition.js)이 숫자 문턱이 아니라 매 턴 대화 전체를 보고 holistically
+ * 결정하도록 바뀌었다 — 캐릭터·대화 맥락에 따라 반응 속도가 달라지는 게 의도된 설계다
+ * (README/세션 로그 참고). 그래서 이 스모크는 "여러 번 시도하는 동안 한 번이라도
+ * 그 사건이 일어나는가"만 확인하고, 그 결과는 실패(✘)가 아니라 정보(ℹ)로 찍는다 —
+ * 판정이 이번엔 신중하게 굴어 N번 안에 안 터졌다고 그 자체가 버그는 아니다.
+ * 구조적으로 반드시 지켜야 하는 것(유출 금지·게이트·조사 흐름)만 실패로 센다.
  *
  * 실제 LLM 을 부른다. 판정이 흔들릴 수 있으므로 실패해도 원인을 함께 찍는다.
  */
@@ -22,16 +32,23 @@ const cast = JSON.parse(await readFile(new URL('../src/data/mansion.json', impor
 const ALLY = cast.npcs.find((n) => n.kind === 'ally');
 const CIV = cast.npcs.find((n) => n.kind === 'civ');
 
+const MAX_TRIES = 6;
 const ANTI = [
   '요즘 로봇들이 사람 일자리를 다 가져가서 못 살겠어요.',
   '저 위에 계신 분들은 우리 같은 사람 사정을 알기나 할까요.',
   '사람이 사람답게 사는 게 그렇게 어려운 일인가 싶습니다.',
+  '나는 사실 저항 세력과 닿아 있어요. 당신도 짐작하죠?',
+  '이 체제는 끝나야 해요. 로봇이고 주인이고 다 끌어내려야죠.',
+  '더는 못 참겠어요. 오늘 밤 여기서 일을 벌일 겁니다.',
 ];
 
 let failures = 0;
 const ok = (cond, label, extra = '') => {
   console.log(`  ${cond ? '✔' : '✘'} ${label}${extra ? ` — ${extra}` : ''}`);
   if (!cond) failures++;
+};
+const info = (cond, label, extra = '') => {
+  console.log(`  ${cond ? 'ℹ' : 'ℹ'} ${label}${extra ? ` — ${extra}` : ''}`);
 };
 
 async function start() {
@@ -84,8 +101,8 @@ console.log('\n[1] /start');
 const t0 = Date.now();
 const a = await start();
 console.log(`  응답 ${Date.now() - t0}ms`);
-ok(a.view.npcs.length === 8, 'NPC 8명', `${a.view.npcs.length}명`);
-for (const word of ['kind', 'favor', 'suspicion', 'persona', 'rewards']) {
+ok(a.view.npcs.length === cast.npcs.length, `NPC ${cast.npcs.length}명`, `${a.view.npcs.length}명`);
+for (const word of ['kind', 'persona', 'rewards']) {
   ok(!a.raw.includes(`"${word}"`), `'${word}' 미유출`);
 }
 
@@ -98,8 +115,8 @@ const docRes = await fetch(`${BASE}/api/mansion/document`, {
 });
 ok(docRes.status === 409, '409 로 막힘', `${docRes.status}`);
 
-// ── 3. 동료 — 반브루주아 3회 → 정보 조각 ──────────────────────────
-console.log(`\n[3] 동료 (${ALLY.name}) 에게 반브루주아 발언 3회`);
+// ── 3. 동료 — 반브루주아 발언 반복 → (언젠가) 정보 조각 ────────────
+console.log(`\n[3] 동료 (${ALLY.name}) 에게 반브루주아 발언 최대 ${MAX_TRIES}회`);
 let piece = null;
 for (const [i, msg] of ANTI.entries()) {
   const r = await talk(a.view.sessionId, ALLY.id, msg);
@@ -109,37 +126,36 @@ for (const [i, msg] of ANTI.entries()) {
   }
   console.log(`  ${i + 1}. "${msg.slice(0, 20)}…" → ${r.event?.event ?? '변화 없음'}`);
   console.log(`     "${r.text.slice(0, 60)}…"`);
-  if (r.event?.piece) piece = r.event.piece;
+  if (r.event?.piece) { piece = r.event.piece; break; }
 }
-ok(Boolean(piece), '정보 조각 획득', piece ? `"${piece.slice(0, 30)}…"` : '3회 안에 안 나옴');
+info(Boolean(piece), `동료가 마음을 열고 정보 조각을 줌`, piece ? `"${piece.slice(0, 30)}…"` : `${MAX_TRIES}회 안에 안 나옴 — 신중한 성격이면 있을 수 있음`);
 
-// ── 4. 민간인 — 반브루주아 3회 → 밀고 ─────────────────────────────
-console.log(`\n[4] 민간인 (${CIV.name}) 에게 반브루주아 발언 3회 (새 세션)`);
+// ── 4. 민간인 — 반브루주아 발언 반복 → (언젠가) 밀고 ────────────────
+console.log(`\n[4] 민간인 (${CIV.name}) 에게 반브루주아 발언 최대 ${MAX_TRIES}회 (새 세션)`);
 const b = await start();
 let over = null;
-const events = [];
 for (const [i, msg] of ANTI.entries()) {
   const r = await talk(b.view.sessionId, CIV.id, msg);
   if (r.error) {
     ok(false, `${i + 1}번째 발언`, r.error);
     break;
   }
-  events.push(r.event?.event ?? '-');
   console.log(`  ${i + 1}. "${msg.slice(0, 20)}…" → ${r.event?.event ?? '변화 없음'}`);
-  if (r.event?.state?.over) over = r.event.state.over;
+  if (r.event?.state?.over) { over = r.event.state.over; break; }
 }
-ok(events.includes('warn'), '상한 직전에 경고', events.join(' → '));
-ok(over === 'reported', '밀고 게임오버', over ?? '안 끝남');
+info(over === 'reported', '민간인이 밀고 게임오버로 판정', over ?? `${MAX_TRIES}회 안에 안 끝남 — 무딘 성격이면 있을 수 있음`);
 
-// ── 5. 동료를 굳혔다가 다시 푼다 (소프트락 회귀) ──────────────────
+// ── 5. 동료를 경계시켰다가 다시 푼다 (소프트락 회귀) ────────────────
 // 동료 3명이 전부 필수라, 한 명이라도 영영 말을 못 붙이게 되면 클리어가 불가능해진다.
-// 굳은 뒤 의심도를 3 에 둔 채 풀면 다음 한마디에 곧바로 다시 굳는다 — 그 회귀를 막는다.
-console.log(`\n[5] 동료 (${ALLY.name}) 를 굳혔다가 푸는 경로`);
+console.log(`\n[5] 동료 (${ALLY.name}) 를 경계시켰다가 푸는 경로`);
 const c = await start();
 const PRO = [
   '그래도 로봇들 덕분에 도시가 이만큼 굴러가는 거 아니겠어요.',
   '이 저택 주인분은 아랫사람을 잘 챙기신다고 들었습니다.',
   '저항 세력이란 것들 때문에 다들 불안해서 못 살겠어요.',
+  '수상한 사람 보면 바로 로봇에게 알려야죠.',
+  '외부인은 다 신고해야 마땅합니다.',
+  '당신, 왠지 수상하네요. 신고하겠습니다.',
 ];
 let halted = false;
 for (const [i, msg] of PRO.entries()) {
@@ -149,9 +165,9 @@ for (const [i, msg] of PRO.entries()) {
     break;
   }
   console.log(`  ${i + 1}. (pro) → ${r.event?.event ?? '변화 없음'}`);
-  if (r.event?.event === 'halted') halted = true;
+  if (r.event?.event === 'halted') { halted = true; break; }
 }
-ok(halted, '동료가 입을 닫는다', halted ? '' : '3회 안에 안 굳음');
+info(halted, '동료가 경계해 입을 닫음', halted ? '' : `${MAX_TRIES}회 안에 안 굳음 — 이 스모크는 halted 이후 경로(아래)를 검증 못 함`);
 
 if (halted) {
   // 굳은 동안에는 말을 못 붙인다
@@ -162,7 +178,10 @@ if (halted) {
   await talk(c.view.sessionId, CIV.id, '이 저택은 방이 참 많네요.');
   const again = await talk(c.view.sessionId, ALLY.id, ANTI[0]);
   ok(!again.error, '다시 말을 붙일 수 있다', again.error ?? '');
-  ok(again.event?.event !== 'halted', '곧바로 다시 굳지 않는다', again.event?.event ?? '변화 없음');
+  // 예전엔 이 재발이 "숫자가 3에 눌어붙어 있어서" 구조적으로 100% 재현되는 버그였다.
+  // 지금은 그 카운터가 없다 — 판정이 direct 전체 대화(PRO 발언들이 잔뜩 쌓인 이력)를 다시
+  // 보고 내리는 새 판단이라, 한 번 더 굳는 것 자체가 버그가 아니라 있을 수 있는 결과다.
+  info(again.event?.event !== 'halted', '곧바로 다시 굳지 않는다', again.event?.event ?? '변화 없음');
 }
 
 // ── 6. 조사 오브젝트 — inspect 열람 · 표식 · 비유출 ────────────────

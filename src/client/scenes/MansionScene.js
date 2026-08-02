@@ -37,6 +37,8 @@ const NPC_FRAME = {
   clerk: 3,
   gardener: 3,
   butler: 4,
+  valet: 5,
+  porter: 3,
 };
 
 const LABEL_STYLE = { fontFamily: FONTS.body, fontSize: '11px', color: CSS.paperDim };
@@ -57,7 +59,7 @@ const SHROUD_COLOR = 0x05040a;
 const ALWAYS_LIT = new Set(['hall']);
 
 /** 연구실 문서 받침대 — 스테이지 목표. 가구를 그린 자리와 같다. */
-const DOCUMENT = { name: '신형 로봇 기록', col: 53, row: 22 };
+const DOCUMENT = { name: '신형 로봇 기록', col: 48, row: 32 };
 /**
  * 홀과 벽 없이 맞닿는 방과, 그 경계에서 어둠이 풀어질 거리(칸).
  *
@@ -634,9 +636,6 @@ export class MansionScene extends Phaser.Scene {
       }
       return;
     }
-    if (event === 'warn') {
-      this.dialogue.append('\n\n…그의 눈이 잠깐 굳는다. 한 번만 더 삐끗하면 위험하다.');
-    }
   }
 
   /** [E] — 연구실 문서. 입장만으로는 클리어가 아니다 (수정안 p.20). */
@@ -667,7 +666,35 @@ export class MansionScene extends Phaser.Scene {
       return;
     }
 
-    this.#endGame('document');
+    this.#toSewer();
+  }
+
+  #beat(ms) {
+    return new Promise((resolve) => this.time.delayedCall(ms, resolve));
+  }
+
+  /**
+   * 문서를 확보했다 — 이야기가 이어진다(스테이지1 #toMansion 과 같은 패턴).
+   * 실패(#endGame('reported'))는 손대지 않는다 — 그건 여전히 결과 화면에서 끝난다.
+   */
+  async #toSewer() {
+    if (this.ended) return;
+    this.ended = true;
+    this.player.body.setVelocity(0, 0);
+
+    const e = this.state.escort;
+    this.dialogue.show(
+      `${e.name} (${e.role})`,
+      '"이걸 봐야겠군… 명령 없이 판단한다니, 위험한 물건이야.\n\n' +
+        '여기 오래 있을 수 없다. 하수도로 빠지는 길이 있다 — 거기서 다음을 준비하자."',
+      { portrait: e.id },
+    );
+    await this.#beat(3400);
+
+    this.dialogue.hide();
+    this.cameras.main.fadeOut(900, 0, 0, 0);
+    this.uiCam?.fadeOut(900, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Sewer'));
   }
 
   #endGame(outcome) {

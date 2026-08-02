@@ -1,9 +1,9 @@
 import express from 'express';
 import { readFile } from 'node:fs/promises';
 import { streamMansionReply } from '../ai/dialogue.js';
-import { judgeStance } from '../ai/stance.js';
+import { judgeDisposition } from '../ai/disposition.js';
 import {
-  applyStance,
+  applyDisposition,
   createMansionSession,
   getMansionNpc,
   getMansionSession,
@@ -68,9 +68,9 @@ const MAX_MESSAGE_LEN = 200;
 /**
  * POST /api/mansion/talk  { sessionId, npcId, message }
  *
- * 저택 직원 자유 대화. 응답은 SSE 로 흘리고, **성향 판정은 그와 나란히** 돈다.
- * 판정을 기다렸다가 스트리밍을 시작하면 첫 글자가 그만큼 늦게 뜬다 — 수치는 화면에
- * 안 나오므로 늦게 반영돼도 플레이어는 모른다 (계획서 §5.1).
+ * 저택 직원 자유 대화. 응답은 SSE 로 흘리고, **행동 판정은 그와 나란히** 돈다.
+ * 판정을 기다렸다가 스트리밍을 시작하면 첫 글자가 그만큼 늦게 뜬다 — 판정 결과는
+ * 화면에 수치로 안 나오므로 늦게 반영돼도 플레이어는 모른다 (계획서 §5.1).
  *
  * 상태 변화(정보 조각·열쇠·밀고)는 스트림이 끝난 뒤 마지막 이벤트로 한 번에 내려간다.
  */
@@ -89,11 +89,16 @@ router.post('/talk', async (req, res) => {
   const text = message.trim().slice(0, MAX_MESSAGE_LEN);
 
   // 대화 응답보다 먼저 쏘아 두고 뒤에서 익힌다. 판정이 죽어도 대화는 계속돼야 하므로
-  // 여기서 잡아 neutral 로 떨어뜨린다 — LLM 장애가 판을 끝내는 일은 없어야 한다.
+  // 여기서 잡아 wait 로 떨어뜨린다 — LLM 장애가 판을 끝내는 일은 없어야 한다.
   const foundClues = session.objects.filter((o) => o.found).map((o) => ({ id: o.id, topic: o.topic }));
-  const stancePromise = judgeStance({ message: text, clues: foundClues }).catch((err) => {
-    console.warn('[mansion/stance]', err.message);
-    return { stance: 'neutral', reason: '판정 실패', usedClueId: null };
+  const dispositionPromise = judgeDisposition({
+    npc,
+    history: npc.history,
+    userMessage: text,
+    clues: foundClues,
+  }).catch((err) => {
+    console.warn('[mansion/disposition]', err.message);
+    return { decision: 'wait', direction: null, reason: '판정 실패' };
   });
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -118,14 +123,13 @@ router.post('/talk', async (req, res) => {
     pushMansionDialogue(session, npcId, 'user', text);
     pushMansionDialogue(session, npcId, 'assistant', reply);
 
-    const { stance, reason, usedClueId } = await stancePromise;
-    const { event, piece } = applyStance(session, npc, stance, usedClueId);
+    const { decision, direction, reason } = await dispositionPromise;
+    const { event, piece } = applyDisposition(session, npc, decision, direction);
     console.log(
-      `[mansion] ${npc.name} ← ${stance} (${reason})` +
-        ` · 호감 ${npc.favor} 의심 ${npc.suspicion}${event ? ` → ${event}` : ''}`,
+      `[mansion] ${npc.name} ← ${decision}${direction ? `/${direction}` : ''} (${reason})` +
+        `${event ? ` → ${event}` : ''}`,
     );
 
-    // 수치는 싣지 않는다. 벌어진 사건과 화이트리스트 상태만 내려간다.
     send({ type: 'event', event, piece, state: toMansionView(session) });
     send({ type: 'done' });
   } catch (err) {

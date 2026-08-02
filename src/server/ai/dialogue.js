@@ -96,31 +96,9 @@ export async function streamAllyReply({
  * 그 사실이 이 스테이지의 정답이고, 플레이어는 말투와 반응만으로 그걸 알아내야 한다.
  * 그래서 프롬프트가 "먼저 밝히지 마라"를 규칙으로 못박는다. 여기가 뚫리면 게임이 없다.
  *
- * 호감도·의심도 수치를 프롬프트에 넣는 이유는 연기의 온도를 맞추기 위해서다.
- * 수치 자체는 클라이언트로 나가지 않는다 (mansionSession.toMansionView 참고).
+ * "지금 신고할지/마음을 열지"는 여기서 정하지 않는다 — 그건 ai/disposition.js 가 대화
+ * 응답과 나란히 병렬로 판정한다. 여기는 순전히 대사 톤(경계하는지 누그러졌는지)만 맡는다.
  */
-/**
- * 호감도·의심도를 **말로** 바꾼다.
- *
- * 프롬프트에 "0 / 3" 같은 숫자를 넣었더니 모델이 그걸 대사에 적어 화면에 내보냈다
- * (`*마음 열림도: 0 / 3*`). 수치 비노출은 이 스테이지의 규칙이라 그 순간 게임이 깨진다.
- * "말하지 마라"로 막는 대신 아예 숫자를 주지 않는다 — 모르는 것은 유출될 수 없다.
- * 이제 모델이 제 상태를 흘려도 "아직 낯설다" 정도라 그건 연기의 일부다.
- */
-const FAVOR_WORDS = [
-  '아직 완전히 낯설다. 그저 지나가는 외부인이다',
-  '조금 경계가 풀렸다. 말이 통하는 구석이 있는 것 같다',
-  '꽤 마음이 놓인다. 어쩌면 같은 편일지도 모른다',
-  '이 사람은 믿어도 될 것 같다',
-];
-const SUSPICION_WORDS = [
-  '별로 신경 쓰지 않는다',
-  '뭔가 거슬리는 말을 한다',
-  '꽤 수상하다. 저 사람 조심해야겠다',
-  '더는 못 참겠다',
-];
-const pick = (words, n) => words[Math.min(n, words.length - 1)];
-
 export async function streamMansionReply({
   npc,
   room,
@@ -128,11 +106,13 @@ export async function streamMansionReply({
   history,
   userMessage,
   onText,
-  promptOverride,
+  // 스튜디오의 "저장 전 미리보기"용 — 실제 게임 경로는 안 넘긴다. mansion-dialogue 뿐 아니라
+  // kind 별로 갈리는 mansion-ally/mansion-civ 초안도 함께 미리볼 수 있어야 하므로 템플릿별로 받는다.
+  promptOverrides,
 }) {
-  const kindBlock = await renderPrompt(npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ', {
-    mood: npc.kind === 'ally' ? pick(FAVOR_WORDS, npc.favor) : pick(SUSPICION_WORDS, npc.suspicion),
-  });
+  const kindTemplate = npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ';
+  const kindOverride = npc.kind === 'ally' ? promptOverrides?.mansionAlly : promptOverrides?.mansionCiv;
+  const kindBlock = await renderPrompt(kindTemplate, { personality: npc.personality }, kindOverride);
 
   // 플레이어가 이 NPC 관련 단서를 조사로 찾았으면, 그 화제를 프롬프트에 얹어 반응하게 한다.
   const clueBlock = clueTopic
@@ -150,7 +130,7 @@ export async function streamMansionReply({
       kindBlock,
       clueBlock,
     },
-    promptOverride,
+    promptOverrides?.mansionDialogue,
   );
 
   const stream = anthropic.messages.stream({
