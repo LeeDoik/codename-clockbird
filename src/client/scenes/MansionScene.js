@@ -1,8 +1,16 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { Hud } from '../ui/Hud.js';
 import { DocumentPanel } from '../ui/DocumentPanel.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
-import { buildColliders, createPlayer, applyMovement, setupCameras } from '../world/worldParts.js';
+import {
+  buildColliders,
+  createPlayer,
+  createPlayerVisual,
+  applyMovement,
+  setupCameras,
+  worldLabel,
+} from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
@@ -20,6 +28,28 @@ import mansionProps from '../assets/mansion-props.json';
  */
 const TILE = mansionData.tileSize;
 const PLAYER_FRAME = 0;
+
+/**
+ * 플레이어는 튜토리얼부터 엔딩까지 **같은 인물**이다 (2026-08-02 확정).
+ * 스테이지마다 다른 스프라이트를 쓰면 사람이 바뀐 것처럼 보인다.
+ * (저택 잠입은 이야기상 시계 수리공의 보조로 위장한 것이지만, 위장을 그림으로
+ *  보여주는 것보다 주인공이 같은 사람으로 보이는 쪽을 택했다.)
+ *
+ * 앞의 두 상수는 **그 시트 안에서 인물이 어디 있는가**라 시트를 바꾸면 같이 바뀐다
+ * (tutorial 시트 실측값 — TutorialScene 과 동일).
+ * PLAYER_HEIGHT 만 이 씬 고유다: 그건 **이 맵에서 화면에 얼마로 보일지**이고,
+ * 여기서는 NPC(chars.png, 32px 무배율)와 키를 맞춘다.
+ */
+const PLAYER_ANIM = {
+  idle: 'tutorialPlayerIdle',
+  walkDown: 'tutorialPlayerWalkDown',
+  walkUp: 'tutorialPlayerWalkUp',
+  walkLeft: 'tutorialPlayerWalkLeft',
+  walkRight: 'tutorialPlayerWalkRight',
+};
+const PLAYER_ORIGIN_Y = 176 / 256;
+const PLAYER_CONTENT_HEIGHT = 176;
+const PLAYER_HEIGHT = 32;
 
 /**
  * chars.png 프레임 배정. 전용 스프라이트는 아직 없다.
@@ -99,8 +129,19 @@ export class MansionScene extends Phaser.Scene {
 
     // 그림은 구운 배경 한 장, 충돌은 따로. 배경은 무엇보다 뒤에 깔린다.
     this.add.image(0, 0, 'mansion-bg').setOrigin(0, 0).setDepth(-100);
-    this.walls = buildColliders(this, mansionData, mansionProps.blocked);
+    this.walls = buildColliders(this, mansionData, mansionProps);
     this.player = createPlayer(this, mansionData, this.walls, PLAYER_FRAME);
+    // 충돌 판정은 이 안 보이는 스프라이트가 그대로 맡고, 화면에는 방향 애니메이션이
+    // 있는 별도 그림(playerVisual)을 얹어 위치만 따라가게 한다.
+    this.player.setVisible(false);
+    this.playerVisual = createPlayerVisual(
+      this,
+      this.player,
+      PLAYER_ANIM,
+      PLAYER_ORIGIN_Y,
+      PLAYER_CONTENT_HEIGHT,
+      PLAYER_HEIGHT,
+    );
     // 여기까지가 월드. NPC 는 /start 응답 후에 생기므로 asWorld() 로 따로 등록한다.
     setupCameras(this, mansionData, this.player);
     this.interact = new InteractionManager(this, this.dialogue);
@@ -112,7 +153,9 @@ export class MansionScene extends Phaser.Scene {
     this.keyEsc = this.input.keyboard.addKey('ESC');
 
     // 플레이어는 어둠보다 위에 둔다 — 어둠이 걷히는 짧은 사이에도 자기 몸은 보여야 한다.
+    // 화면에 실제로 보이는 건 playerVisual 이므로 깊이는 그쪽에 준다.
     this.player.setDepth(30);
+    this.playerVisual.node.setDepth(30);
 
     this.#buildSteam();
     this.#buildShroud();
@@ -121,6 +164,7 @@ export class MansionScene extends Phaser.Scene {
     // 거리에서 암전으로 넘어온다 — 받는 쪽도 밝아지며 열려야 한 장면으로 이어진다.
     this.cameras.main.fadeIn(700, 0, 0, 0);
     this.uiCam?.fadeIn(700, 0, 0, 0);
+    this.hud.fadeIn(700); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
 
     this.#start();
   }
@@ -243,46 +287,29 @@ export class MansionScene extends Phaser.Scene {
 
   // ── UI ──────────────────────────────────────────────────────────
   #buildHud() {
-    this.hud = this.add.text(20, 16, '', {
-      fontFamily: FONTS.body,
-      fontSize: '22px',
-      color: CSS.paperDim,
-    });
-
-    // 방 이름 — 60×34 저택에서 길을 잃지 않게 하는 최소 장치. 들어간 순간 잠깐 뜬다.
-    this.roomLabel = this.add
-      .text(this.scale.width / 2, 92, '', {
-        fontFamily: FONTS.head,
-        fontSize: '40px',
-        color: CSS.brass,
-      })
-      .setOrigin(0.5)
-      .setAlpha(0);
-
-    this.asUi(
-      this.hud,
-      this.roomLabel,
-      this.add.text(20, this.scale.height - 40, '[E] 대화    [Esc] 닫기', {
-        fontFamily: FONTS.body,
-        fontSize: '20px',
-        color: CSS.faint,
-      }),
-    );
+    // 방 이름(#hud-room)은 60×34 저택에서 길을 잃지 않게 하는 최소 장치다 —
+    // 들어간 순간 잠깐 떴다 사라진다. #showRoom 참고.
+    this.hud = new Hud();
+    this.hud.keys('[E] 대화    [Esc] 닫기');
 
     this.#updateHud();
   }
 
+  /**
+   * 진행도를 숫자로 세지 않는다 — 열쇠는 한 사람에게 있고, 그게 누구인지가 곧 과제다.
+   * "0/3" 같은 눈금은 남은 분량을 알려 주지만 여기서는 알려 줄 분량 자체가 없다.
+   */
   #updateHud() {
-    const pieces = this.state?.pieces.length ?? 0;
-    const key = this.state?.hasKey ? '  ·  연구실 열쇠 ✔' : '';
-    this.hud.setText(`저택 잠입 — 정보 ${pieces}/3${key}`);
+    this.hud.status(
+      this.state?.hasKey
+        ? '저택 잠입 — 연구실 열쇠 ✔'
+        : '저택 잠입 — 열쇠를 쥔 동료를 찾는다',
+    );
   }
 
   /** 방이 바뀐 순간에만 이름을 띄운다 — 매 프레임 갱신하면 깜빡인다. */
   #showRoom(room) {
-    this.roomLabel.setText(room.name).setAlpha(1);
-    this.tweens.killTweensOf(this.roomLabel);
-    this.tweens.add({ targets: this.roomLabel, alpha: 0, delay: 900, duration: 700 });
+    this.hud.showRoom(room.name);
   }
 
   #roomAt(x, y) {
@@ -331,7 +358,7 @@ export class MansionScene extends Phaser.Scene {
       const x = npc.col * TILE + TILE / 2;
       const y = npc.row * TILE + TILE / 2;
       const sprite = this.add.sprite(x, y, 'chars', NPC_FRAME[npc.id] ?? 6);
-      const label = this.add.text(x, y - 26, npc.name, LABEL_STYLE).setOrigin(0.5);
+      const label = worldLabel(this, x, y - 26, npc.name, LABEL_STYLE);
       this.asWorld(sprite, label);
       this.nodes.push({ npc, sprite, label });
 
@@ -481,12 +508,15 @@ export class MansionScene extends Phaser.Scene {
     // 문서 열람 중 세계는 정지한다 — 월드 카메라 키입력도 먹히지 않는다.
     if (this.docPanel?.isOpen) {
       this.player.body.setVelocity(0, 0);
+      // 멈춘 김에 걷기 애니메이션도 접어야 한다 — 안 그러면 제자리에서 계속 걷는다.
+      this.playerVisual.update();
       return;
     }
 
     const typing = this.dialogue.isTyping;
     if (typing) this.player.body.setVelocity(0, 0);
     else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    this.playerVisual.update();
 
     // 문간(방 사각형 밖)에서는 null 이 나온다 — 그때는 방을 바꾸지 않는다.
     // 안 그러면 문턱을 밟을 때마다 앞뒤 방이 번갈아 깜빡인다.
@@ -594,7 +624,7 @@ export class MansionScene extends Phaser.Scene {
 
   /** 서버가 알려준 상태를 기존 객체에 덮어쓴다 — 노드가 쥔 참조를 살려 두기 위해서. */
   #syncState(view) {
-    this.state.pieces = view.pieces;
+    this.state.hints = view.hints;
     this.state.hasKey = view.hasKey;
     this.state.cleared = view.cleared;
     this.state.over = view.over;
@@ -605,7 +635,7 @@ export class MansionScene extends Phaser.Scene {
     }
   }
 
-  #applyEvent({ event, piece, state }) {
+  #applyEvent({ event, line, state }) {
     this.#syncState(state);
     this.#updateHud();
 
@@ -624,14 +654,14 @@ export class MansionScene extends Phaser.Scene {
       this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       return;
     }
-    if (event === 'piece' || event === 'key') {
-      // 조각 문구는 서버가 쥔 원문 그대로 붙인다 — 모델이 고쳐 말하면 단서가 흐려진다.
-      this.dialogue.append(`\n\n"${piece}"`);
-      if (event === 'key') {
-        this.dialogue.append('\n\n[연구실 열쇠를 손에 넣었다. 하인 통로 끝의 문을 열 수 있다.]');
-      } else {
-        this.dialogue.append(`\n\n[정보 조각 ${this.state.pieces.length}/3]`);
-      }
+    if (event === 'key' || event === 'hint') {
+      // 보상 문구는 서버가 쥔 원문 그대로 붙인다 — 모델이 고쳐 말하면 단서가 흐려진다.
+      this.dialogue.append(`\n\n"${line}"`);
+      this.dialogue.append(
+        event === 'key'
+          ? '\n\n[연구실 열쇠를 손에 넣었다. 하인 통로 끝의 문을 열 수 있다.]'
+          : '\n\n[열쇠를 쥔 사람의 단서를 얻었다.]',
+      );
       return;
     }
     if (event === 'warn') {
@@ -682,7 +712,10 @@ export class MansionScene extends Phaser.Scene {
       this.result.show({
         outcome,
         codeWord: null,
-        stats: [`정보 조각 ${this.state.pieces.length}/3`, this.state.hasKey ? '열쇠 확보' : '열쇠 없음'],
+        stats: [
+          this.state.hasKey ? '연구실 열쇠 확보' : '열쇠 없음',
+          `조사한 단서 ${this.state.objects.filter((o) => o.found).length}/${this.state.objects.length}`,
+        ],
         // 저택은 시작에 LLM 대기가 없다 — 스테이지 1의 /start 를 부르면 안 된다.
         restart: async () => ({ state: null }),
         waitText: '저택으로 돌아가는 중…',

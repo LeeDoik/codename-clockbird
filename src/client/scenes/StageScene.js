@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { Hud } from '../ui/Hud.js';
+import { ClueBook } from '../ui/ClueBook.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { runLockPuzzle } from '../minigames/lockPuzzle.js';
@@ -12,10 +14,11 @@ import {
   createPlayerVisual,
   applyMovement,
   setupCameras,
+  worldLabel,
 } from '../world/worldParts.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
-import { CSS, FONTS, drawOrnateFrame } from '../ui/theme.js';
+import { CSS, FONTS } from '../ui/theme.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
 import streetProps from '../assets/street-props.json';
@@ -41,16 +44,44 @@ const CITIZEN_FRAME = 6;
 // 접선책은 시민과 같은 프레임을 쓴다 — 전용 스프라이트는 에셋 확장 때 교체한다.
 const BROKER_FRAME = 6;
 
-// 플레이어(스테이지1 전용 외형): 256×256 프레임, 인물은 y[26,216] 영역(실측).
-// 다른 NPC(chars.png, 32px 무배율)와 같은 크기로 맞춰 이 씬의 기존 스케일을 지킨다.
-const PLAYER_ANIM = {
-  idle: 'stage1PlayerIdle',
-  walkDown: 'stage1PlayerWalkDown',
-  walkUp: 'stage1PlayerWalkUp',
-  walkLeft: 'stage1PlayerWalkLeft',
+// 전용 아이들 모션이 있는 동료. 여기 없는 동료는 위 chars.png 프레임으로 폴백한다 —
+// 밀수꾼(smuggler)은 캐릭터 바이블의 밀수업자가 여성(실비아)이라 카이와 성별이 어긋나
+// 보류 중이고, 접선책은 대응 아트 자체가 없다 (design/characters/portrait-map.md).
+const ALLY_ANIM = {
+  watchmaker: 'watchmakerIdle',
+  maid: 'maidIdle',
+  engineer: 'engineerIdle',
+  musician: 'musicianIdle',
 };
-const PLAYER_ORIGIN_Y = 216 / 256;
-const PLAYER_CONTENT_HEIGHT = 190;
+// 네 시트 모두 256×256 프레임 안에서 발이 218px, 정수리가 23px 에 있다
+// (scripts/measure-sprite.js 실측). 발바닥을 스폰 지점에 놓고 — 플레이어·튜토리얼과
+// 같은 규칙 — 인물 높이를 이 씬의 기존 캐릭터 크기(32px)에 맞춘다.
+const ALLY_SPRITE_FRAME = 256;
+const ALLY_SPRITE_ORIGIN_Y = 218 / ALLY_SPRITE_FRAME;
+const ALLY_SPRITE_SCALE = 32 / 196;
+// 이름표는 정수리 위에 둔다. chars.png 동료는 스프라이트 중심이 스폰 지점이라 -24 로
+// 충분하지만, 전용 스프라이트는 발이 스폰 지점이라 인물 높이만큼 더 올려야 한다.
+const ALLY_LABEL_DY = -24;
+const ALLY_SPRITE_LABEL_DY = -40;
+
+/**
+ * 플레이어는 튜토리얼부터 엔딩까지 **같은 인물**이다 (2026-08-02 확정).
+ * 스테이지마다 다른 스프라이트를 쓰면 사람이 바뀐 것처럼 보인다.
+ *
+ * 앞의 두 상수는 **그 시트 안에서 인물이 어디 있는가**라 시트를 바꾸면 같이 바뀐다
+ * (tutorial 시트 실측값 — TutorialScene 과 동일).
+ * PLAYER_HEIGHT 만 이 씬 고유다: 그건 **이 맵에서 화면에 얼마로 보일지**이고,
+ * 여기서는 다른 NPC(chars.png, 32px 무배율)와 키를 맞춘다.
+ */
+const PLAYER_ANIM = {
+  idle: 'tutorialPlayerIdle',
+  walkDown: 'tutorialPlayerWalkDown',
+  walkUp: 'tutorialPlayerWalkUp',
+  walkLeft: 'tutorialPlayerWalkLeft',
+  walkRight: 'tutorialPlayerWalkRight',
+};
+const PLAYER_ORIGIN_Y = 176 / 256;
+const PLAYER_CONTENT_HEIGHT = 176;
 const PLAYER_HEIGHT = 32;
 
 export class StageScene extends Phaser.Scene {
@@ -120,19 +151,30 @@ export class StageScene extends Phaser.Scene {
       const home = sp ? { x: sp.col * TILE + TILE / 2, y: sp.row * TILE + TILE / 2 } : ally.spawn;
       const pos = ally.arrested ? this.#jailSlot(this.jailCount++) : home;
 
-      const frame = ALLY_FRAME[ally.id] ?? i + 1;
-      const node = this.add.sprite(pos.x, pos.y, 'chars', frame);
+      const anim = ALLY_ANIM[ally.id];
+      const node = anim
+        ? this.add
+            .sprite(pos.x, pos.y, anim, 0)
+            .setOrigin(0.5, ALLY_SPRITE_ORIGIN_Y)
+            .setDisplaySize(
+              ALLY_SPRITE_FRAME * ALLY_SPRITE_SCALE,
+              ALLY_SPRITE_FRAME * ALLY_SPRITE_SCALE,
+            )
+            .play(anim)
+        : this.add.sprite(pos.x, pos.y, 'chars', ALLY_FRAME[ally.id] ?? i + 1);
       if (ally.arrested) node.setTint(0x9a9088);
 
-      const label = this.add
-        .text(pos.x, pos.y - 24, ally.arrested ? `${ally.name} (체포)` : ally.name, {
-          fontFamily: FONTS.body,
-          fontSize: '11px',
-          color: CSS.paperDim,
-        })
-        .setOrigin(0.5);
+      const labelDy = anim ? ALLY_SPRITE_LABEL_DY : ALLY_LABEL_DY;
+      const label = worldLabel(
+        this,
+        pos.x,
+        pos.y + labelDy,
+        ally.arrested ? `${ally.name} (체포)` : ally.name,
+        { fontFamily: FONTS.body, fontSize: '11px', color: CSS.paperDim },
+      );
 
-      this.allyNodes.push({ ally, node, label, home, jailed: ally.arrested });
+      // labelDy 는 감옥행·구출 연출에서 이름표를 다시 놓을 때도 쓴다 (#syncAllyNodes).
+      this.allyNodes.push({ ally, node, label, labelDy, home, jailed: ally.arrested });
     });
 
     // 접선책 — 코드를 건넬 유일한 창구. 단어를 내지 않으므로 체포·중복 판정과 무관하다.
@@ -141,13 +183,11 @@ export class StageScene extends Phaser.Scene {
       ? { x: bz.col * TILE + TILE / 2, y: bz.row * TILE + TILE / 2 }
       : this.state.broker.spawn;
     this.brokerNode = this.add.sprite(bpos.x, bpos.y, 'chars', BROKER_FRAME);
-    this.add
-      .text(bpos.x, bpos.y - 24, this.state.broker.name, {
-        fontFamily: FONTS.body,
-        fontSize: '11px',
-        color: CSS.paperDim,
-      })
-      .setOrigin(0.5);
+    worldLabel(this, bpos.x, bpos.y - 24, this.state.broker.name, {
+      fontFamily: FONTS.body,
+      fontSize: '11px',
+      color: CSS.paperDim,
+    });
 
     this.#buildSteam();
     this.#buildPlayerLight();
@@ -168,23 +208,13 @@ export class StageScene extends Phaser.Scene {
     this.keyReveal = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKTICK);
     this.keyClues = this.input.keyboard.addKey('C');
 
-    this.hud = this.add.text(20, 16, '', {
-      fontFamily: FONTS.body,
-      fontSize: '22px',
-      color: CSS.paperDim,
-      // 디버그(백틱) 표시의 이유 문장이 캔버스 밖으로 흘러넘치지 않게 감싼다.
-      wordWrap: { width: 1880 },
-    });
+    // 디버그(백틱) 표시의 이유 문장이 길어도 #hud-status 가 오른쪽 여백에서 접는다.
+    this.hud = new Hud();
+    this.hud.keys('[E] 대화    [F] 암호    [R] 구출    [C] 단서 수첩');
 
-    this.#buildCluePanel();
-    this.asUi(
-      this.hud,
-      this.add.text(20, this.scale.height - 40, '[E] 대화    [F] 암호    [R] 구출    [C] 단서 수첩', {
-        fontFamily: FONTS.body,
-        fontSize: '20px',
-        color: CSS.faint,
-      }),
-    );
+    // 수첩도 HUD 와 같은 이유로 DOM 이다 (ui/ClueBook.js). 생성자가 닫힌 상태로
+    // 되돌리므로 재시작한 판이 이전 판의 펼친 수첩을 물려받지 않는다.
+    this.clueBook = new ClueBook();
 
     this.#updateHud();
     this.#showBriefing();
@@ -313,35 +343,14 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.setHint('[Space] / [Esc] 로 쪽지를 접는다');
   }
 
-  /** 단서 수첩 패널 (숨김 상태로 생성). UI 카메라 소속 — 1080p 원본 크기로 그린다. */
-  #buildCluePanel() {
-    const w = 760, h = 560;
-    const cx = this.scale.width / 2, cy = this.scale.height / 2;
-    const bg = drawOrnateFrame(this, cx, cy, w, h);
-    const title = this.add
-      .text(cx, cy - h / 2 + 40, '단서 수첩', {
-        fontFamily: FONTS.head, fontSize: '30px', color: CSS.brass, fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
-    const rule = this.add.rectangle(cx, cy - h / 2 + 76, w - 72, 2, 0x3a3120);
-    this.clueText = this.add.text(cx - w / 2 + 44, cy - h / 2 + 108, '', {
-      fontFamily: FONTS.body, fontSize: '24px', color: CSS.paper,
-      lineSpacing: 14, wordWrap: { width: w - 88 },
-    });
-    const hint = this.add
-      .text(cx, cy + h / 2 - 32, '[C] 닫기', {
-        fontFamily: FONTS.body, fontSize: '20px', color: CSS.paperDim,
-      })
-      .setOrigin(0.5);
-    this.cluePanel = this.add.container(0, 0, [bg, title, rule, this.clueText, hint]).setDepth(1000).setVisible(false);
-    this.asUi(this.cluePanel);
-  }
-
+  /** C — 수첩 여닫기. 펼치는 순간에 다시 채운다 (덮어 둔 사이 단서가 늘었을 수 있다). */
   #toggleClues() {
-    if (!this.cluePanel) return;
-    const show = !this.cluePanel.visible;
-    if (show) this.#refreshClues();
-    this.cluePanel.setVisible(show);
+    if (this.clueBook.isOpen) {
+      this.clueBook.close();
+      return;
+    }
+    this.#refreshClues();
+    this.clueBook.open();
   }
 
   #refreshClues() {
@@ -349,7 +358,7 @@ export class StageScene extends Phaser.Scene {
     const hint = this.state.hint;
     const head = hint ? `접선 코드: ${'○'.repeat(hint.length)} (${hint.category})\n\n` : '';
     if (this.clues.size === 0) {
-      this.clueText.setText(`${head}아직 수집한 단서가 없다.\n\n동료에게 다가가 [E] 로 말을 걸면,\n그가 흘린 연상 단어가 여기 기록된다.`);
+      this.clueBook.setText(`${head}아직 수집한 단서가 없다.\n\n동료에게 다가가 [E] 로 말을 걸면,\n그가 흘린 연상 단어가 여기 기록된다.`);
       return;
     }
     const lines = [];
@@ -357,7 +366,7 @@ export class StageScene extends Phaser.Scene {
       lines.push(`· ${name} (${role})\n     「${word}」${rescued ? '   ← 둘이 겹쳐 낸 단어' : ''}`);
     }
     lines.push(`\n수집한 단서 ${this.clues.size}개 — 이 단어들로 접선 코드를 추리하라.`);
-    this.clueText.setText(head + lines.join('\n'));
+    this.clueBook.setText(head + lines.join('\n'));
   }
 
   /**
@@ -442,31 +451,27 @@ export class StageScene extends Phaser.Scene {
     // 거리는 저택과 같은 방식이다 — 자갈·건물·나무·가로등·조명을 한 장에 구워
     // 배경으로 깔고 충돌만 따로 세운다 (scripts/gen-street-art.js).
     this.add.image(0, 0, 'street-bg').setOrigin(0, 0).setDepth(-100);
-    this.walls = buildColliders(this, mapData, streetProps.blocked);
+    this.walls = buildColliders(this, mapData, streetProps);
 
     // 마을 사람 다섯 — 분기 대사는 W3 TODO. 지금은 맵이 지정한 자리에 세워만 둔다.
     for (const [i, z] of (mapData.spawns.citizens ?? []).entries()) {
       const x = z.col * TILE + TILE / 2;
       const y = z.row * TILE + TILE / 2;
       this.add.sprite(x, y, 'chars', CITIZEN_FRAME);
-      this.add
-        .text(x, y - 24, `마을 사람 ${i + 1}`, {
-          fontFamily: FONTS.body,
-          fontSize: '11px',
-          color: CSS.paperDim,
-        })
-        .setOrigin(0.5);
+      worldLabel(this, x, y - 24, `마을 사람 ${i + 1}`, {
+        fontFamily: FONTS.body,
+        fontSize: '11px',
+        color: CSS.paperDim,
+      });
     }
 
     // 감옥은 이제 배경에 창살과 자물쇠까지 그려져 있다 — 자리를 알리는 이름표만 얹는다.
     const cage = mapData.cage;
-    this.add
-      .text((cage.x + cage.w / 2) * TILE, (cage.y - 0.6) * TILE, '임시 감옥', {
-        fontFamily: FONTS.body,
-        fontSize: '12px',
-        color: '#8a5a5a', // 감옥 표시색 — 테마 토큰 아님 (여기서만 쓴다)
-      })
-      .setOrigin(0.5);
+    worldLabel(this, (cage.x + cage.w / 2) * TILE, (cage.y - 0.6) * TILE, '임시 감옥', {
+      fontFamily: FONTS.body,
+      fontSize: '12px',
+      color: '#8a5a5a', // 감옥 표시색 — 테마 토큰 아님 (여기서만 쓴다)
+    });
   }
 
   #updateHud() {
@@ -488,7 +493,7 @@ export class StageScene extends Phaser.Scene {
         lines.push(`  ${live?.arrested ? '✕' : '·'} ${a.name}「${a.word}」 — ${a.reason}`);
       }
     }
-    this.hud.setText(lines.join('\n'));
+    this.hud.status(lines.join('\n'));
   }
 
   /** 개발용 정답 토글. 서버는 REVEAL_ANSWER=1 일 때만 정답을 준다. */
@@ -748,6 +753,9 @@ export class StageScene extends Phaser.Scene {
     this.ended = true; // update() 를 멈춘다 — 이후는 연출 시간이다
     this.player.body.setVelocity(0, 0);
     for (const p of this.patrols) p.halt();
+    // 펼쳐 둔 수첩을 여기서 접는다. C 가 이미 막힌 뒤라 플레이어가 닫을 방법이 없고,
+    // 수첩은 DOM 이라 아래의 카메라 페이드가 걸리지 않아 저택까지 따라온다.
+    this.clueBook.close();
 
     const b = this.state.broker;
     this.dialogue.show(
@@ -769,6 +777,7 @@ export class StageScene extends Phaser.Scene {
     // 월드와 HUD 를 함께 접는다 — 메인 카메라만 어둡게 하면 HUD 가 허공에 뜬다.
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
+    this.hud.fadeOut(900); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Mansion'));
   }
 
@@ -901,7 +910,7 @@ export class StageScene extends Phaser.Scene {
     // 구출한 동료의 단어는 둘 이상이 겹쳐 냈기에 그가 잡혀갔던 단어다 — 수첩에서 구분해 준다.
     const rescued = this.state.allies.find((a) => a.id === ally.id)?.rescued ?? false;
     this.clues.set(ally.id, { name: ally.name, role: ally.role, word, rescued });
-    if (this.cluePanel && this.cluePanel.visible) this.#refreshClues();
+    if (this.clueBook.isOpen) this.#refreshClues();
   }
 
   /**
@@ -1114,7 +1123,13 @@ export class StageScene extends Phaser.Scene {
         entry.label.setText(`${updated.name} (체포)`).setColor(CSS.paperDim);
         // 감옥으로 끌려가는 연출
         this.tweens.add({ targets: entry.node, x, y, duration: 350, ease: 'Cubic.easeIn' });
-        this.tweens.add({ targets: entry.label, x, y: y - 24, duration: 350, ease: 'Cubic.easeIn' });
+        this.tweens.add({
+          targets: entry.label,
+          x,
+          y: y + entry.labelDy,
+          duration: 350,
+          ease: 'Cubic.easeIn',
+        });
       } else if (!updated.arrested && entry.jailed) {
         // 구출 — 감옥행 연출을 되감는다. 끌려갈 때 easeIn 이었으니 풀려날 땐 easeOut.
         entry.jailed = false;
@@ -1122,7 +1137,13 @@ export class StageScene extends Phaser.Scene {
         entry.node.clearTint();
         entry.label.setText(updated.name);
         this.tweens.add({ targets: entry.node, x, y, duration: 350, ease: 'Cubic.easeOut' });
-        this.tweens.add({ targets: entry.label, x, y: y - 24, duration: 350, ease: 'Cubic.easeOut' });
+        this.tweens.add({
+          targets: entry.label,
+          x,
+          y: y + entry.labelDy,
+          duration: 350,
+          ease: 'Cubic.easeOut',
+        });
       }
       // 체포↔자유 전환 시 인터랙션 노드도 유형이 바뀐다 (choiceNpc ↔ R 전용)
       this.#registerAllyNode(entry);

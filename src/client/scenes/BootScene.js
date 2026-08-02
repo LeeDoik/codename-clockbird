@@ -11,10 +11,16 @@ import officerIdleUrl from '../assets/npc/officer-idle.png';
 import t1IdleUrl from '../assets/npc/t1-idle.png';
 import t2IdleUrl from '../assets/npc/t2-idle.png';
 import t3IdleUrl from '../assets/npc/t3-idle.png';
+import watchmakerIdleUrl from '../assets/npc/watchmaker-idle.png';
+import maidIdleUrl from '../assets/npc/maid-idle.png';
+import engineerIdleUrl from '../assets/npc/engineer-idle.png';
+import musicianIdleUrl from '../assets/npc/musician-idle.png';
 import tutorialPlayerIdleUrl from '../assets/player/tutorial-idle.png';
 import tutorialPlayerWalkUrl from '../assets/player/tutorial-walk.png';
 import stage1PlayerIdleUrl from '../assets/player/stage1-idle.png';
 import stage1PlayerWalkUrl from '../assets/player/stage1-walk.png';
+import stage2PlayerIdleUrl from '../assets/player/stage2-idle.png';
+import stage2PlayerWalkUrl from '../assets/player/stage2-walk.png';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -50,8 +56,19 @@ export class BootScene extends Phaser.Scene {
     this.load.spritesheet('t1Idle', t1IdleUrl, { frameWidth: 256, frameHeight: 256 });
     this.load.spritesheet('t2Idle', t2IdleUrl, { frameWidth: 256, frameHeight: 256 });
     this.load.spritesheet('t3Idle', t3IdleUrl, { frameWidth: 256, frameHeight: 256 });
-    // 플레이어(튜토리얼·스테이지1 전용 외형) — idle 12프레임(1행), walk 44프레임
-    // (아래 0-21·위 22-27·왼쪽 28-43 — 오른쪽은 왼쪽을 좌우 반전해서 쓴다. 실측).
+    // 거리(스테이지 1) 동료 아이들 모션 — 같은 256×256 12프레임이지만 시트 배치가
+    // 6×2 인 것과 12×1 인 것이 섞여 있다. 프레임 크기만 맞으면 인덱스는 같으므로
+    // 로더는 구분하지 않는다. 밀수꾼(smuggler)·접선책은 전용 아트가 아직 없어
+    // chars.png 프레임을 그대로 쓴다 (design/characters/portrait-map.md 참조).
+    this.load.spritesheet('watchmakerIdle', watchmakerIdleUrl, { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet('maidIdle', maidIdleUrl, { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet('engineerIdle', engineerIdleUrl, { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet('musicianIdle', musicianIdleUrl, { frameWidth: 256, frameHeight: 256 });
+    // 플레이어(튜토리얼·스테이지1·저택 전용 외형) — idle 12프레임(1행), walk 44프레임 1행.
+    // walk 시트의 배치는 **아이들 12 + 방향 4종 × 8** 이다 (세 시트 모두 동일, 실측):
+    //   0-11 아이들(idle 시트와 픽셀 단위로 같다) · 12-19 아래 · 20-27 위 · 28-35 왼쪽 · 36-43 오른쪽
+    // 오른쪽은 전용 프레임이 있으므로 왼쪽을 반전하지 않는다 — 고글·가방·멜빵이
+    // 좌우 비대칭이라 반전하면 매 걸음 장비가 반대쪽으로 옮겨 다닌다.
     this.load.spritesheet('tutorialPlayerIdle', tutorialPlayerIdleUrl, {
       frameWidth: 256,
       frameHeight: 256,
@@ -68,11 +85,28 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 256,
       frameHeight: 256,
     });
+    this.load.spritesheet('stage2PlayerIdle', stage2PlayerIdleUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
+    this.load.spritesheet('stage2PlayerWalk', stage2PlayerWalkUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
   }
 
   create() {
-    // 6x2, 12프레임 아이들 시트 공통 등록 — 시트마다 프레임 수·크기는 같고 키만 다르다.
-    for (const key of ['officerIdle', 't1Idle', 't2Idle', 't3Idle']) {
+    // 12프레임 아이들 시트 공통 등록 — 시트마다 프레임 수·크기는 같고 키만 다르다.
+    for (const key of [
+      'officerIdle',
+      't1Idle',
+      't2Idle',
+      't3Idle',
+      'watchmakerIdle',
+      'maidIdle',
+      'engineerIdle',
+      'musicianIdle',
+    ]) {
       if (this.anims.exists(key)) continue;
       this.anims.create({
         key,
@@ -82,12 +116,12 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
-    // 플레이어 걷기 — 방향마다 프레임 수가 달라(아래 22·위 6·왼쪽 16) 그대로 같은
-    // frameRate 를 쓰면 방향별 체감 속도가 달라진다. 한 바퀴가 같은 시간(0.6초)
-    // 걸리도록 프레임 수에 맞춰 frameRate 를 방향마다 역산한다.
+    // 플레이어 걷기 — 한 바퀴가 같은 시간(0.6초) 걸리도록 프레임 수에서 frameRate 를
+    // 역산한다. 지금은 네 방향이 전부 8프레임이라 결과가 같지만, 시트가 바뀌어 방향별
+    // 프레임 수가 어긋나도 걷는 속도는 그대로 유지된다.
     const CYCLE_SECONDS = 0.6;
-    const WALK_RANGES = { Down: [0, 21], Up: [22, 27], Left: [28, 43] };
-    for (const prefix of ['tutorial', 'stage1']) {
+    const WALK_RANGES = { Down: [12, 19], Up: [20, 27], Left: [28, 35], Right: [36, 43] };
+    for (const prefix of ['tutorial', 'stage1', 'stage2']) {
       const idleKey = `${prefix}PlayerIdle`;
       if (!this.anims.exists(idleKey)) {
         this.anims.create({
@@ -118,6 +152,16 @@ export class BootScene extends Phaser.Scene {
     // 시작 fetch 를 쏘지 않는다 (저택은 LLM 대기 없이 시작한다).
     if (import.meta.env.DEV && params.has('stage2')) {
       waitForFonts(2000).then(() => this.scene.start('Mansion'));
+      return;
+    }
+
+    // 개발용 — 스테이지 3 지하 탈출로 곧장 들어간다.
+    //
+    // ?stage2&key 처럼 "서버 상태를 바꾸는" 플래그가 아니라서 시작 요청에 실을 것이 없다:
+    // 탈출 파트는 전부 클라이언트 계산이고, 심문 세션은 심문실에 닿을 때 서버가 새로 연다.
+    // (?stage2&key 는 클라이언트에만 열쇠를 세워 /document 가 409 로 거절하던 함정이 있었다.)
+    if (import.meta.env.DEV && params.has('stage3')) {
+      waitForFonts(2000).then(() => this.scene.start('Escape'));
       return;
     }
 
