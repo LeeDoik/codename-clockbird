@@ -1,0 +1,36 @@
+{
+  "group_id": "16353572-6da2-4747-8313-299f220645ce",
+  "states": [
+    {
+      "character": {
+        "id": "823c8341-82ce-4611-aac9-f018cdb373bf",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of an 18-year-old resistance quartermaster girl, big head short limbs chibi proportions (head is 40% of total height), light brown wavy hair tied in a low bun, fair skin, round brass-rimmed glasses over bright alert eyes, a cream white shirt with rolled sleeves, a red cloth armband on the upper left arm, a dark grey ink-stained sleeve protector on the right forearm, a wide brown leather belt with a small satchel at the hip, khaki tan trousers, tall brown leather boots, holding a small ledger against her chest, steampunk resistance outfit, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 188,
+          "height": 188
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T15:51:13.738542+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-03T16:01:16.476698"
+}

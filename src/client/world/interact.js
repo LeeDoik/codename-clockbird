@@ -21,6 +21,19 @@ const RANGE_RATIO = 48 / DEFAULT_CHAR_HEIGHT;
 const BUBBLE_RATIO = 30 / DEFAULT_CHAR_HEIGHT;
 const VERB = { npc: '대화', choiceNpc: '대화', door: '열기', document: '열람', object: '조사' };
 
+/**
+ * 말풍선 글자 크기 (화면 px). 말풍선은 줌 없는 UI 카메라에 그리므로 이 값이 곧
+ * 화면에서 보이는 크기다 — 맵의 줌이나 charHeight 와 무관하게 어느 씬에서나 같다.
+ *
+ * 1920×1080 캔버스에서 22px 은 인물 키의 1/7 도 안 돼, 다가가도 안내가 눈에 안 들어왔다.
+ * 대화창 본문(24px)과 비슷한 급으로 올린다.
+ */
+const BUBBLE_FONT_PX = 32;
+/** 글자 주위 여백·모서리 (화면 px). 글자 크기를 바꾸면 같이 따라와야 테가 답답하지 않다. */
+const BUBBLE_PAD_X = Math.round(BUBBLE_FONT_PX * 0.34);
+const BUBBLE_PAD_Y = Math.round(BUBBLE_FONT_PX * 0.20);
+const BUBBLE_RADIUS = 5;
+
 export class InteractionManager {
   /**
    * @param {number} [charHeight] 이 맵의 인물 높이(월드 px). 씬이 맵 json 에서 읽어 넘긴다.
@@ -45,7 +58,7 @@ export class InteractionManager {
   #buildBubble() {
     const s = this.scene;
     this.bubbleText = s.add
-      .text(0, 0, '', { fontFamily: 'Gowun Batang, serif', fontSize: '22px', color: '#e8c15a' })
+      .text(0, 0, '', { fontFamily: 'Gowun Batang, serif', fontSize: `${BUBBLE_FONT_PX}px`, color: '#e8c15a' })
       .setOrigin(0.5, 1)
       .setDepth(40);
     this.bubbleBg = s.add.graphics().setDepth(39);
@@ -62,12 +75,19 @@ export class InteractionManager {
     const p = worldToScreen(this.scene.cameras.main, x, y - this.bubbleDy);
     this.bubbleText.setText(text).setPosition(Math.round(p.x), Math.round(p.y)).setVisible(true);
     const b = this.bubbleText.getBounds();
+    const rect = [
+      b.x - BUBBLE_PAD_X,
+      b.y - BUBBLE_PAD_Y,
+      b.width + BUBBLE_PAD_X * 2,
+      b.height + BUBBLE_PAD_Y * 2,
+      BUBBLE_RADIUS,
+    ];
     this.bubbleBg
       .clear()
       .fillStyle(0x0a0906, 0.88)
-      .lineStyle(1, 0x7a5f1a, 1)
-      .fillRoundedRect(b.x - 5, b.y - 3, b.width + 10, b.height + 6, 3)
-      .strokeRoundedRect(b.x - 5, b.y - 3, b.width + 10, b.height + 6, 3)
+      .lineStyle(2, 0x7a5f1a, 1)
+      .fillRoundedRect(...rect)
+      .strokeRoundedRect(...rect)
       .setVisible(true);
   }
 

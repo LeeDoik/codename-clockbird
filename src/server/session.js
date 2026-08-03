@@ -14,7 +14,7 @@ const sessions = new Map();
 /** 경계 레벨 상한. 3 은 발각 즉사 단계다 — 그 위는 존재하지 않는다 (stage.js INSTANT_ARREST_ALERT 와 같은 값). */
 const MAX_ALERT = 3;
 
-export function createSession({ codeWord, category, allies, associations, duplicateGroups, arrestedIds = [], broker = null }) {
+export function createSession({ codeWord, category, allies, associations, duplicateGroups, arrestedIds = [] }) {
   const id = randomUUID();
 
   const allyState = allies.map((ally) => {
@@ -24,6 +24,8 @@ export function createSession({ codeWord, category, allies, associations, duplic
       name: ally.name,
       role: ally.role,
       spawn: ally.spawn,
+      // 저택에 들어갈 명분. 이 동료가 접선책이 됐을 때의 인계 대사에 그대로 쓰인다.
+      cover: ally.cover,
       word: assoc?.word ?? null,
       reason: assoc?.reason ?? null,
       // 접선(대화) 여부 — 연상 단어는 접선한 뒤에만 밝혀진다.
@@ -42,8 +44,6 @@ export function createSession({ codeWord, category, allies, associations, duplic
     codeWord, // ← 서버 전용
     category, // 코드 단어의 분류 — toClientView 가 글자 수와 함께 힌트로 공개한다
     allies: allyState,
-    // 접선책 — 코드를 건넬 유일한 창구. 단어를 내지 않으므로 체포·중복 판정과 무관하다.
-    broker,
     // 같은 단어를 낸 동료 묶음 [{ npcIds, reason }]. 체포는 플레이어가 접선으로 중복을
     // 확인했을 때 비로소 발동하므로, 여기 숨겨두고 contactAlly 에서 판정한다.
     duplicateGroups: duplicateGroups ?? [],
@@ -86,13 +86,6 @@ export function toClientView(session) {
     alertLevel: session.alertLevel,
     // 코드 단어 자체는 여전히 서버 전용 — 글자 수·분류만 공개한다 (한글 음절은 BMP 라 .length 로 정확).
     hint: { length: session.codeWord.length, category: session.category },
-    // allies 와 같은 화이트리스트 원칙 — broker 에 나중에 어떤 필드가 붙어도 자동으로 새지 않는다.
-    broker: session.broker && {
-      id: session.broker.id,
-      name: session.broker.name,
-      role: session.broker.role,
-      spawn: session.broker.spawn,
-    },
     cleared: session.cleared,
     gameOver: session.gameOver,
     gameOverReason: session.gameOverReason,
@@ -102,6 +95,8 @@ export function toClientView(session) {
       name: a.name,
       role: a.role,
       spawn: a.spawn,
+      // 저택에 들어갈 명분. 코드를 맞힌 동료가 접선책이 되므로 다섯 다 각자의 문장을 갖는다.
+      cover: a.cover,
       // 단어는 접선(대화)한 뒤에만 내려간다 — 접선하기 전엔 알 수 없다. 체포된 동료의 단어도 감춘다.
       word: a.contacted && !a.arrested ? a.word : null,
       contacted: a.contacted,

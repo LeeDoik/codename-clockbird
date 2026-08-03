@@ -1,0 +1,36 @@
+{
+  "group_id": "c9400d59-d3c3-4a32-ba15-60c8cc73d5d1",
+  "states": [
+    {
+      "character": {
+        "id": "89bd0b19-e103-42c6-b0a6-4f12f16680ad",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a middle-aged resistance equipment craftswoman, big head short limbs chibi proportions (head is 40% of total height), curly grey hair wrapped in a rust-red headscarf, brass welding goggles pushed up on her forehead, weathered tan skin, a stout heavy build with thick forearms, a rust-orange jacket with rolled sleeves over a cream shirt, a soot-stained tan work apron, a wide brown tool belt, a large steel monkey wrench in her right hand, brown work boots, steampunk resistance outfit, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 200,
+          "height": 200
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T15:22:21.152934+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-03T15:27:10.757044"
+}

@@ -14,6 +14,12 @@ import {
   PLAYER_FRAME_SIZE,
   PLAYER_ORIGIN_Y,
 } from '../entities/playerSprite.js';
+import {
+  NPC_CONTENT_HEIGHT,
+  NPC_FRAME_SIZE,
+  NPC_ORIGIN_Y,
+  NPC_TEXTURE,
+} from '../entities/npcSprite.js';
 import { InteractionManager } from '../world/interact.js';
 import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
@@ -29,10 +35,8 @@ import hqProps from '../assets/hq-props.json';
 // 본부는 튜토리얼과 같은 맵·같은 규격이다 — 값이 갈라지면 두 씬의 화면이 달라진다.
 const TILE = hqData.tileSize;
 
-// 브란트(간부) 아이들 모션 — TutorialScene 과 같은 값
-const OFFICER_FRAME = 432;
-const OFFICER_CONTENT_HEIGHT = 408;
-const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
+// 브란트(간부)는 PixelLab 남향 정지 그림이다 — 규격은 entities/npcSprite.js 가
+// 단일 출처라, 그림을 갈아끼워도 이 씬과 튜토리얼이 갈라지지 않는다.
 
 // 플레이어는 튜토리얼과 같은 외형이다 — TutorialScene 의 값과 같아야 한다.
 const PLAYER_FRAME = 0;
@@ -42,7 +46,7 @@ const PLAYER_FRAME = 0;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 /** 간부도 플레이어와 키를 맞춘다 (TutorialScene 과 같은 값이어야 한다). */
-const OFFICER_SCALE = PLAYER_HEIGHT / OFFICER_CONTENT_HEIGHT;
+const OFFICER_SCALE = PLAYER_HEIGHT / NPC_CONTENT_HEIGHT.officer;
 
 /**
  * 간부. 자리는 `hq.json` 의 `spawns.officer` 를 그대로 쓴다 — 좌표를 여기 적으면
@@ -87,10 +91,9 @@ export class EndingScene extends Phaser.Scene {
 
     const os = hqData.spawns.officer;
     this.officerNode = this.add
-      .sprite(os.col * TILE + TILE / 2, os.row * TILE + TILE / 2, 'officerIdle', 0)
-      .setOrigin(0.5, OFFICER_ORIGIN_Y)
-      .setDisplaySize(OFFICER_FRAME * OFFICER_SCALE, OFFICER_FRAME * OFFICER_SCALE)
-      .play('officerIdle');
+      .image(os.col * TILE + TILE / 2, os.row * TILE + TILE / 2, NPC_TEXTURE.officer)
+      .setOrigin(0.5, NPC_ORIGIN_Y)
+      .setDisplaySize(NPC_FRAME_SIZE * OFFICER_SCALE, NPC_FRAME_SIZE * OFFICER_SCALE);
 
     // 월드를 다 깐 직후·UI 를 만들기 전. 줌·카메라 추적 모두 TutorialScene 과 같다.
     setupCameras(this, hqData, this.player);

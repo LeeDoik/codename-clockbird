@@ -106,7 +106,14 @@ export class MansionScene extends Phaser.Scene {
     super('Mansion');
   }
 
-  init() {
+  /**
+   * @param {{contact?: {id: string, name: string, role: string}}} [data]
+   *   스테이지 1 에서 **암호를 맞힌 동료**. 그 사람이 저택까지 데려온 접선책이라
+   *   여기서도 안내인이 같은 사람이어야 이야기가 이어진다. 없으면(?stage2 로 바로
+   *   들어온 개발 경로) mansion.json 의 기본 안내인을 그대로 쓴다.
+   */
+  init(data) {
+    this.contact = data?.contact ?? null;
     this.state = null;
     this.nodes = [];
     this.ended = false;
@@ -345,6 +352,11 @@ export class MansionScene extends Phaser.Scene {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       this.state = data;
+      // 안내인을 스테이지 1 의 접선책으로 갈아 끼운다 — 자리·대사는 맵이 정한 그대로 두고
+      // 사람만 바꾼다. 초상(id)까지 바꿔야 대화창 얼굴이 거리에서 본 그 동료가 된다.
+      if (this.contact) {
+        this.state.escort = { ...this.state.escort, ...this.contact };
+      }
       this.startFailed = false;
     } catch (err) {
       this.startFailed = true;

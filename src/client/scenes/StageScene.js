@@ -48,8 +48,6 @@ const TILE = mapData.tileSize; // 32
 const ALLY_FRAME = { watchmaker: 1, maid: 2, engineer: 3, smuggler: 4, musician: 5 };
 const PLAYER_FRAME = 0;
 const CITIZEN_FRAME = 6;
-// 접선책은 시민과 같은 프레임을 쓴다 — 전용 스프라이트는 에셋 확장 때 교체한다.
-const BROKER_FRAME = 6;
 
 // 전용 아이들 모션이 있는 동료. 여기 없는 동료는 위 chars.png 프레임으로 폴백한다 —
 // 밀수꾼(smuggler)은 캐릭터 바이블의 밀수업자가 여성(실비아)이라 카이와 성별이 어긋나
@@ -125,7 +123,7 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
     // 이 판에 나올 얼굴은 정해져 있다 — 첫 접선에서 그림이 늦게 붙지 않게 미리 받는다.
-    this.dialogue.preload([...this.state.allies.map((a) => a.id), this.state.broker.id]);
+    this.dialogue.preload(this.state.allies.map((a) => a.id));
     this.result = new ResultOverlay();
     this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
     this.minigame = new MinigamePanel();
@@ -186,17 +184,9 @@ export class StageScene extends Phaser.Scene {
       this.allyNodes.push({ ally, node, label, labelDy, home, jailed: ally.arrested });
     });
 
-    // 접선책 — 코드를 건넬 유일한 창구. 단어를 내지 않으므로 체포·중복 판정과 무관하다.
-    const bz = mapData.spawns.broker;
-    const bpos = bz
-      ? { x: bz.col * TILE + TILE / 2, y: bz.row * TILE + TILE / 2 }
-      : this.state.broker.spawn;
-    this.brokerNode = this.add.sprite(bpos.x, bpos.y, 'chars', BROKER_FRAME).setScale(CHARS_SCALE);
-    worldLabel(this, bpos.x, bpos.y + ALLY_LABEL_DY, this.state.broker.name, {
-      fontFamily: FONTS.body,
-      fontSize: '11px',
-      color: CSS.paperDim,
-    });
+    // 접선책 노드는 없다 — **암호를 건네 맞춘 동료가 그대로 접선책이 된다** (2026-08-04).
+    // 예전에는 별개 인물(요른)이 코드를 받는 유일한 창구였는데, 기획 설정서에 그런 인물이
+    // 없고 접선책 대사는 전부 에이던(watchmaker)의 것이라 같은 사람이 거리에 두 번 서 있었다.
 
     this.#buildSteam();
     this.#buildPlayerLight();
@@ -229,26 +219,14 @@ export class StageScene extends Phaser.Scene {
     this.#showBriefing();
   }
 
-  /** 인터랙션 노드 등록. 체포 상태가 바뀌면 #syncAllyNodes 가 재등록한다. */
+  /**
+   * 인터랙션 노드 등록. 체포 상태가 바뀌면 #syncAllyNodes 가 재등록한다.
+   *
+   * 동료 다섯이 전부다 — 코드를 받는 별도 창구는 없다. 누구에게 건네도 되고,
+   * 맞힌 그 동료가 접선책이 되어 저택으로 데려간다.
+   */
   #registerInteractables() {
     for (const entry of this.allyNodes) this.#registerAllyNode(entry);
-
-    this.interact.register({
-      id: 'broker',
-      type: 'choiceNpc',
-      sprite: this.brokerNode,
-      speaker: `${this.state.broker.name} (${this.state.broker.role})`,
-      line: '태엽 감는 소리 사이로 짧은 한마디.\n"동료들의 단어에서 겹치는 것을 찾아라. 그게 코드다."',
-      portrait: this.state.broker.id,
-      choices: [
-        { label: '암호 말하기', key: 'F' },
-        { label: '그만하기', key: 'Esc' },
-      ],
-      onChoice: (key) => {
-        if (key === 'F') this.#offerCode(this.state.broker);
-        else this.dialogue.hide();
-      },
-    });
   }
 
   #registerAllyNode(entry) {
@@ -627,10 +605,7 @@ export class StageScene extends Phaser.Scene {
         this.dialogue.onChoice('F');
       } else if (!this.dialogue.isOpen && this.interact.current) {
         const cur = this.interact.current;
-        const target =
-          cur.id === 'broker'
-            ? this.state.broker
-            : this.state.allies.find((a) => a.id === cur.id && !a.arrested);
+        const target = this.state.allies.find((a) => a.id === cur.id && !a.arrested);
         if (target) this.#offerCode(target);
       }
     }
@@ -766,7 +741,8 @@ export class StageScene extends Phaser.Scene {
     // 수첩은 DOM 이라 아래의 카메라 페이드가 걸리지 않아 저택까지 따라온다.
     this.clueBook.close();
 
-    const b = this.state.broker;
+    // 코드를 받아 준 그 동료가 접선책이다 — 저택까지 데려가는 사람도 그다.
+    const b = this.state.allies.find((a) => a.id === this.codeTargetId);
     this.dialogue.show(
       `${b.name} (${b.role})`,
       `접선 코드는 「${codeWord}」 였다.\n\n"…맞군. 늦지 않아서 다행이야."`,
@@ -774,10 +750,13 @@ export class StageScene extends Phaser.Scene {
     );
     await this.#beat(2600);
 
+    // 저택에 들어갈 명분은 동료마다 다르다 (personas.json 의 cover) — 시계공이면
+    // 괘종시계, 정비공이면 증기 배관이다. 예전에는 접선책이 시계공 한 사람뿐이라
+    // 이 대사가 고정이었다.
     this.dialogue.show(
       `${b.name} (${b.role})`,
-      '"저택에서 시계 수리공을 구한다더군. 너는 내 보조로 같이 간다.\n\n' +
-        '내가 괘종시계를 붙들고 시간을 끄는 동안, 안에 있는 동료를 찾아 정보를 받아 와."',
+      `"${b.cover} 너는 내 보조로 같이 간다.\n\n` +
+        '내가 안에서 시간을 끄는 동안, 저택에 있는 동료를 찾아 정보를 받아 와."',
       { portrait: b.id },
     );
     await this.#beat(4200);
@@ -787,7 +766,10 @@ export class StageScene extends Phaser.Scene {
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
     this.hud.fadeOut(900); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Mansion'));
+    // 저택으로 접선책을 넘긴다 — 스테이지 2 의 안내인이 이 사람이어야 이야기가 이어진다.
+    this.cameras.main.once('camerafadeoutcomplete', () =>
+      this.scene.start('Mansion', { contact: { id: b.id, name: b.name, role: b.role } }),
+    );
   }
 
   /**
@@ -1079,7 +1061,7 @@ export class StageScene extends Phaser.Scene {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: this.state.sessionId,
-          targetId: this.codeTargetId ?? this.state.broker.id,
+          targetId: this.codeTargetId,
           guess,
         }),
       });
@@ -1098,8 +1080,7 @@ export class StageScene extends Phaser.Scene {
 
       this.#syncAllyNodes();
 
-      const target =
-        this.state.allies.find((a) => a.id === this.codeTargetId) ?? this.state.broker;
+      const target = this.state.allies.find((a) => a.id === this.codeTargetId);
       const maxed = this.state.alertLevel >= 3;
       this.dialogue.reply(
         '접선 실패',

@@ -69,11 +69,17 @@ if (!Object.hasOwn(pool.categories, state.hint.category)) {
 }
 console.log(`힌트 공개: ${state.hint.length}글자 · ${state.hint.category} — OK`);
 
-if (!state.broker?.id) {
-  console.error('\n[!] start 응답에 접선책(broker)이 없다');
+// 2026-08-04: 별개 인물이던 접선책이 사라졌다 — 암호를 맞힌 동료가 그 역할을 잇는다.
+// 응답에 broker 가 남아 있으면 예전 구조가 되살아난 것이다.
+if (state.broker !== undefined) {
+  console.error('\n[!] start 응답에 broker 가 남아 있다 — 접선책은 동료가 겸한다');
   process.exit(1);
 }
-console.log(`접선책: ${state.broker.name} (${state.broker.role}) — OK`);
+if (!state.allies?.every((a) => typeof a.cover === 'string' && a.cover)) {
+  console.error('\n[!] 동료에게 cover(저택에 들어갈 명분)가 없다 — 접선책 연출이 빈다');
+  process.exit(1);
+}
+console.log(`접선책 없음 · 동료 ${state.allies.length}인 모두 cover 보유 — OK`);
 
 console.log('\n접선 시도...');
 const contactRes = await post('/api/stage/contact', { sessionId: state.sessionId, allyId: target.id });
@@ -150,7 +156,7 @@ console.log('동료 대상 오답 → 경계 1 — OK');
 // 오답을 반복해 경계 3(상한)까지 올린다
 for (const n of [2, 3]) {
   const g = await post('/api/stage/guess', {
-    sessionId: state.sessionId, brokerId: state.broker.id, guess: `전혀상관없는말${n}`,
+    sessionId: state.sessionId, targetId: target.id, guess: `전혀상관없는말${n}`,
   });
   const body = await g.json();
   if (body.alertLevel !== n) {
@@ -162,7 +168,7 @@ console.log('오답 누적 → 경계 3 — OK');
 
 // 상한 3 — 레벨 3에서 오답을 더 내도 4가 되지 않는다
 const g4 = await post('/api/stage/guess', {
-  sessionId: state.sessionId, brokerId: state.broker.id, guess: '전혀상관없는말4',
+  sessionId: state.sessionId, targetId: target.id, guess: '전혀상관없는말4',
 });
 const g4body = await g4.json();
 if (g4body.alertLevel !== 3) {

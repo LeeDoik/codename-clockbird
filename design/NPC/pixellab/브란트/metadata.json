@@ -1,0 +1,36 @@
+{
+  "group_id": "e7512787-0f12-467f-bcac-3c92b143246a",
+  "states": [
+    {
+      "character": {
+        "id": "55cd6a50-e5bb-4722-8d6d-58779cb9b1fd",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a 47-year-old resistance veteran commander, big head short limbs chibi proportions (head is 40% of total height), short swept-back grey-white hair with a full grey beard, weathered tanned skin, thick brows over stern narrow eyes, an old scar on the cheek, a broad barrel chest and thick arms, a faded olive-tan short-sleeved work shirt with rolled cuffs, dark brown heavy work trousers, a worn brown leather glove on the left hand, the entire right arm a brass mechanical automail prosthetic with visible pistons, brown leather work boots, steampunk resistance outfit, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 196,
+          "height": 196
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T15:10:23.270654+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-03T15:22:37.904772"
+}

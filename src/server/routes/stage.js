@@ -24,7 +24,7 @@ const load = async (p) => JSON.parse(await readFile(new URL(p, import.meta.url),
 
 const loadData = () =>
   Promise.all([load('../../data/codewords.json'), load('../../data/personas.json')]).then(
-    ([pool, personas]) => ({ pool, allies: personas.allies, broker: personas.broker }),
+    ([pool, personas]) => ({ pool, allies: personas.allies }),
   );
 
 // 프로덕션에서는 1회 읽고 캐시, 개발 모드에서는 매 스테이지 시작마다 다시 읽는다
@@ -50,7 +50,7 @@ function pickRandomCodeWord(pool) {
  */
 router.post('/start', async (req, res, next) => {
   try {
-    const { pool, allies, broker } = await getData();
+    const { pool, allies } = await getData();
     const picked = pickRandomCodeWord(pool);
 
     const gen = await generateAssociations({ codeWord: picked.word, allies });
@@ -63,7 +63,6 @@ router.post('/start', async (req, res, next) => {
       associations: gen.associations,
       duplicateGroups: dup.groups,
       arrestedIds: dup.arrestedIds,
-      broker,
     });
 
     // 서버 콘솔에만 정답을 남긴다 (개발용). 같은 단어를 낸 동료는 시작 시점에 이미 붙잡혀 있다.
@@ -314,12 +313,11 @@ router.post('/guess', async (req, res, next) => {
       return res.status(409).json({ error: '이미 종료된 세션입니다.' });
     }
     if (inCheckpoint(session)) return res.status(409).json({ error: '검문 중입니다.' });
-    // 코드는 접선책 또는 살아 있는 동료 누구에게나 건넬 수 있다 (스펙 §4.2).
+    // 코드는 붙잡히지 않은 동료 누구에게나 건넬 수 있고, **맞히면 그 동료가 접선책이 된다**
+    // (2026-08-04. 예전에는 별개 인물인 접선책이 창구였다).
     // 임의 문자열로 우회하지 못하게 대상 검증은 유지한다 (/alarm 화이트리스트와 같은 원칙).
     const target = targetId ?? brokerId;
-    const validTarget =
-      target === session.broker?.id ||
-      session.allies.some((a) => a.id === target && !a.arrested);
+    const validTarget = session.allies.some((a) => a.id === target && !a.arrested);
     if (!validTarget) {
       return res.status(400).json({ error: '코드를 건넬 수 있는 상대가 아닙니다.' });
     }
@@ -328,9 +326,13 @@ router.post('/guess', async (req, res, next) => {
 
     if (verdict.correct) {
       session.cleared = true;
+      // 맞힌 상대가 곧 접선책이다 — 저택까지 데려가는 사람이라 클라이언트가 이 id 로
+      // 연출과 스테이지 2 인계를 잇는다.
+      session.contactId = target;
       return res.json({
         correct: true,
         codeWord: session.codeWord, // 클리어 후에는 공개해도 안전
+        contactId: target,
         state: toClientView(session),
       });
     }

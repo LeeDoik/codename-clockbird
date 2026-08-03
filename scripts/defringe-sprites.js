@@ -24,7 +24,8 @@
  * 두 켜를 한 마스크로 묶어 한꺼번에 메운다 — 안 그러면 밝은 켜를 메울 때 어두운 켜를
  * 재료로 써서 보랏빛이 안쪽으로 번진다.
  *
- * officer-idle.png 은 손대지 않는다(①이 0개고 ②도 0개 — 애초에 후광이 없다).
+ * PixelLab 에서 온 그림(*-south.png, player-*.png)은 애초에 후광이 없다 — 배경을
+ * 하드컷한 적이 없어서 ①도 ②도 0개다. 굳이 제외하지 않아도 잡히는 픽셀이 없다.
  *
  *   node scripts/defringe-sprites.js            # 기본 대상(npc/·player/) 전부 처리
  *   node scripts/defringe-sprites.js --check    # 안 고치고 수치만 센다
@@ -40,7 +41,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** 기본 대상 폴더. */
 const DIRS = ['src/client/assets/npc', 'src/client/assets/player'];
 /** 후광이 없어서 제외하는 파일. */
-const SKIP = new Set(['officer-idle.png']);
+const SKIP = new Set();
 
 /** 이웃 탐색 최대 반경(체비쇼프). 여기까지도 성한 이웃이 없으면 이번 패스는 건너뛴다. */
 const MAX_RADIUS = 4;

@@ -8,10 +8,10 @@ import mansionBgUrl from '../assets/mansion-bg.png';
 import escapeBgUrl from '../assets/escape-bg.png';
 import mansionDoorUrl from '../assets/mansion-door-open.png';
 import charsUrl from '../assets/chars.png';
-import officerIdleUrl from '../assets/npc/officer-idle.png';
-import t1IdleUrl from '../assets/npc/t1-idle.png';
-import t2IdleUrl from '../assets/npc/t2-idle.png';
-import t3IdleUrl from '../assets/npc/t3-idle.png';
+import officerSouthUrl from '../assets/npc/officer-south.png';
+import t1SouthUrl from '../assets/npc/t1-south.png';
+import t2SouthUrl from '../assets/npc/t2-south.png';
+import t3SouthUrl from '../assets/npc/t3-south.png';
 import watchmakerIdleUrl from '../assets/npc/watchmaker-idle.png';
 import maidIdleUrl from '../assets/npc/maid-idle.png';
 import engineerIdleUrl from '../assets/npc/engineer-idle.png';
@@ -24,6 +24,7 @@ import {
   PLAYER_IDLE_FRAMES,
   PLAYER_WALK_RANGES,
 } from '../entities/playerSprite.js';
+import { NPC_TEXTURE } from '../entities/npcSprite.js';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -54,12 +55,13 @@ export class BootScene extends Phaser.Scene {
     this.load.image('mansion-door-open', mansionDoorUrl);
     // 캐릭터 8프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민 / 7 순찰 로봇
     this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });
-    // 브란트(간부) 아이들 모션 — 432×432 프레임 6×2, 여백 없이 딱 맞물린 시트.
-    this.load.spritesheet('officerIdle', officerIdleUrl, { frameWidth: 432, frameHeight: 432 });
-    // 튜토리얼 동료 3인(레나/미아/오토) 아이들 모션 — 256×256 프레임 6×2.
-    this.load.spritesheet('t1Idle', t1IdleUrl, { frameWidth: 256, frameHeight: 256 });
-    this.load.spritesheet('t2Idle', t2IdleUrl, { frameWidth: 256, frameHeight: 256 });
-    this.load.spritesheet('t3Idle', t3IdleUrl, { frameWidth: 256, frameHeight: 256 });
+    // 본부 NPC 4인 — PixelLab 남향 정지 그림. 200×200 한 장씩이라 spritesheet 가
+    // 아니라 image 로 싣는다. 이 인물들은 제자리에 서 있기만 해서 프레임이 하나면
+    // 충분하다. 규격은 entities/npcSprite.js 가 단일 출처다.
+    this.load.image(NPC_TEXTURE.officer, officerSouthUrl);
+    this.load.image(NPC_TEXTURE.t1, t1SouthUrl);
+    this.load.image(NPC_TEXTURE.t2, t2SouthUrl);
+    this.load.image(NPC_TEXTURE.t3, t3SouthUrl);
     // 거리(스테이지 1) 동료 아이들 모션 — 같은 256×256 12프레임이지만 시트 배치가
     // 6×2 인 것과 12×1 인 것이 섞여 있다. 프레임 크기만 맞으면 인덱스는 같으므로
     // 로더는 구분하지 않는다. 밀수꾼(smuggler)·접선책은 전용 아트가 아직 없어
@@ -87,11 +89,9 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     // 12프레임 아이들 시트 공통 등록 — 시트마다 프레임 수·크기는 같고 키만 다르다.
+    // 본부 4인은 여기 없다: 정지 그림 한 장이라 애니메이션이 없다. 남은 것은
+    // 거리(스테이지 1) 동료들이다.
     for (const key of [
-      'officerIdle',
-      't1Idle',
-      't2Idle',
-      't3Idle',
       'watchmakerIdle',
       'maidIdle',
       'engineerIdle',

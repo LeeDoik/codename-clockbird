@@ -16,6 +16,12 @@ import {
   PLAYER_FRAME_SIZE,
   PLAYER_ORIGIN_Y,
 } from '../entities/playerSprite.js';
+import {
+  NPC_CONTENT_HEIGHT,
+  NPC_FRAME_SIZE,
+  NPC_ORIGIN_Y,
+  NPC_TEXTURE,
+} from '../entities/npcSprite.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
@@ -23,7 +29,7 @@ import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
 
 /**
- * 튜토리얼 — 레지스탕스 본부.
+ * 튜토리얼 — 강철 심장(IRON HEART) 본부.
  *
  * 여기엔 순찰도 검문도 감옥도 없다. 실패해도 판이 끝나지 않는다 (신뢰도만 깎인다).
  * 가르치는 것은 셋이다: 걷고, 말을 걸고, 겹치는 단어를 찾아 한 사람에게 건넨다.
@@ -37,32 +43,43 @@ const PLAYER_FRAME = 0;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = hqData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 
-// 브란트(간부) 아이들 모션: 432×432 프레임, 인물은 그 안의 대략 x[66,360]·
-// y[18,426] 영역을 차지한다(대표 프레임 실측 — 프레임마다 자세가 살짝 달라
-// ±수 px 흔들리는 건 아이들 모션 자체다). 플레이어와 키를 맞춘다.
-const OFFICER_FRAME = 432;
-const OFFICER_CONTENT_HEIGHT = 408;
-const OFFICER_HEIGHT = PLAYER_HEIGHT;
-const OFFICER_SCALE = OFFICER_HEIGHT / OFFICER_CONTENT_HEIGHT;
-const OFFICER_ORIGIN_Y = 426 / OFFICER_FRAME;
-
-/** 이름표·신뢰도 표시를 인물 머리 위 어디에 둘지 (월드 px, 발 기준) */
+/** 이름표를 인물 머리 위 어디에 둘지 (월드 px, 발 기준) */
 const LABEL_DY = PLAYER_HEIGHT + 8;
-const TRUST_DY = PLAYER_HEIGHT + 22;
 
-// 동료 3인(레나·미아·오토) 아이들 모션: 256×256 프레임. 발 위치(216px)는 셋 다
-// 같지만 인물 키(정수리 위치)는 캐릭터마다 달라 실측치로 따로 잡는다.
-const ALLY_FRAME = 256;
-const ALLY_CONTENT_BOTTOM = 216;
-const ALLY_ORIGIN_Y = ALLY_CONTENT_BOTTOM / ALLY_FRAME;
-const ALLY_CONTENT_TOP = { t1: 26, t2: 58, t3: 26 };
-const ALLY_ANIM = { t1: 't1Idle', t2: 't2Idle', t3: 't3Idle' };
+/**
+ * NPC 한 명을 세운다 — PixelLab 남향 정지 그림.
+ *
+ * 인물마다 그림 속 키가 달라(91~98px) 배율을 따로 잡는다. 그래서 화면에서는
+ * 넷이 정확히 같은 키(맵의 charHeight)로 선다. 발이 놓이는 선은 넷이 공유한다
+ * (굽는 쪽에서 맞춰 두었다 — scripts/import-npc-sprites.js).
+ */
+function spawnNpc(scene, id, x, y) {
+  const scale = PLAYER_HEIGHT / NPC_CONTENT_HEIGHT[id];
+  return scene.add
+    .image(x, y, NPC_TEXTURE[id])
+    .setOrigin(0.5, NPC_ORIGIN_Y)
+    .setDisplaySize(NPC_FRAME_SIZE * scale, NPC_FRAME_SIZE * scale);
+}
 
 
+/**
+ * 인물 이름표.
+ *
+ * worldLabel 의 fontSize 는 **월드 기준**이라 화면에 보이는 크기는 맵의 줌이 함께
+ * 정한다. 거리(줌 2)에서 11px 은 화면 22px 이지만, 본부는 줌이 1 이라 같은 11px 이
+ * 화면에서도 11px — 절반이었다. 게다가 본부는 인물이 160px 로 가장 크다.
+ * 그래서 여기만 24px 로 잡는다 (화면 24px = 거리보다 조금 크다).
+ */
 const LABEL_STYLE = {
   fontFamily: FONTS.body,
-  fontSize: '11px',
-  color: CSS.paperDim,
+  fontSize: '24px',
+  // 예전의 흐린 종이색(paperDim)은 돌바닥 무늬 위에서 회색으로 묻혀 안 읽혔다.
+  // `[E] 대화` 말풍선과 **같은 금색**을 쓴다 — 머리 위에 뜨는 글자는 한 가지 색으로
+  // 묶여야 "이건 인물에 딸린 안내"라고 한눈에 읽힌다.
+  color: CSS.brassHi,
+  // 금색이라도 황동 배관이나 불빛 위에서는 배경과 붙는다. 어두운 테두리가 그걸 끊는다.
+  stroke: '#0a0906',
+  strokeThickness: 3,
 };
 
 export class TutorialScene extends Phaser.Scene {
@@ -113,7 +130,7 @@ export class TutorialScene extends Phaser.Scene {
     this.keyEsc = this.input.keyboard.addKey('ESC');
 
     this.hud = new Hud();
-    this.hud.status('레지스탕스 본부 — 훈련');
+    this.hud.status('강철 심장 본부 — 훈련');
     this.hud.keys('[E] 대화    [F] 접선 코드');
 
     this.#start();
@@ -150,11 +167,7 @@ export class TutorialScene extends Phaser.Scene {
     const os = hqData.spawns.officer;
     const ox = os.col * TILE + TILE / 2;
     const oy = os.row * TILE + TILE / 2;
-    this.officerNode = this.add
-      .sprite(ox, oy, 'officerIdle', 0)
-      .setOrigin(0.5, OFFICER_ORIGIN_Y)
-      .setDisplaySize(OFFICER_FRAME * OFFICER_SCALE, OFFICER_FRAME * OFFICER_SCALE)
-      .play('officerIdle');
+    this.officerNode = spawnNpc(this, 'officer', ox, oy);
     const officerLabel = worldLabel(
       this,
       ox,
@@ -169,26 +182,14 @@ export class TutorialScene extends Phaser.Scene {
       const x = sp.col * TILE + TILE / 2;
       const y = sp.row * TILE + TILE / 2;
 
-      const contentHeight = ALLY_CONTENT_BOTTOM - ALLY_CONTENT_TOP[ally.id];
-      const scale = OFFICER_HEIGHT / contentHeight;
-      const node = this.add
-        .sprite(x, y, ALLY_ANIM[ally.id], 0)
-        .setOrigin(0.5, ALLY_ORIGIN_Y)
-        .setDisplaySize(ALLY_FRAME * scale, ALLY_FRAME * scale)
-        .play(ALLY_ANIM[ally.id]);
+      const node = spawnNpc(this, ally.id, x, y);
       const label = worldLabel(this, x, y - LABEL_DY, ally.name, LABEL_STYLE);
-      // 신뢰도는 튜토리얼에만 있는 규칙이라 여기서만 화면에 세운다.
-      const trust = worldLabel(this, x, y - TRUST_DY, '', {
-        ...LABEL_STYLE,
-        fontSize: '12px',
-        color: CSS.brass,
-      });
-      this.asWorld(node, label, trust);
+      this.asWorld(node, label);
 
-      this.allyNodes.push({ ally, node, label, trust });
+      this.allyNodes.push({ ally, node, label });
     });
 
-    this.#refreshTrust();
+    this.#syncAllies();
 
     // 인터랙션 노드 — 간부는 선택지 NPC(코드 제출 창구), 동료는 대화 NPC.
     this.interact.register({
@@ -231,23 +232,35 @@ export class TutorialScene extends Phaser.Scene {
     }
   }
 
-  /** this.state 의 신뢰도를 동료 머리 위 표시(●●/●○/○○)에 반영한다. */
-  #refreshTrust() {
+  /**
+   * 머리 위 노드가 들고 있는 동료 정보를 서버가 방금 준 상태로 갈아 끼운다.
+   *
+   * **화면 갱신이 아니라 대사 갱신이다.** 오답을 내면 서버에서 동료의 신뢰도가 깎이고,
+   * 0 이 되면 그 동료의 `line` 이 강화 힌트(reason)로 바뀌어 내려온다. 여기서 다시
+   * 받아 두지 않으면 E 를 눌렀을 때 처음 받은 힌트를 계속 말한다.
+   *
+   * 신뢰도 자체는 머리 위에 표시하지 않는다 — ●●/●○/○○ 는 벌점처럼 읽히는데
+   * 실제로는 반대로 "깎일수록 더 알려준다"는 장치라, 튜토리얼에서 오히려 헷갈렸다.
+   * 장치는 서버에 그대로 있고 강화 힌트도 그대로 열린다.
+   */
+  #syncAllies() {
     for (const entry of this.allyNodes) {
       const live = this.state.allies.find((a) => a.id === entry.ally.id);
       if (live) entry.ally = live;
-      entry.trust.setText('●'.repeat(entry.ally.trust) + '○'.repeat(2 - entry.ally.trust));
     }
   }
 
   #showBriefing() {
     this.dialogue.show(
       `${this.state.officer.name} (${this.state.officer.role})`,
-      // 스토리보드(튜토리얼 본부 맵.dc.html) 의 chiefBrief 를 옮겼다.
-      '"브루주아 대저택에 심상치 않은 일이 있다는 소식이다.\n\n' +
-        '거리의 동료들이 잠입 방법을 준비해 뒀다고 한다. 동료를 만나 접선 코드를 말하고 합류해라.\n' +
-        '동료들이 말하는 단어들을 조합해서 접선 코드를 유추해라. 로봇들은 알 수 없는 방법이지.\n\n' +
-        '준비되어 있는지 한번 확인해볼까? 여기 동료들과 대화로 코드를 유추해 봐.\n' +
+      // 기획 설정서(2026-08-04 판) '캐릭터 대사' 시트의 브란트 — 튜토리얼 시작 대사.
+      // 조작 안내 한 줄만 게임 쪽에서 덧붙였다(설정서에는 조작 설명이 없다).
+      '"이번 임무는 알드리치 폰 바이스 백작의 저택에 잠입해, 수상한 소문의 정체를 파악하는 일이다.\n\n' +
+        '거리의 동료들이 잠입 경로를 확보하고 있으니, 합류할 수 있도록.\n' +
+        '동료들과 접선하는 방식은 이미 알고 있겠지?\n\n' +
+        '각자 동료들이 말하는 단서를 모아, 접선 암호가 무엇인지 유추한다.\n' +
+        '고철 덩어리 놈들은 할 수 없는 방식이지!\n\n' +
+        '준비되어 있는지 한번 확인해볼까?\n' +
         '[WASD] 로 걷고, 동료 앞에서 [E]. 답을 찾으면 내 앞에서 [F]."',
       { portrait: this.state.officer.id },
     );
@@ -402,7 +415,7 @@ export class TutorialScene extends Phaser.Scene {
     }
 
     this.state = result.state;
-    this.#refreshTrust();
+    this.#syncAllies();
 
     if (result.correct) {
       this.#clear(result.codeWord);
@@ -448,8 +461,11 @@ export class TutorialScene extends Phaser.Scene {
     // 창을 닫아 뒀더라도 이건 띄운다 — 코드를 밝히는 대사이고, 곧 씬이 넘어간다.
     this.dialogue.show(
       `${this.state.officer.name} (${this.state.officer.role})`,
+      // 기획 설정서(2026-08-04 판) '캐릭터 대사' 시트의 브란트 — 튜토리얼 완료 대사.
       `접선 코드는 「${codeWord}」 였다.\n\n` +
-        '"이제 알겠지. 거리에서도 방식은 같다.\n\n가라. 시계 수리공이 기다린다."',
+        '"좋아. 방법은 확실히 아는 것 같군.\n\n' +
+        '하지만 실전에서는 이렇게 친절하지 않을 테니 정신 바짝 차리도록.\n\n' +
+        '가라. 시계 수리공이 기다린다."',
       { portrait: this.state.officer.id },
     );
     this.time.delayedCall(2600, () => this.#goStage());
