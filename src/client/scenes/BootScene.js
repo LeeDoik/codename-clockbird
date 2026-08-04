@@ -12,6 +12,16 @@ import officerSouthUrl from '../assets/npc/officer-south.png';
 import t1SouthUrl from '../assets/npc/t1-south.png';
 import t2SouthUrl from '../assets/npc/t2-south.png';
 import t3SouthUrl from '../assets/npc/t3-south.png';
+import butlerSouthUrl from '../assets/npc/butler-south.png';
+import cookSouthUrl from '../assets/npc/cook-south.png';
+import gardenerSouthUrl from '../assets/npc/gardener-south.png';
+import washerSouthUrl from '../assets/npc/washer-south.png';
+import shelverSouthUrl from '../assets/npc/shelver-south.png';
+import dinerSouthUrl from '../assets/npc/diner-south.png';
+import cleanerSouthUrl from '../assets/npc/cleaner-south.png';
+import clerkSouthUrl from '../assets/npc/clerk-south.png';
+import guardSouthUrl from '../assets/npc/guard-south.png';
+import coachSouthUrl from '../assets/npc/coach-south.png';
 import watchmakerIdleUrl from '../assets/npc/watchmaker-idle.png';
 import maidIdleUrl from '../assets/npc/maid-idle.png';
 import engineerIdleUrl from '../assets/npc/engineer-idle.png';
@@ -62,6 +72,17 @@ export class BootScene extends Phaser.Scene {
     this.load.image(NPC_TEXTURE.t1, t1SouthUrl);
     this.load.image(NPC_TEXTURE.t2, t2SouthUrl);
     this.load.image(NPC_TEXTURE.t3, t3SouthUrl);
+    // 저택(스테이지 2) NPC 10인 — 같은 규격의 정지 그림이다.
+    this.load.image(NPC_TEXTURE.butler, butlerSouthUrl);
+    this.load.image(NPC_TEXTURE.cook, cookSouthUrl);
+    this.load.image(NPC_TEXTURE.gardener, gardenerSouthUrl);
+    this.load.image(NPC_TEXTURE.washer, washerSouthUrl);
+    this.load.image(NPC_TEXTURE.shelver, shelverSouthUrl);
+    this.load.image(NPC_TEXTURE.diner, dinerSouthUrl);
+    this.load.image(NPC_TEXTURE.cleaner, cleanerSouthUrl);
+    this.load.image(NPC_TEXTURE.clerk, clerkSouthUrl);
+    this.load.image(NPC_TEXTURE.guard, guardSouthUrl);
+    this.load.image(NPC_TEXTURE.coach, coachSouthUrl);
     // 거리(스테이지 1) 동료 아이들 모션 — 같은 256×256 12프레임이지만 시트 배치가
     // 6×2 인 것과 12×1 인 것이 섞여 있다. 프레임 크기만 맞으면 인덱스는 같으므로
     // 로더는 구분하지 않는다. 밀수꾼(smuggler)·접선책은 전용 아트가 아직 없어

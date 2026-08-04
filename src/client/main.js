@@ -26,7 +26,20 @@ const game = new Phaser.Game({
   backgroundColor: '#231f19',
   physics: {
     default: 'arcade',
-    arcade: { debug: false },
+    arcade: {
+      debug: false,
+      /**
+       * 프레임 간격 그대로 물리를 돌린다.
+       *
+       * Phaser 3.60 부터 arcade 는 fixedStep 이 기본 켜짐이라 물리가 60Hz 로 고정된다.
+       * 화면이 그보다 빠르면(실측: 렌더 167Hz · 물리 61Hz) 인물 위치가 세 프레임에 한 번만
+       * 갱신돼서 5.6 → 0 → 0 → 5.6 으로 튄다 — 걸을 때 "약간 떠는" 것처럼 보이던 원인이다.
+       * 끄면 매 프레임 delta 만큼 움직여 주사율과 무관하게 매끄럽다.
+       *
+       * 이 게임의 충돌은 느린 속도의 사각형 몇 개뿐이라 가변 스텝으로 뚫릴 걱정은 없다.
+       */
+      fixedStep: false,
+    },
   },
   // Boot(에셋 로드 + 스테이지 fetch 착수) → Intro(오프닝) → Tutorial(본부 훈련)
   //   → Stage(거리) → Mansion(저택 잠입) → Escape(지하 탈출) → Ending(본부 귀환)

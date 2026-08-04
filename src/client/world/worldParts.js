@@ -123,7 +123,16 @@ export function setupCameras(scene, mapData, player, zoom = mapData.cameraZoom ?
   const main = scene.cameras.main;
   main.setZoom(zoom);
   main.setBounds(0, 0, w, h);
-  main.startFollow(player, true, 0.15, 0.15);
+  // ⚠ 두 번째 인자(roundPixels)는 **false** 여야 한다.
+  //
+  // true 면 카메라 스크롤이 월드 정수 픽셀로 반올림된다. 줌이 정수인 맵에서는 티가 안 나지만,
+  // 저택(줌 1.5)에서는 스크롤 한 칸이 화면 1.5px 이라 인물의 화면 위치가 매끄럽게 못 는다 —
+  // 실측하면 좌우로 걸을 때 프레임당 이동이 8.4 → 0 → 0 → 8.4 로 튀어 인물이 떠는 것처럼 보였다.
+  // 스크롤을 소수로 두면 그 계단이 사라진다.
+  //
+  // 그림이 뭉개질 걱정은 없다 — main.js 의 pixelArt:true 가 렌더러 차원에서 그리는 위치를
+  // 정수 화면 픽셀로 스냅한다. 여기서 한 번 더 반올림할 이유가 없다.
+  main.startFollow(player, false, 0.15, 0.15);
 
   const ui = scene.cameras.add(0, 0, scene.scale.width, scene.scale.height);
   ui.ignore(scene.children.list);

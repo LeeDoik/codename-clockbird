@@ -85,7 +85,13 @@ console.log('\n[1] /start');
 const t0 = Date.now();
 const a = await start();
 console.log(`  응답 ${Date.now() - t0}ms`);
-ok(a.view.npcs.length === 8, 'NPC 8명', `${a.view.npcs.length}명`);
+// 인원수는 mansion.json 이 정한다 — 여기 숫자를 박아 두면 배치가 바뀔 때마다 이 줄이
+// 먼저 깨진다 (2026-08-04 에 8명 → 10명이 되면서 실제로 그랬다).
+ok(
+  a.view.npcs.length === cast.npcs.length,
+  `NPC ${cast.npcs.length}명`,
+  `${a.view.npcs.length}명`,
+);
 for (const word of ['kind', 'favor', 'suspicion', 'persona', 'rewards', 'keyHolder']) {
   ok(!a.raw.includes(`"${word}"`), `'${word}' 미유출`);
 }
@@ -189,25 +195,22 @@ if (halted) {
   ok(again.event?.event !== 'halted', '곧바로 다시 굳지 않는다', again.event?.event ?? '변화 없음');
 }
 
-// ── 6. 조사 오브젝트 — inspect 열람 · 표식 · 비유출 ────────────────
-console.log('\n[6] 조사 오브젝트 (obj-ledger) inspect');
+// ── 6. 조사 오브젝트 — 지금은 없다 ────────────────────────────────
+//
+// 2026-08-04 스테이지 2 를 다시 짜면서 조사 오브젝트 여덟 개를 전부 걷어냈다
+// (기획 요청: "상호작용 요소 다 지워줘"). 그래서 여기서는 **비어 있음**과 비유출만 본다.
+// 다시 넣으면 이 절을 예전처럼 inspect 왕복으로 되돌려야 한다 — 그때까지 조용히
+// 통과하지 않도록, 오브젝트가 생기면 알아채게 해 둔다.
+console.log('\n[6] 조사 오브젝트 (지금은 비어 있어야 한다)');
 const d = await start();
-const objInView = d.view.objects?.find((o) => o.id === 'obj-ledger');
-ok(Boolean(objInView), 'obj-ledger 가 /start 뷰에 있다');
-ok(objInView?.found === false, 'found 초기값 false', String(objInView?.found));
+const objs = d.view.objects ?? [];
+ok(objs.length === 0, '조사 오브젝트가 비어 있다', `${objs.length}개`);
+if (objs.length > 0) {
+  console.log('    → 오브젝트를 다시 넣었다면 이 절을 inspect 왕복 검사로 되돌려라.');
+}
 for (const word of ['topic', 'npcId', 'text']) {
   ok(!d.raw.includes(`"${word}"`), `objects 에서 '${word}' 미유출`);
 }
-
-const insRes = await fetch(`${BASE}/api/mansion/inspect`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ sessionId: d.view.sessionId, objectId: 'obj-ledger' }),
-});
-const ins = await insRes.json();
-ok(insRes.ok, 'inspect 200', String(insRes.status));
-ok(Boolean(ins.text?.includes('배급 장부')), 'inspect 본문에 단서 원문');
-ok(ins.state?.objects?.find((o) => o.id === 'obj-ledger')?.found === true, 'inspect 후 found 반영');
 
 // ── 7. 열쇠가 있으면 /document 가 열린다 (클리어 게이트) ───────────
 // 개발 플래그로 열쇠만 세우고 확인한다 — 대화를 태우지 않으므로 LLM 호출이 0이다.

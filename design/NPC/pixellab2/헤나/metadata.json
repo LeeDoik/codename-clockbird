@@ -1,0 +1,36 @@
+{
+  "group_id": "3bbc35b7-bc30-4668-acc1-e510a2a25f34",
+  "states": [
+    {
+      "character": {
+        "id": "b56fca37-4061-4495-87d9-6c9d60f88542",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a 31-year-old mansion coachwoman, big head short limbs chibi proportions (head is 40% of total height), long wavy brown hair tied back, sun-tanned skin, bold confident eyes, a long olive-green coachman coat with a wide collar worn open, a brown high-collar jacket and brown riding breeches beneath, brown leather gloves, a coiled leather whip at the waist, tall brown riding boots, victorian coachman outfit, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 200,
+          "height": 200
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T16:44:22.586314+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-03T17:53:06.812267"
+}

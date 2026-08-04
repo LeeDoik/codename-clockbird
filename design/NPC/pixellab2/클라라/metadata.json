@@ -1,0 +1,36 @@
+{
+  "group_id": "428c9f15-c84c-4689-866c-042823fb8673",
+  "states": [
+    {
+      "character": {
+        "id": "692b991f-ce6c-45df-841d-fa22bab9d381",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a 44-year-old head cook woman, big head short limbs chibi proportions (head is 40% of total height), grey-blonde hair under a tall white chef's toque, rosy plump cheeks and a hearty commanding smile, a cream-white cooking uniform with rolled sleeves, a large cream apron, a rust-brown neckerchief, brown leather gloves, a brown underskirt, brown leather boots, a long brass ladle over one shoulder, victorian mansion kitchen outfit, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 204,
+          "height": 204
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T16:21:38.482182+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-03T17:53:24.840667"
+}

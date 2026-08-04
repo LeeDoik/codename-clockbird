@@ -33,7 +33,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { decodePng, encodePng } from './png.js';
 
-const SRC_DIR = 'design/NPC/pixellab';
 const OUT_DIR = 'src/client/assets/npc';
 
 /**
@@ -48,10 +47,23 @@ const OUT_DIR = 'src/client/assets/npc';
  *   힌트 아홉 줄을 전부 다시 써야 하므로 인물 쪽을 옮겼다.
  */
 const CHARACTERS = [
-  { dir: '브란트', id: 'officer', label: '브란트 → 간부' },
-  { dir: '에이다', id: 't1', label: '에이다 → 경리(색상)' },
-  { dir: '토마스', id: 't2', label: '토마스 → 총무(분류)' },
-  { dir: '리아', id: 't3', label: '리아 → 정비공(특징)' },
+  // ── 본부 (튜토리얼·엔딩) — id 는 담당 축의 키다 (색상·분류·특징) ──
+  { src: 'pixellab', dir: '브란트', face: 'south', id: 'officer', label: '브란트 → 간부' },
+  { src: 'pixellab', dir: '에이다', face: 'south', id: 't1', label: '에이다 → 경리(색상)' },
+  { src: 'pixellab', dir: '토마스', face: 'south', id: 't2', label: '토마스 → 총무(분류)' },
+  { src: 'pixellab', dir: '리아', face: 'south', id: 't3', label: '리아 → 정비공(특징)' },
+  // ── 저택 (스테이지 2) — id 는 초상 파일명과 짝이다 ──
+  { src: 'pixellab2', dir: '세드릭', face: 'south', id: 'butler', label: '세드릭 → 집사' },
+  { src: 'pixellab2', dir: '클라라', face: 'south', id: 'cook', label: '클라라 → 주방장' },
+  { src: 'pixellab2', dir: '오스카', face: 'south', id: 'gardener', label: '오스카 → 정원사' },
+  { src: 'pixellab2', dir: '에밀리', face: 'south', id: 'washer', label: '에밀리 → 메이드' },
+  // 사무엘만 북동향이다 — 기획 배치도에서 그가 살짝 왼쪽 위를 보고 서 있다.
+  { src: 'pixellab2', dir: '사무엘', face: 'north-east', id: 'shelver', label: '사무엘 → 창고지기(북동)' },
+  { src: 'pixellab2', dir: '피터', face: 'south', id: 'diner', label: '피터 → 시종' },
+  { src: 'pixellab2', dir: '조셉', face: 'south', id: 'cleaner', label: '조셉 → 청소부' },
+  { src: 'pixellab2', dir: '올리버', face: 'south', id: 'clerk', label: '올리버 → 사무원' },
+  { src: 'pixellab2', dir: '빅터', face: 'south', id: 'guard', label: '빅터 → 경비대장' },
+  { src: 'pixellab2', dir: '헤나', face: 'south', id: 'coach', label: '헤나 → 마부' },
 ];
 
 /** 알파가 이보다 진해야 인물로 친다 — 가장자리 반투명 픽셀에 경계상자가 끌려가지 않게. */
@@ -94,7 +106,7 @@ function place(img, F, dx, dy) {
 // ── 읽기 ──────────────────────────────────────────────────────────
 
 for (const c of CHARACTERS) {
-  const p = path.join(SRC_DIR, c.dir, 'Idle/rotations/south.png');
+  const p = path.join('design/NPC', c.src, c.dir, `Idle/rotations/${c.face}.png`);
   if (!fs.existsSync(p)) throw new Error(`내보내기가 없다: ${p}`);
   c.src = decodePng(fs.readFileSync(p));
   if (c.src.w !== c.src.h) throw new Error(`${c.dir}: 프레임이 정사각이 아니다 (${c.src.w}×${c.src.h})`);

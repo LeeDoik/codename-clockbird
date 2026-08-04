@@ -18,6 +18,12 @@ import {
   PLAYER_FRAME_SIZE,
   PLAYER_ORIGIN_Y,
 } from '../entities/playerSprite.js';
+import {
+  NPC_CONTENT_HEIGHT,
+  NPC_FRAME_SIZE,
+  NPC_ORIGIN_Y,
+  NPC_TEXTURE,
+} from '../entities/npcSprite.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
@@ -49,71 +55,63 @@ const PLAYER_FRAME = 0;
 /** 화면에 보일 인물 높이 — 맵이 정한다 (worldParts.DEFAULT_CHAR_HEIGHT 참고). */
 const PLAYER_HEIGHT = mansionData.charHeight ?? DEFAULT_CHAR_HEIGHT;
 /**
- * chars.png(32×32 한 프레임) 인물을 이 맵의 축척으로 키운다.
- * 무배율로 두면 새 저택 그림에서 직원들만 절반 크기로 선다 (거리도 같은 문제였다).
+ * 이름표는 정수리 위. NPC 는 PixelLab 정지 그림이라 원점이 **발**이므로
+ * 인물 키만큼 통째로 올린다 (chars.png 시절에는 중심이 원점이라 절반만 올렸다).
  */
-const CHARS_SCALE = PLAYER_HEIGHT / 32;
-/** 이름표는 정수리 위 — chars.png 인물은 스프라이트 **중심**이 자리라 절반만 올린다. */
-const LABEL_DY = -(PLAYER_HEIGHT * 0.5 + 8);
+const LABEL_DY = -(PLAYER_HEIGHT + 8);
+
 
 /**
- * chars.png 프레임 배정. 전용 스프라이트는 아직 없다.
+ * 인물 이름표. 본부와 같은 규칙이다 — 흐린 종이색 11px 은 밝은 마루 위에서 회색으로
+ * 묻혀 안 읽혔다. `[E] 대화` 말풍선과 같은 금색에 어두운 테두리를 둘러 끊어 준다.
  *
- * **동료와 민간인이 같은 프레임을 나눠 쓴다** — 동료에게만 특정 모습을 주면 옷차림만
- * 보고 정답을 알 수 있어 이 스테이지의 퍼즐이 통째로 무너진다.
+ * ⚠ worldLabel 의 크기는 **월드 기준**이라 화면 크기는 맵의 줌이 함께 정한다.
+ * 본부는 줌 1 이라 24px 이 곧 화면 24px 이지만, 저택은 줌 1.5 라 16px 이 화면 24px 이다.
+ * 두 스테이지에서 같은 크기로 보이게 하려면 이 값이 달라야 한다.
  */
-const NPC_FRAME = {
-  fixer: 1,
-  cook: 2,
-  washer: 6,
-  shelver: 4,
-  diner: 2,
-  cleaner: 6,
-  clerk: 3,
-  gardener: 3,
-  butler: 4,
+const LABEL_STYLE = {
+  fontFamily: FONTS.body,
+  fontSize: '16px',
+  color: CSS.brassHi,
+  stroke: '#0a0906',
+  strokeThickness: 3,
 };
-
-const LABEL_STYLE = { fontFamily: FONTS.body, fontSize: '11px', color: CSS.paperDim };
 
 /** 지금 있는 방이 아닌 곳을 덮는 어둠. 안에 누가 있는지 문 밖에서는 안 보인다. */
 const SHROUD_DIM = 0.68;
 /**
- * 잠긴 방은 영영 안 걷힌다. 다만 완전히 덮으면 그냥 검은 사각형이라
+ * 연구실은 열쇠를 얻기 전까지 안 걷힌다. 다만 완전히 덮으면 그냥 검은 사각형이라
  * "무언가 있는데 안 보인다"가 아니라 "아무것도 없다"로 읽힌다 —
- * 안의 태엽 장치와 침대가 실루엣으로만 잡히는 정도로 남긴다 (스테이지 3 복선).
+ * 안의 태엽 장치가 실루엣으로만 잡히는 정도로 남긴다.
  */
 const SHROUD_LOCKED = 0.85;
 const SHROUD_COLOR = 0x05040a;
 /**
- * 늘 밝은 방. 홀은 요른이 시계를 고치며 시간을 끄는 거점이고 모든 길이 여기서 갈라진다 —
+ * 늘 밝은 방. 로비는 들어온 자리이자 모든 길이 갈라지는 곳이다 —
  * 여기까지 어두워지면 돌아올 자리가 없어 방향 감각이 통째로 사라진다.
  */
-const ALWAYS_LIT = new Set(['hall']);
+const ALWAYS_LIT = new Set(['lobby']);
 
-/** 연구실 문서 받침대 — 스테이지 목표. 잠긴 연구실(rooms.lab) 안쪽이다. */
-const DOCUMENT = { name: '신형 로봇 기록', col: 48, row: 17 };
 /**
- * 홀과 벽 없이 맞닿는 방과, 그 경계에서 어둠이 풀어질 거리(칸).
- *
- * 다른 방들은 사이에 벽이 있어 덮개의 각진 끝이 벽에 가려진다. 복도만 홀의 윗변과
- * 직접 붙어 있어, 평평한 사각형으로 덮으면 마루 한가운데 검은 선이 그어진다.
+ * 연구실 문서 받침대 — 스테이지 목표. 잠긴 연구실(rooms.lab) 안쪽이다.
+ * 2026-08-04 격자가 58→59칸이 되면서 다른 좌표와 함께 한 칸 옮겼다(47→48).
  */
-const FADE_INTO_HALL = { corr: 6 };
+const DOCUMENT = { name: '신형 로봇 기록', col: 49, row: 17 };
+/**
+ * 어둠 덮개의 가장자리가 풀어지는 거리(칸).
+ *
+ * 예전에는 평평한 사각형으로 덮어서 방 경계에 칼같은 직선이 그어졌다 — 벽이 있는 자리는
+ * 벽이 가려 줬지만, 벽 없이 이어지는 자리(중앙 복도의 위·아래)에서는 마루 한가운데 검은
+ * 선이 보였다. 이제 **모든 방의 사방**을 풀어 준다.
+ */
+const SHROUD_FEATHER = 3;
 
 export class MansionScene extends Phaser.Scene {
   constructor() {
     super('Mansion');
   }
 
-  /**
-   * @param {{contact?: {id: string, name: string, role: string}}} [data]
-   *   스테이지 1 에서 **암호를 맞힌 동료**. 그 사람이 저택까지 데려온 접선책이라
-   *   여기서도 안내인이 같은 사람이어야 이야기가 이어진다. 없으면(?stage2 로 바로
-   *   들어온 개발 경로) mansion.json 의 기본 안내인을 그대로 쓴다.
-   */
-  init(data) {
-    this.contact = data?.contact ?? null;
+  init() {
     this.state = null;
     this.nodes = [];
     this.ended = false;
@@ -190,47 +188,87 @@ export class MansionScene extends Phaser.Scene {
    * 동료를 찾아내는 것이 이 스테이지의 과제라 이건 연출이 아니라 규칙에 가깝다.
    */
   #buildShroud() {
-    this.#makeFadeTexture();
-
     for (const r of mansionData.rooms) {
       if (ALWAYS_LIT.has(r.id)) continue; // 덮개를 아예 안 만든다
-      const x0 = r.x * TILE;
-      const y0 = r.y * TILE;
-      const w = r.w * TILE;
-      const h = r.h * TILE;
-      const fade = (FADE_INTO_HALL[r.id] ?? 0) * TILE;
+      // 방 하나가 사각형 여럿일 수 있다 (서재(아래)가 ㄱ자다).
+      const rects = r.rects ?? [{ x: r.x, y: r.y, w: r.w, h: r.h }];
 
       // 조각을 컨테이너로 묶는다 — 컨테이너 alpha 가 자식에게 곱해지므로
       // 밝기 조절은 여전히 값 하나를 트윈하면 된다.
       const parts = this.add.container(0, 0);
-      // Rectangle 은 x·y 가 중심이다.
-      parts.add(
-        this.add.rectangle(x0 + w / 2, y0 + (h - fade) / 2, w, h - fade, SHROUD_COLOR),
-      );
-      if (fade > 0) {
-        parts.add(
-          this.add.image(x0, y0 + h - fade, 'shroud-fade').setOrigin(0, 0).setDisplaySize(w, fade),
-        );
+      for (const rect of rects) {
+        // 이음매는 풀지 않는다 — 조각 사이를 풀면 방 한가운데 밝은 띠가 생긴다.
+        parts.add(this.#featheredShroud(rect, r, rects));
       }
       // NPC(0)·김(6)보다 위, 플레이어(30)보다 아래.
-      parts.setAlpha(r.id === 'locked' ? SHROUD_LOCKED : SHROUD_DIM).setDepth(20);
+      parts.setAlpha(r.id === 'lab' ? SHROUD_LOCKED : SHROUD_DIM).setDepth(20);
       this.asWorld(parts);
       this.shroud.set(r.id, parts);
     }
   }
 
-  /** 위는 짙고 아래로 갈수록 풀어지는 띠. 세로로 늘여 경계에 깐다. */
-  #makeFadeTexture() {
-    if (this.textures.exists('shroud-fade')) return;
-    const H = 96;
-    const g = this.make.graphics({ add: false });
-    for (let i = 0; i < H; i++) {
-      // 제곱으로 떨어뜨린다 — 선형이면 시작하는 지점에 선이 보인다.
-      g.fillStyle(SHROUD_COLOR, (1 - i / (H - 1)) ** 1.7);
-      g.fillRect(0, i, 4, 1);
+  /**
+   * 사각형 하나를 덮는 덮개. 가장자리가 바깥으로 갈수록 옅어진다.
+   *
+   * 안쪽은 꽉 찬 사각형 하나로 칠하고, 바깥으로 겹치지 않는 테를 한 겹씩 두르며 알파를
+   * 떨어뜨린다. 겹치지 않게 그리므로 알파가 곱해져 진해지는 일이 없다.
+   * 방의 바깥 가장자리만 푼다 — 다른 조각과 맞닿는 변은 그대로 둬야 이음매가 안 보인다.
+   */
+  #featheredShroud(rect, room, rects) {
+    const x0 = rect.x * TILE;
+    const y0 = rect.y * TILE;
+    const w = rect.w * TILE;
+    const h = rect.h * TILE;
+    // 풀림 폭은 방 크기에 맞춰 줄인다 — 작은 방(빈 방은 6칸 높이)에서 고정 폭을 쓰면
+    // 양쪽 풀림이 가운데서 만나 꽉 찬 안쪽이 사라지고, 방 전체가 훤해진다.
+    const F = Math.min(SHROUD_FEATHER * TILE, w / 3, h / 3);
+
+    /** 이 변이 같은 방의 다른 조각과 맞닿는가 — 맞닿으면 풀지 않는다. */
+    const joins = (side) =>
+      rects.some((o) => {
+        if (o === rect) return false;
+        const ox0 = o.x * TILE, oy0 = o.y * TILE, ox1 = ox0 + o.w * TILE, oy1 = oy0 + o.h * TILE;
+        if (side === 'left') return ox1 === x0 && oy0 < y0 + h && oy1 > y0;
+        if (side === 'right') return ox0 === x0 + w && oy0 < y0 + h && oy1 > y0;
+        if (side === 'top') return oy1 === y0 && ox0 < x0 + w && ox1 > x0;
+        return oy0 === y0 + h && ox0 < x0 + w && ox1 > x0;
+      });
+    const fl = joins('left') ? 0 : F;
+    const fr = joins('right') ? 0 : F;
+    const ft = joins('top') ? 0 : F;
+    const fb = joins('bottom') ? 0 : F;
+
+    const g = this.add.graphics();
+    // 꽉 찬 안쪽
+    g.fillStyle(SHROUD_COLOR, 1);
+    g.fillRect(x0 + fl, y0 + ft, Math.max(0, w - fl - fr), Math.max(0, h - ft - fb));
+
+    // 안쪽 사각형에서 바깥으로 한 겹씩 두른다. 겹치지 않게 그리므로 알파가 곱해져
+    // 진해지는 일이 없다. 제곱으로 떨어뜨린다 — 선형이면 시작하는 지점에 선이 보인다.
+    const STEPS = 12;
+    // 겹 하나의 두께. 안 푸는 변은 0 이라 그쪽으로는 자라지 않는다.
+    const dl = fl / STEPS, dr2 = fr / STEPS, dt = ft / STEPS, db = fb / STEPS;
+    for (let i = 1; i <= STEPS; i++) {
+      const a = (1 - i / STEPS) ** 1.7;
+      if (a <= 0.004) break;
+      g.fillStyle(SHROUD_COLOR, a);
+      // 이번 겹의 바깥 테두리
+      const ox = x0 + fl - dl * i;
+      const oy = y0 + ft - dt * i;
+      const ow = w - fl - fr + dl * i + dr2 * i;
+      const oh = h - ft - fb + dt * i + db * i;
+      // 지난 겹의 바깥 테두리 (이 안쪽은 이미 칠했다)
+      const ix = x0 + fl - dl * (i - 1);
+      const iy = y0 + ft - dt * (i - 1);
+      const iw = w - fl - fr + dl * (i - 1) + dr2 * (i - 1);
+      const ih = h - ft - fb + dt * (i - 1) + db * (i - 1);
+      // 사이의 고리를 네 조각으로 (위·아래는 폭 전체, 좌·우는 그 사이만)
+      if (iy - oy > 0) g.fillRect(ox, oy, ow, iy - oy);
+      if (oy + oh - (iy + ih) > 0) g.fillRect(ox, iy + ih, ow, oy + oh - (iy + ih));
+      if (ix - ox > 0) g.fillRect(ox, iy, ix - ox, ih);
+      if (ox + ow - (ix + iw) > 0) g.fillRect(ix + iw, iy, ox + ow - (ix + iw), ih);
     }
-    g.generateTexture('shroud-fade', 4, H);
-    g.destroy();
+    return g;
   }
 
   /**
@@ -242,7 +280,8 @@ export class MansionScene extends Phaser.Scene {
    */
   #setRoomLight(room, lit) {
     const s = this.shroud.get(room.id);
-    if (!s || room.id === 'locked') return; // 잠긴 방은 영영 안 걷힌다
+    // 연구실은 열쇠로 문을 열기 전까지 안 걷힌다 — 문이 열리면 #syncLabDoor 가 덮개를 지운다.
+    if (!s || (room.id === 'lab' && !this.labUnlocked)) return;
     const target = lit ? 0 : SHROUD_DIM;
     if (s.alpha === target) return;
     // 들고 나기를 빨리 반복하면 트윈이 겹쳐 어중간한 밝기에서 멈춘다.
@@ -352,11 +391,6 @@ export class MansionScene extends Phaser.Scene {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       this.state = data;
-      // 안내인을 스테이지 1 의 접선책으로 갈아 끼운다 — 자리·대사는 맵이 정한 그대로 두고
-      // 사람만 바꾼다. 초상(id)까지 바꿔야 대화창 얼굴이 거리에서 본 그 동료가 된다.
-      if (this.contact) {
-        this.state.escort = { ...this.state.escort, ...this.contact };
-      }
       this.startFailed = false;
     } catch (err) {
       this.startFailed = true;
@@ -374,9 +408,18 @@ export class MansionScene extends Phaser.Scene {
 
   #spawnNpcs() {
     const place = (npc) => {
+      // 자리가 없는 인물은 세우지 않는다 — 지금은 안내인(에이던)이 그렇다.
+      // 저택용 그림이 아직 없어 브리핑 대사만 나온다 (src/data/mansion.json 주석).
+      if (npc.col == null || npc.row == null) return;
       const x = npc.col * TILE + TILE / 2;
       const y = npc.row * TILE + TILE / 2;
-      const sprite = this.add.sprite(x, y, 'chars', NPC_FRAME[npc.id] ?? 6).setScale(CHARS_SCALE);
+      // PixelLab 남향 정지 그림. 인물마다 그림 속 키가 달라 배율을 따로 잡는다 —
+      // 그래서 화면에서는 전원이 맵의 charHeight 로 똑같이 선다.
+      const scale = PLAYER_HEIGHT / NPC_CONTENT_HEIGHT[npc.id];
+      const sprite = this.add
+        .image(x, y, NPC_TEXTURE[npc.id])
+        .setOrigin(0.5, NPC_ORIGIN_Y)
+        .setDisplaySize(NPC_FRAME_SIZE * scale, NPC_FRAME_SIZE * scale);
       const label = worldLabel(this, x, y + LABEL_DY, npc.name, LABEL_STYLE);
       this.asWorld(sprite, label);
       this.nodes.push({ npc, sprite, label });
@@ -492,6 +535,10 @@ export class MansionScene extends Phaser.Scene {
       this.add.image(door.x * TILE, door.y * TILE, 'mansion-door-open').setOrigin(0, 0).setDepth(-90),
     );
     this.labUnlocked = true;
+    // 덮개를 잠긴 상태(0.85)에서 보통 상태로 돌린다 — 안 그러면 문을 열고 들어가도
+    // 방이 계속 어둡다. 지금 그 방에 서 있으면 곧바로 밝아진다.
+    const lab = mansionData.rooms.find((r) => r.id === 'lab');
+    if (lab) this.#setRoomLight(lab, this.currentRoom?.id === 'lab');
 
     this.interact.register({
       id: 'document',

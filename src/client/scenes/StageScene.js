@@ -766,10 +766,7 @@ export class StageScene extends Phaser.Scene {
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
     this.hud.fadeOut(900); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
-    // 저택으로 접선책을 넘긴다 — 스테이지 2 의 안내인이 이 사람이어야 이야기가 이어진다.
-    this.cameras.main.once('camerafadeoutcomplete', () =>
-      this.scene.start('Mansion', { contact: { id: b.id, name: b.name, role: b.role } }),
-    );
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Mansion'));
   }
 
   /**
