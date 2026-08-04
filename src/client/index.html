@@ -29,6 +29,10 @@
         --font-body: 'Gowun Batang', 'Malgun Gothic', serif;
         /* 은은한 종이 입자 — 외부 파일 없는 인라인 SVG 노이즈 */
         --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+        /* 구김 음영 — 같은 방식이지만 조명을 먹인다. feTurbulence 로 만든 울퉁불퉁한
+           높이를 feDiffuseLighting 이 비스듬히 비추면 종이를 뭉쳤다 편 자국이 된다.
+           단서 수첩이 이걸 덮고 opacity 를 줄이며 "펴지는" 연출을 낸다. */
+        --crumple: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.015' numOctaves='3' seed='11'/%3E%3CfeDiffuseLighting lighting-color='%23fff' surfaceScale='9'%3E%3CfeDistantLight azimuth='135' elevation='24'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='gamma' exponent='1.5'/%3E%3CfeFuncG type='gamma' exponent='1.5'/%3E%3CfeFuncB type='gamma' exponent='1.5'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23c)'/%3E%3C/svg%3E");
       }
       * { box-sizing: border-box; }
       body {
@@ -194,100 +198,109 @@
       #intro-unmute:hover { filter: brightness(1.15); }
 
       /* ── 대화창 ──────────────────────────────────────────
-         DOM 오버레이인 이유는 한글 IME 와 스트리밍 표시. 구성은 인물이 패널 위로
-         솟는 비주얼 노벨 배치다 — 초상이 #dialogue 의 자식이라 언제나 패널
-         배경보다 앞에 그려진다. 왼쪽 padding 690 이 인물이 서는 자리다. */
+         DOM 오버레이인 이유는 한글 IME 와 스트리밍 표시. 배치는 인물과 글을 좌우로
+         갈라 놓는다 — 인물은 패널 왼쪽 바깥(left 640 앞)에 서고, 패널은 그 옆에서
+         시작한다. 글 아래에 그림이 깔리지 않아야 본문이 또렷하게 읽힌다. */
       #dialogue {
         position: absolute;
-        left: calc(56 * var(--s));
+        left: calc(640 * var(--s));
         right: calc(56 * var(--s));
         bottom: calc(40 * var(--s));
-        padding: calc(30 * var(--s)) calc(38 * var(--s)) calc(24 * var(--s)) calc(690 * var(--s));
-        min-height: calc(300 * var(--s));
+        /* 액자 레일이 바깥 24 를 먹는다 (border-width 42 × 원본의 레일 비율 21/37).
+           그 위로 글이 올라타지 않게 여백은 그보다 넉넉해야 한다. */
+        padding: calc(36 * var(--s)) calc(46 * var(--s)) calc(34 * var(--s));
+        min-height: calc(340 * var(--s));
         display: none;
         overflow: visible; /* 초상이 패널 밖으로 솟는다 — 자르면 안 된다 */
-        border: 1px solid rgba(201, 162, 39, 0.42);
         border-radius: calc(6 * var(--s));
+        /* 채움은 여기가 맡는다 — 액자 PNG 는 안쪽이 투명해서 테두리만 준다.
+           거의 불투명하게 채운다: 0.93 이면 아래 타일의 밝은 배관·벽돌 윤곽이 비쳐
+           글 뒤에 무늬가 깔린다. 밝기 차가 8/255 뿐이어도 어두운 판에서는 보인다. */
         background:
           var(--noise),
-          linear-gradient(180deg, rgba(28, 22, 15, 0.93) 0%, rgba(16, 12, 8, 0.95) 100%);
-        box-shadow:
-          inset 0 1px 0 rgba(232, 193, 90, 0.28),
-          0 calc(12 * var(--s)) calc(34 * var(--s)) rgba(0, 0, 0, 0.7);
+          linear-gradient(180deg, rgba(28, 22, 15, 0.975) 0%, rgba(16, 12, 8, 0.985) 100%);
+        box-shadow: 0 calc(12 * var(--s)) calc(34 * var(--s)) rgba(0, 0, 0, 0.7);
       }
-      #dialogue.visible { display: block; }
-      /* 상단 황동 광택선 — .sp-panel 의 리벳 대신. 1800px 폭에서 2px 리벳은 안 보인다. */
+      /* 세로 flex — min-height 로 남는 여백을 본문의 margin:auto 가 위아래로 갈라 먹어,
+         본문은 가운데 서고 입력칸·[닫기] 줄은 패널 바닥에 붙는다.
+         흐름에 남는 자식은 본문·입력칸·하단 줄뿐이고 나머지는 전부 absolute 다. */
+      #dialogue.visible { display: flex; flex-direction: column; }
+      /* 그을린 쇠 액자 (public/ui/dialogue-frame.png, 256×189 · PixelLab).
+         패널에 직접 border 를 걸지 않고 겹치는 층으로 얹는 이유: border 를 걸면 자식들의
+         기준이 되는 padding box 가 통째로 안쪽으로 밀려, 화자 탭·버튼 줄·▼ 의 좌표를
+         전부 다시 재야 한다. 이 층은 그것들과 무관하게 테두리만 그린다.
+
+         9분할(border-image) — 네 모서리 37×37px 은 원본 크기로 박히고 네 변만 늘어난다.
+         패널이 1224×340 도 되고 1808×240 도 되기 때문에 통짜로 늘리면 톱니가 찌그러진다.
+         변은 stretch 가 아니라 round 다 — 늘이면 리벳이 6배로 늘어나 줄이 된다.
+         image-rendering 은 여기 따로 걸어야 한다 (#game-canvas 의 설정은 캔버스 몫). */
       #dialogue::before {
         content: '';
         position: absolute;
-        left: -1px;
-        right: -1px;
-        top: -1px;
-        height: calc(3 * var(--s));
-        border-radius: calc(6 * var(--s)) calc(6 * var(--s)) 0 0;
-        background: linear-gradient(
-          90deg,
-          transparent 0%,
-          var(--brass) 18%,
-          var(--brass-hi) 50%,
-          var(--brass) 82%,
-          transparent 100%
-        );
+        inset: 0;
+        border: calc(42 * var(--s)) solid transparent;
+        border-image: url('/ui/dialogue-frame.png') 37 / calc(42 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        pointer-events: none;
       }
       /* 초상 — public/portraits/<페르소나 id>.png, 896×1344(2:3) 전신 투명 PNG.
          인물이 프레임을 세로로 꽉 채우므로(머리 0.6~2.5% · 발끝 97.8~99.9%)
          높이로 세우고 가로는 object-fit 에 맡긴다 — 인물 폭은 그림마다 44~82% 로 다르다.
-         bottom 이 패널 아래로 내려가 화면 바닥을 딛는다. */
+         패널 왼쪽 바깥(left -590 = 화면 x 50)에 서고 bottom 이 패널 아래로 내려가
+         화면 바닥을 딛는다. 폭 590 은 화면 왼쪽 여백과 패널 사이의 빈칸 전부다. */
       #dialogue-portrait {
         position: absolute;
-        left: calc(-16 * var(--s));
-        bottom: calc(-40 * var(--s));
-        width: calc(680 * var(--s));
-        height: calc(1000 * var(--s));
+        left: calc(-590 * var(--s));
+        bottom: calc(-30 * var(--s));
+        width: calc(590 * var(--s));
+        height: calc(940 * var(--s));
         object-fit: contain;
         object-position: bottom;
         pointer-events: none;
+        /* 그림이 도착해야 나타난다 — 자리(패널 폭)는 그 전에 이미 잡혀 있다. */
+        opacity: 0;
+        transition: opacity 0.18s ease-out;
         filter: drop-shadow(calc(6 * var(--s)) calc(6 * var(--s)) calc(16 * var(--s)) rgba(0, 0, 0, 0.8));
       }
-      /* 초상 없는 화자(시스템 안내·오류·아직 그림이 없는 인물)는 패널 전체를 본문에 쓴다.
-         그림이 없어도 게임은 돌아간다 — public/intro 와 같은 규약. */
-      #dialogue.no-portrait { padding-left: calc(38 * var(--s)); min-height: calc(240 * var(--s)); }
+      #dialogue.portrait-ready #dialogue-portrait { opacity: 1; }
+      /* 초상 없는 화자(시스템 안내·오류·아직 그림이 없는 인물)는 패널이 왼쪽 끝까지
+         넓어져 화면 전폭을 본문에 쓴다. 그림이 없어도 게임은 돌아간다. */
+      #dialogue.no-portrait { left: calc(56 * var(--s)); min-height: calc(240 * var(--s)); }
       #dialogue.no-portrait #dialogue-portrait { display: none; }
-      #dialogue.no-portrait #dialogue-speaker { left: calc(38 * var(--s)); }
-      /* 화자명 — 패널 상단 모서리에 걸치는 황동 탭 */
+      /* 화자명 — 패널 위 왼쪽 끝에 뜨는 판. 버튼과 같은 판을 쓰고(아래 .dlg-btn 묶음)
+         높이 기준도 버튼 줄과 맞춘다 — 같은 띠에 좌우로 나뉘어 선다. */
       #dialogue-speaker {
         position: absolute;
-        left: calc(690 * var(--s));
-        top: 0;
-        transform: translateY(-100%);
+        left: 0;
+        bottom: 100%;
+        margin-bottom: calc(12 * var(--s));
+        padding: calc(3 * var(--s)) calc(18 * var(--s));
         font-family: var(--font-head);
         font-weight: 700;
         font-size: calc(26 * var(--s));
         letter-spacing: 0.08em;
         white-space: nowrap;
-        color: var(--ink);
-        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 62%, var(--brass-lo) 100%);
-        border: 1px solid var(--brass-lo);
-        border-bottom: none;
-        border-radius: calc(4 * var(--s)) calc(4 * var(--s)) 0 0;
-        padding: calc(5 * var(--s)) calc(22 * var(--s)) calc(4 * var(--s));
-        text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
-        box-shadow: 0 calc(-2 * var(--s)) calc(8 * var(--s)) rgba(0, 0, 0, 0.5);
+        color: var(--brass-hi);
       }
       #dialogue-text {
         font-size: calc(30 * var(--s));
         line-height: 1.68;
-        /* 2줄 고정 — 페이징의 기준 높이. 3줄째는 잘리는 게 아니라 애초에 안 들어온다. */
+        /* 2줄 고정 — 페이징의 기준 높이. 3줄째는 잘리는 게 아니라 애초에 안 들어온다.
+           flex: none 로 못 박는다 — flex 자식은 기본값이 줄어들 수 있어서다. */
         height: calc(30 * 1.68 * 2 * var(--s));
+        flex: none;
+        /* 위아래 auto 가 남는 세로 여백을 반씩 먹는다 — 본문은 가운데로 오고
+           입력칸·하단 줄은 패널 바닥에 눌러 붙는다. */
+        margin: auto 0;
         overflow: hidden;
         white-space: pre-wrap;
         text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.85);
       }
-      /* 다음 페이지 표식 — 본문 우하단에서 깜빡인다 */
+      /* 다음 페이지 표식 — 안내 문구 바로 위에서 깜빡인다 */
       #dialogue-more {
         position: absolute;
-        right: calc(30 * var(--s));
-        bottom: calc(76 * var(--s));
+        right: calc(46 * var(--s));
+        bottom: calc(66 * var(--s));
         font-size: calc(24 * var(--s));
         color: var(--brass);
         display: none;
@@ -325,44 +338,61 @@
         box-shadow: 0 0 calc(8 * var(--s)) rgba(201, 162, 39, 0.35);
       }
       #dialogue-field:disabled { opacity: 0.4; }
-      /* 힌트와 버튼을 한 줄에 둔다 — 힌트가 남는 폭을 먹고 버튼이 오른쪽에 붙는다. */
+      /* 누를 것은 전부 이 한 줄 — 패널 바깥 위쪽, 오른쪽 끝에 붙는다.
+         본문 옆·아래가 아니라 위로 뺀 이유: 안에 두면 글이 쓸 폭이나 높이를 잘라먹고,
+         선택지가 붙었다 떨어질 때마다 본문 칸이 바뀌어 페이지 나눔이 흔들린다. */
       #dialogue-actions {
-        display: flex;
-        align-items: center;
-        gap: calc(10 * var(--s));
-        margin-top: calc(18 * var(--s));
-      }
-      #dialogue-hint { flex: 1; opacity: 0.45; font-size: calc(19 * var(--s)); min-height: 1.2em; }
-      /* 선택지 — 대화 상자 본문 밖, 우측 세로 스택 (스펙 §3) */
-      #dialogue.has-choices { padding-right: calc(340 * var(--s)); }
-      #dialogue-choices {
         position: absolute;
-        right: calc(24 * var(--s));
-        bottom: calc(24 * var(--s));
-        width: calc(290 * var(--s));
-        display: none;
-        flex-direction: column;
+        right: 0; /* 패널 바깥 모서리 = 액자의 바깥선 */
+        bottom: 100%;
+        margin-bottom: calc(12 * var(--s));
+        display: flex;
+        align-items: flex-end;
         gap: calc(12 * var(--s));
       }
+      /* 선택지는 이 줄의 맨 앞 칸이다 — 없을 때 gap 만 남지 않도록 통째로 접는다. */
+      #dialogue-choices { display: none; gap: calc(12 * var(--s)); }
       #dialogue.has-choices #dialogue-choices { display: flex; }
+      /* 안내 문구 — 버튼이 떠나고 빈 패널 오른쪽 아래 */
+      #dialogue-hint {
+        margin-top: calc(18 * var(--s));
+        text-align: right;
+        opacity: 0.45;
+        font-size: calc(19 * var(--s));
+        min-height: 1.2em;
+      }
+      /* 버튼 판 (public/ui/button.png, 53×20 · PixelLab). 액자와 같은 9분할이지만
+         이쪽은 slice 에 `fill` 이 붙는다 — 액자는 속이 비어 우리 배경을 살려야 했고,
+         버튼은 판이 곧 배경이라 가운데도 그려야 한다. 빼면 버튼이 뚫려 보인다.
+         모서리 브래킷 6×6px · 변 레일 3px 이라 slice 는 6. */
+      .dlg-btn,
+      .dlg-choice,
+      #dialogue-speaker {
+        border: calc(12 * var(--s)) solid transparent;
+        border-image: url('/ui/button.png') 6 fill / calc(12 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        background: none;
+        /* 판이 어두워졌으니 글자는 밝은 쪽 — 예전 황동 판의 먹색을 그대로 두면 묻힌다.
+           위계는 판이 아니라 글자색이 진다 (아래 개별 지정). */
+        text-shadow: 0 calc(2 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
+      }
+      /* 화자명은 같은 판을 쓰지만 누르는 것이 아니다 */
+      .dlg-btn,
+      .dlg-choice { cursor: pointer; }
       .dlg-choice {
         display: flex;
         align-items: baseline;
-        justify-content: space-between;
-        gap: calc(8 * var(--s));
+        gap: calc(14 * var(--s));
         font-family: var(--font-head);
         font-weight: 700;
-        font-size: calc(23 * var(--s));
-        padding: calc(10 * var(--s)) calc(18 * var(--s));
-        border-radius: calc(3 * var(--s));
-        cursor: pointer;
-        border: 1px solid var(--brass-lo);
-        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 45%, var(--brass-lo) 100%);
-        color: var(--ink);
-        text-shadow: 0 1px 0 rgba(255, 240, 200, 0.45);
+        font-size: calc(24 * var(--s));
+        padding: calc(3 * var(--s)) calc(16 * var(--s));
+        color: var(--brass-hi);
       }
-      .dlg-choice .key { font-family: var(--font-body); font-weight: 400; font-size: calc(17 * var(--s)); opacity: 0.6; }
-      .dlg-choice:hover { filter: brightness(1.14); }
+      /* 키 라벨은 흐리게 두지 않는다 — 0.6 으로 눕히면 바탕에 녹아 안 보인다.
+         위계는 크기와 굵기로만 준다. */
+      .dlg-choice .key { font-family: var(--font-body); font-weight: 400; font-size: calc(17 * var(--s)); color: var(--paper); }
+      .dlg-choice:hover { filter: brightness(1.2); }
       .dlg-choice:active { transform: translateY(1px); }
       /* 키를 버튼 안에 같이 적는다 — 별도 조작 안내 줄이 필요 없어진다. */
       .dlg-btn {
@@ -372,25 +402,19 @@
         font-family: var(--font-head);
         font-weight: 700;
         font-size: calc(23 * var(--s));
-        padding: calc(9 * var(--s)) calc(20 * var(--s));
-        border-radius: calc(3 * var(--s));
-        cursor: pointer;
+        padding: calc(3 * var(--s)) calc(14 * var(--s));
         white-space: nowrap;
       }
-      .dlg-btn .key { font-family: var(--font-body); font-weight: 400; font-size: calc(17 * var(--s)); opacity: 0.62; }
-      .dlg-btn:hover:not(:disabled) { filter: brightness(1.14); }
+      .dlg-btn .key { font-family: var(--font-body); font-weight: 400; font-size: calc(17 * var(--s)); color: var(--paper-dim); }
+      .dlg-btn:hover:not(:disabled) { filter: brightness(1.2); }
       .dlg-btn:active:not(:disabled) { transform: translateY(1px); }
       .dlg-btn:disabled { opacity: 0.35; cursor: default; }
-      /* 되돌릴 수 없는 행동(코드 전달)만 황동으로 무게를 준다. 나머지는 가라앉힌다. */
-      #dialogue-send { background: rgba(10, 9, 6, 0.9); border: 1px solid var(--patina); color: #9fcbbb; }
-      #dialogue-code {
-        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 45%, var(--brass-lo) 100%);
-        border: 1px solid var(--brass-lo);
-        color: var(--ink);
-        text-shadow: 0 1px 0 rgba(255, 240, 200, 0.45);
-      }
-      #dialogue-code .key { opacity: 0.55; }
-      #dialogue-close { background: rgba(10, 9, 6, 0.9); border: 1px solid #5a5148; color: var(--paper-dim); }
+      /* 판은 하나로 통일하고 위계는 글자색이 진다 — 되돌릴 수 없는 행동(코드 전달)이
+         황동으로 가장 밝고, [닫기]는 가라앉는다. [대화]는 기존의 녹청 강조를 지킨다. */
+      #dialogue-send { color: #9fcbbb; }
+      #dialogue-code { color: var(--brass-hi); }
+      #dialogue-close { color: var(--paper-dim); }
+      #dialogue-close .key { color: #6b6152; }
       header {
         padding: 12px;
         font-family: var(--font-head);
@@ -504,25 +528,82 @@
         pointer-events: none;
       }
       #cluebook.visible { display: flex; }
-      /* 황동 액자는 .sp-panel 이 그린다 (캔버스의 drawOrnateFrame 자리).
-         안내 문구를 바닥에 붙이려고 기준 상자를 세운다. */
+      /* 구겨 쥐고 있던 쪽지를 펴는 연출.
+         .sp-panel(황동 액자)을 뗀 이유: 쪽지에 금속 액자는 어울리지 않고, 어두운
+         화면에 크림색 종이 한 장이 뜨는 쪽이 대비도 가장 세다. 미니게임·결과창은
+         .sp-panel 을 계속 쓰므로 공용 스타일은 건드리지 않았다.
+
+         연출 길이 360ms 는 짧게 잡은 값이다 — 수첩은 판을 멈추는 창이 아니라 걸어
+         다니며 [C] 로 수시로 여닫는 물건이라(StageScene 의 토글), 길면 연출이 아니라
+         방해가 된다. 닫기는 연출 없이 즉시 사라진다. */
       #cluebook-card {
         position: relative;
         width: calc(760 * var(--s));
         height: calc(560 * var(--s));
-        padding: calc(22 * var(--s)) calc(44 * var(--s));
+        padding: calc(30 * var(--s)) calc(52 * var(--s));
+        color: var(--ink);
+        background: linear-gradient(158deg, #f2e8ce 0%, var(--paper) 46%, #d5c69f 100%);
+        /* 가위로 자른 종이 결 — 가장자리를 1% 안쪽으로 미세하게 어긋낸다.
+           clip-path 는 box-shadow 까지 잘라내므로 그림자는 filter 로 준다. */
+        clip-path: polygon(
+          0.5% 1.2%, 22% 0.2%, 47% 1.4%, 71% 0.3%, 99.5% 1%,
+          99.6% 26%, 98.8% 52%, 99.7% 78%, 99.2% 98.9%,
+          74% 99.6%, 49% 98.6%, 25% 99.8%, 0.6% 99%,
+          1.2% 74%, 0.3% 49%, 1% 24%
+        );
+        filter: drop-shadow(0 calc(14 * var(--s)) calc(30 * var(--s)) rgba(0, 0, 0, 0.65));
+        animation: clue-uncrumple 360ms cubic-bezier(0.32, 1.34, 0.6, 1) both;
       }
-      /* 제목 + 그 아래 가로줄. 줄이 좌우 여백(44)보다 8px 씩 넓던 캔버스 쪽
-         치수(688px)를 지키려고 음수 마진으로 밀어낸다. */
+      /* 구김 음영 — 뭉쳤을 때 진하고, 펴지면서 옅어지되 완전히 사라지지는 않는다.
+         한 번 구긴 종이는 펴도 자국이 남는다. background-size 가 같이 커지는 것이
+         "접힌 골이 벌어진다"를 만든다 — 이 두 줄이 연출의 실질이다. */
+      #cluebook-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--crumple) center / 100% 100% no-repeat;
+        /* 반복시키면 안 된다 — feTurbulence 는 이어붙지 않아 타일 경계가 십자 자국으로
+           보인다. 한 장을 100% 이상으로만 키워 덮는다(넘치는 건 잘리므로 빈틈이 없다). */
+        /* overlay 가 아니라 multiply — 종이 바탕이 밝아서(#e8dcc0) overlay 를 씌우면
+           거의 전부 흰색으로 날아간다. 구김은 그늘이므로 곱하기가 맞다. */
+        mix-blend-mode: multiply;
+        pointer-events: none;
+        animation: clue-flatten 360ms cubic-bezier(0.32, 1.34, 0.6, 1) both;
+      }
+      /* 글자는 다 펴진 뒤에 떠오른다 — 구겨진 종이에 글이 읽히면 이상하고,
+         눌린 글자가 늘어나 보이는 것도 막는다. */
+      #cluebook-title,
+      #cluebook-body,
+      #cluebook-hint {
+        position: relative; /* 구김 층보다 위 */
+        animation: clue-ink 360ms ease-out both;
+      }
+      /* 뭉친 순간은 가로세로 배율을 다르게 준다 — 같은 배율로 줄이면 그냥 작은
+         카드로 보이고, 눌려 있다는 느낌이 안 난다. */
+      @keyframes clue-uncrumple {
+        0% { transform: scale(0.58, 0.48) rotate(-7deg) skewX(4deg); }
+        48% { transform: scale(1.06, 1.04) rotate(2.2deg) skewX(-0.8deg); }
+        74% { transform: scale(0.985, 0.99) rotate(-0.7deg) skewX(0deg); }
+        100% { transform: scale(1) rotate(0); }
+      }
+      @keyframes clue-flatten {
+        0% { opacity: 1; background-size: 100% 100%; }
+        100% { opacity: 0.28; background-size: 175% 175%; }
+      }
+      @keyframes clue-ink {
+        0%, 46% { opacity: 0; }
+        100% { opacity: 1; }
+      }
+      /* 제목 + 그 아래 가로줄. 줄이 좌우 여백보다 8px 씩 넓던 캔버스 쪽
+         치수를 지키려고 음수 마진으로 밀어낸다. */
       #cluebook-title {
         margin: 0 calc(-8 * var(--s));
         padding-bottom: calc(17 * var(--s));
-        border-bottom: calc(2 * var(--s)) solid #3a3120; /* 캔버스 전용 색 — :root 에 짝 없음 */
+        border-bottom: calc(2 * var(--s)) solid rgba(26, 23, 18, 0.45);
         font-family: var(--font-head);
         font-weight: 700;
         font-size: calc(30 * var(--s));
         line-height: calc(36 * var(--s));
-        color: var(--brass);
         text-align: center;
       }
       /* line-height 1.8 이 Phaser 의 lineSpacing 14 와 같은 줄 간격이다
@@ -531,7 +612,6 @@
         margin-top: calc(24 * var(--s));
         font-size: calc(24 * var(--s));
         line-height: 1.8;
-        color: var(--paper);
         white-space: pre-wrap;
       }
       #cluebook-hint {
@@ -540,7 +620,7 @@
         right: 0;
         bottom: calc(20 * var(--s));
         font-size: calc(20 * var(--s));
-        color: var(--paper-dim);
+        color: rgba(26, 23, 18, 0.5);
         text-align: center;
       }
 
@@ -648,7 +728,7 @@
            캔버스 시절에도 수첩은 UI 카메라에 그려졌고 대화창은 캔버스 전체를 덮는
            DOM 이라 그보다 위였다. 그 겹침 순서를 그대로 옮긴 자리다. -->
       <div id="cluebook">
-        <div id="cluebook-card" class="sp-panel">
+        <div id="cluebook-card">
           <div id="cluebook-title">단서 수첩</div>
           <div id="cluebook-body"></div>
           <div id="cluebook-hint">[C] 닫기</div>
@@ -661,23 +741,26 @@
         <button id="intro-unmute">🔇 소리 켜기</button>
       </div>
       <!-- 초상은 패널 배경보다 앞에 와야 하므로 #dialogue 의 자식이다.
-           대화·코드 버튼은 입력창이 열릴 때만 보인다 (DialogueBox 가 style.display 로 토글). -->
+           누를 것(선택지·대화·코드·닫기)은 전부 #dialogue-actions 한 줄에 모여 패널 위로
+           떠 있다 — 글 옆에 두면 본문 폭을 잘라먹는다. 대화·코드 버튼은 입력창이 열릴
+           때만 보인다 (DialogueBox 가 style.display 로 토글).
+           안내 문구(#dialogue-hint)는 그 버튼들이 비운 패널 오른쪽 아래로 내려갔다. -->
       <div id="dialogue" class="no-portrait">
         <img id="dialogue-portrait" alt="" />
         <div id="dialogue-speaker"></div>
+        <div id="dialogue-actions">
+          <div id="dialogue-choices"></div>
+          <button id="dialogue-send" class="dlg-btn" style="display: none">대화 <span class="key">Enter</span></button>
+          <button id="dialogue-code" class="dlg-btn" style="display: none">접선 코드 전달 <span class="key">F</span></button>
+          <button id="dialogue-close" class="dlg-btn">닫기 <span class="key">Esc</span></button>
+        </div>
         <div id="dialogue-text"></div>
         <div id="dialogue-more">▼</div>
         <div id="dialogue-measure"></div>
         <div id="dialogue-input">
           <input id="dialogue-field" type="text" placeholder="말을 건넨다..." autocomplete="off" />
         </div>
-        <div id="dialogue-choices"></div>
-        <div id="dialogue-actions">
-          <div id="dialogue-hint"></div>
-          <button id="dialogue-send" class="dlg-btn" style="display: none">대화 <span class="key">Enter</span></button>
-          <button id="dialogue-code" class="dlg-btn" style="display: none">접선 코드 전달 <span class="key">F</span></button>
-          <button id="dialogue-close" class="dlg-btn">닫기 <span class="key">Esc</span></button>
-        </div>
+        <div id="dialogue-hint"></div>
       </div>
       <div id="minigame">
         <div id="minigame-card" class="sp-panel">

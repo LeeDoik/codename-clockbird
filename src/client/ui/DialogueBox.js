@@ -64,10 +64,14 @@ export class DialogueBox {
     // Esc 와 같은 일을 한다 — busy 중이면 hide() 가 dismissed 표식을 남긴다.
     this.closeBtn.addEventListener('click', () => this.hide());
 
-    // 그림이 실제로 도착해야 자리를 내준다. 파일이 없으면 no-portrait 로 남아
-    // 본문이 패널 전체를 쓴다 — 초상 없이도 대화는 성립해야 한다.
-    this.portraitEl.addEventListener('load', () => this.root.classList.remove('no-portrait'));
-    this.portraitEl.addEventListener('error', () => this.root.classList.add('no-portrait'));
+    // 그림은 도착해야 나타난다(portrait-ready). 자리는 그 전에 이미 잡혀 있다 — 아래
+    // #setPortrait 참고. 파일이 없으면 no-portrait 로 떨어져 패널이 왼쪽으로 넓어진다
+    // (좁게 나눠 둔 페이지가 넓은 칸에 들어가는 방향이라 잘릴 일이 없다).
+    this.portraitEl.addEventListener('load', () => this.root.classList.add('portrait-ready'));
+    this.portraitEl.addEventListener('error', () => {
+      this.root.classList.remove('portrait-ready');
+      this.root.classList.add('no-portrait');
+    });
 
     this.field.addEventListener('keydown', (e) => {
       // 입력칸이 포커스된 동안에는 stopPropagation 때문에 Phaser 가 키를 못 받는다.
@@ -100,6 +104,7 @@ export class DialogueBox {
     this.sendBtn.disabled = false;
     this.codeBtn.disabled = false;
     this.root.classList.add('no-portrait');
+    this.root.classList.remove('portrait-ready');
     this.pages = [];
     this.pageIdx = 0;
     this.onPagesDone = null;
@@ -122,24 +127,28 @@ export class DialogueBox {
    * 화자 초상 교체. id 는 페르소나 id(watchmaker·fixer·t1 …)이고
    * `public/portraits/<id>.png` 를 가리킨다.
    *
-   * id 가 없는 화자(시스템 안내·오류)와 파일이 아직 없는 인물은 둘 다 no-portrait 로
-   * 떨어진다. 성공한 load 만 자리를 내주므로, 그림이 없는 채로 배포해도 깨지지 않는다.
+   * 자리(패널 폭)는 그림이 도착하기 전에, id 가 있다는 것만 보고 잡는다. load 를
+   * 기다렸다가 좁히면 이미 넓은 폭 기준으로 잘라 둔 페이지가 좁은 칸에서 3줄이 되고,
+   * 본문은 2줄 고정 높이라 마지막 줄이 소리 없이 잘린다. 파일이 없는 인물은 error 가
+   * 도로 넓혀 준다 — 좁게 나눈 글이 넓어지는 방향은 안전하다.
    */
   #setPortrait(id) {
     if (!id) {
       this.root.classList.add('no-portrait');
+      this.root.classList.remove('portrait-ready');
       return;
     }
     const src = `/portraits/${id}.png`;
     // src 를 지우지 않고 남겨 둔다 — 시스템 대사를 사이에 끼고 같은 인물이 이어
     // 말할 때 다시 내려받지 않기 위해서다.
     if (this.portraitEl.getAttribute('src') === src) {
-      if (this.portraitEl.complete && this.portraitEl.naturalWidth > 0) {
-        this.root.classList.remove('no-portrait');
-      }
+      const failed = this.portraitEl.complete && this.portraitEl.naturalWidth === 0;
+      this.root.classList.toggle('no-portrait', failed);
+      this.root.classList.toggle('portrait-ready', !failed && this.portraitEl.complete);
       return;
     }
-    this.root.classList.add('no-portrait');
+    this.root.classList.remove('no-portrait');
+    this.root.classList.remove('portrait-ready');
     this.portraitEl.setAttribute('src', src);
   }
 
@@ -331,19 +340,22 @@ export class DialogueBox {
 
   hideInput() {
     this.inputWrap.classList.remove('visible');
-    // 두 버튼은 입력창 바깥(#dialogue-actions)에 있다 — 같이 접지 않으면
-    // 대화 중이 아닐 때도 남아 누를 수 있는 것처럼 보인다. [닫기]만 늘 남는다.
+    // 두 버튼은 입력창 바깥(패널 위 버튼 줄)에 있다 — 같이 접지 않으면 대화 중이
+    // 아닐 때도 남아 누를 수 있는 것처럼 보인다. [닫기]는 그 줄에 그대로 남는다.
     this.sendBtn.style.display = 'none';
     this.codeBtn.style.display = 'none';
     this.field.blur();
   }
 
   /**
-   * 우측 선택지 버튼 (최대 3개). 키 라벨은 표시용이다 — 실제 키 입력은 씬이 처리하고,
-   * 여기서는 클릭만 onChoice(key) 로 중계한다. 같은 행동에 대해 키와 클릭이 같은
-   * 콜백으로 모이게 하는 것이 규약이다.
+   * 선택지 버튼 (최대 3개) — 패널 위 버튼 줄의 맨 앞에 선다. 키 라벨은 표시용이다.
+   * 실제 키 입력은 씬이 처리하고 여기서는 클릭만 onChoice(key) 로 중계한다.
+   * 같은 행동에 대해 키와 클릭이 같은 콜백으로 모이게 하는 것이 규약이다.
    */
   showChoices(choices) {
+    // [그만하기]처럼 Esc 를 맡은 선택지가 있으면 [닫기]는 접는다 — 한 줄에 나란히
+    // 서면 같은 키로 같은 일을 하는 버튼이 둘이 되어 어느 쪽이 진짜인지 헷갈린다.
+    this.closeBtn.style.display = choices.some((c) => c.key === 'Esc') ? 'none' : '';
     this.choicesEl.replaceChildren(
       ...choices.slice(0, 3).map((c) => {
         const btn = document.createElement('button');
@@ -361,6 +373,7 @@ export class DialogueBox {
   hideChoices() {
     this.root.classList.remove('has-choices');
     this.choicesEl.replaceChildren();
+    this.closeBtn.style.display = ''; // 선택지가 가져갔던 [닫기] 자리를 돌려준다
     this.onChoice = null;
   }
 
