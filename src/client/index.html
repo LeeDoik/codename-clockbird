@@ -452,6 +452,9 @@
            위계는 판이 아니라 글자색이 진다 (아래 개별 지정). */
         text-shadow: 0 calc(2 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
       }
+      /* 화자가 없는 창 — 혼잣말이다 (EscapeScene 의 심문 통과 뒤 속마음).
+         이름을 빈 문자열로 넘기면 빈 놋쇠 탭만 덩그러니 떠서, 통째로 접는다. */
+      #dialogue-speaker:empty { display: none; }
       /* 화자명은 같은 판을 쓰지만 누르는 것이 아니다 */
       .dlg-btn,
       .dlg-choice { cursor: pointer; }
@@ -724,13 +727,17 @@
          줄 간격만 벌어지고 무늬가 안 깨진다. */
       #docpanel-paper {
         width: calc(880 * var(--s));
-        max-height: 78%;
-        overflow-y: auto;
-        /* ⚠ 아래 여백이 넉넉한 이유는 미관이 아니다. 종이 **오른쪽 아래 모서리가
-           접혀 있어서**, 예전 여백(48)으로는 안내 문구가 그 접힌 자락에 물려 잘렸다.
-           단서 수첩에서 겪은 것과 같은 함정이고(찢긴 가장자리), 그림을 다시 구우면
-           다시 재야 하는 값인 것도 같다. */
-        padding: calc(48 * var(--s)) calc(64 * var(--s)) calc(84 * var(--s));
+        /* 그림 원본 비율로 고정한다. 스크롤은 종이가 아니라 본문(#docpanel-body)이
+           한다 — 종이째 스크롤하면 배경에 구워진 직인·접힌 모서리는 제자리에 남고
+           글자만 그 밑을 지나가서, 긴 문서일수록 본문이 장식에 가려 안 읽혔다.
+           비율을 고정해야 장식 위치가 예측 가능해져 아래 여백을 잴 수 있다. */
+        aspect-ratio: 211 / 162;
+        display: flex;
+        flex-direction: column;
+        /* ⚠ 아래 여백(120)은 미관이 아니라 실측값이다. 직인은 y=122/162(75%)부터
+           시작한다 — 본문 영역이 그 위에서 끝나야 글자가 직인·접힌 자락을 안 밟는다.
+           그림을 다시 구우면 다시 재야 하는 값이다. */
+        padding: calc(48 * var(--s)) calc(64 * var(--s)) calc(120 * var(--s));
         background: url('/ui/doc-paper.png') center / 100% 100% no-repeat;
         image-rendering: pixelated;
         color: var(--ink);
@@ -750,6 +757,11 @@
         font-size: calc(27 * var(--s));
         line-height: 1.8;
         white-space: pre-wrap;
+        /* 남는 높이를 다 쓰고 넘치면 안에서 스크롤한다 — min-height: 0 이 없으면
+           flex 자식은 내용만큼 버텨서 overflow 가 영영 안 걸린다. */
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
       }
       /* 오른쪽 아래는 접힌 자락, 왼쪽 아래는 직인 자국이다 — 가운데만 비어 있다. */
       #docpanel-hint { margin-top: calc(26 * var(--s)); opacity: 0.5; font-size: calc(19 * var(--s)); text-align: center; }
@@ -792,15 +804,30 @@
 
          `100% 100%` 로 늘이는 것은 괜찮다. 종이는 무늬가 불규칙해서 조금 눌려도
          티가 안 난다 — 액자의 리벳이나 톱니와 다른 점이 이것이다. */
+      /* ⚠ 높이를 못 박지 않는다. 560 으로 고정해 두었더니 단서가 넷을 넘는 순간
+         **글이 종이 밖으로 흘러나와** 맵 위에 떠다녔다. 수첩은 스크롤이 안 된다
+         (#cluebook 이 pointer-events:none 이라 손이 닿지 않는다) — 그러니 담을
+         만큼 종이가 자라야 한다.
+
+         스테이지 1 의 동료는 다섯이라 최대 14줄(머리 2 + 항목 5×2 + 꼬리 2)이고,
+         그때 종이는 800 쯤까지 자란다. 종이 그림이 세로로 늘어나지만 무늬가
+         불규칙해서 티가 안 난다 — 위의 `100% 100%` 와 같은 이유다. */
       #cluebook-card {
         position: relative;
         width: calc(760 * var(--s));
-        height: calc(560 * var(--s));
+        height: auto;
+        min-height: calc(430 * var(--s));
+        max-height: 88%;
         /* ⚠ 여백을 넉넉히 잡는 이유는 미관이 아니다. 종이의 **찢긴 가장자리가 안쪽으로
            깊게 파고든다** — 예전 52px 여백으로는 왼쪽 글자가 톱니 자국에 물려 잘렸다.
            clip-path 시절엔 가장자리가 1% 안쪽의 곧은 선이라 이 문제가 없었다.
-           그림으로 바꾸면서 따라온 값이므로 그림을 다시 구우면 다시 재야 한다. */
-        padding: calc(42 * var(--s)) calc(84 * var(--s));
+           그림으로 바꾸면서 따라온 값이므로 그림을 다시 구우면 다시 재야 한다.
+
+           ⚠ 아래 여백만 유독 크다(130). 높이가 고정이던 시절에는 본문이 바닥까지
+           닿을 일이 없어 42 로 충분했는데, 종이가 내용만큼 자라게 되면서 **마지막
+           줄이 곧 바닥**이 되었다. 그 자리에는 [C] 닫기 안내(absolute, bottom 88)와
+           찢긴 아래 가장자리가 이미 있다 — 둘 다 피하려면 이만큼 비워야 한다. */
+        padding: calc(42 * var(--s)) calc(84 * var(--s)) calc(130 * var(--s));
         color: var(--ink);
         background: url('/ui/clue-paper.png') center / 100% 100% no-repeat;
         image-rendering: pixelated;
@@ -877,20 +904,23 @@
       }
       /* line-height 1.8 이 Phaser 의 lineSpacing 14 와 같은 줄 간격이다
          (#docpanel-body 와 같은 값). */
+      /* 줄 간격 1.8 → 1.7. 종이가 자라게 해 두었어도 다섯 명이 다 차면 화면 높이의
+         4분의 3을 먹는다 — 한 뼘 줄이면 그만큼 여유가 생기고, 읽는 맛은 거의 안 준다.
+         (1.8 은 원래 Phaser 의 lineSpacing 14 를 옮긴 값이었다.) */
       #cluebook-body {
         margin-top: calc(24 * var(--s));
         font-size: calc(24 * var(--s));
-        line-height: 1.8;
+        line-height: 1.7;
         white-space: pre-wrap;
       }
+      /* ⚠ 좌표로 붙들지 않는다. 예전에는 `absolute; bottom: 88` 이었는데, 종이가
+         내용만큼 자라게 되자 **찢긴 자락도 같이 깊어져** 안내가 그 속에 묻혔다
+         (그림이 100% 로 늘어나니 톱니 깊이도 종이 높이에 비례한다).
+
+         흐름에 태우면 본문 바로 아래에 서고, 아래 여백(카드의 padding-bottom 130)이
+         안내와 톱니를 한꺼번에 떼어 놓는다 — 지킬 값이 둘에서 하나로 준다. */
       #cluebook-hint {
-        position: absolute;
-        /* 좌우 0 · 아래 20 이면 안내가 찢긴 아래 가장자리에 걸려 반쯤 잘린다.
-           아래 가장자리의 톱니가 가장 깊게 파고드는 곳이 종이 높이의 15% 쯤이라
-           그보다 위로 올린다 (560 × 0.15 ≈ 84). */
-        left: calc(84 * var(--s));
-        right: calc(84 * var(--s));
-        bottom: calc(88 * var(--s));
+        margin-top: calc(20 * var(--s));
         font-size: calc(20 * var(--s));
         color: rgba(26, 23, 18, 0.5);
         text-align: center;
@@ -1323,6 +1353,106 @@
         .lp-gear.sel::before { animation: none; }
         .lp-cable { animation: none; stroke-dashoffset: 0; }
       }
+
+      /* ──────────────────────────────────────────────────────────────
+         duel 배치 — 에바와 마주 선다 (스테이지 3 심문)
+
+         신분을 고른 뒤부터 심문이 끝날 때까지, 둘이 화면 좌우에 서고 대화 상자가
+         그 사이에 놓인다. 카드가 아니라 **장면**이다.
+
+         ⚠ 초상은 `content` 에 넣지 않는다. 그 칸은 문답이 한 번 오갈 때마다
+           `replaceChildren` 으로 비워지므로(robotInterrogation), 거기 두면 에바가
+           매 턴 사라졌다 나타난다. 카드의 가상 요소로 얹으면 판이 끝날 때까지 선다.
+
+         ⚠ **주인공은 세우지 않는다.** 한때 오른쪽에 마주 세웠는데, 그 자리에 쓸
+           그림(`player.png`)이 투명 컷아웃이 아니라 배경째 잘린 판이어서 인물이
+           아니라 네모로 보였다. 그리고 이 대목은 **에바가 묻고 당신이 답하는**
+           장면이라, 답하는 쪽은 화면 밖에 있는 편이 오히려 1인칭에 가깝다.
+         ────────────────────────────────────────────────────────────── */
+      #minigame-card.duel {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        box-shadow: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end; /* 대화 상자는 아래쪽에 — 인물의 얼굴을 가리지 않는다 */
+        align-items: center;
+        text-align: left;
+      }
+      /* 에바 — 왼쪽에 선다. 오른쪽은 비워 둔다 (위 주석 참고). */
+      #minigame-card.duel::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        /* 560 + 상자 980 = 1540 < 1920. 상자를 키우면 여기도 같이 봐야 한다. */
+        width: calc(560 * var(--s));
+        height: calc(1010 * var(--s));
+        background: url('/portraits/eva.png') bottom center / contain no-repeat;
+        pointer-events: none;
+        /* 뒤의 수로가 밝아서 인물이 묻힌다 — 발밑에 그늘을 깔아 세워 놓는다. */
+        filter: drop-shadow(0 calc(6 * var(--s)) calc(24 * var(--s)) rgba(0, 0, 0, 0.85));
+      }
+      /* 대화 상자 — 둘 사이. 액자는 게임의 다른 창과 같은 한 장이다. */
+      #minigame-card.duel #minigame-head {
+        display: block;
+        width: calc(980 * var(--s));
+        max-width: 66%;
+        margin-bottom: calc(10 * var(--s));
+        padding: calc(10 * var(--s)) calc(18 * var(--s));
+        border: calc(24 * var(--s)) solid transparent;
+        border-image: url('/ui/stage-frame.png') 36 / calc(24 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        background: linear-gradient(180deg, #241a12, #14100b);
+        background-clip: padding-box;
+      }
+      #minigame-card.duel #minigame-title {
+        font-size: calc(24 * var(--s));
+        color: var(--brass-hi);
+        letter-spacing: 0.08em;
+      }
+      /* 대사 본문. 한 화면에 두세 줄이 들어가되 인물을 안 가리는 높이다. */
+      #minigame-card.duel #minigame-subtitle {
+        margin-top: calc(8 * var(--s));
+        font-size: calc(28 * var(--s));
+        line-height: 1.6;
+        opacity: 1;
+        color: var(--paper);
+        white-space: pre-wrap;
+        min-height: calc(90 * var(--s));
+      }
+      /* 답을 적는 자리와 그때그때의 기록. 상자 바로 아래 같은 폭으로 선다. */
+      #minigame-card.duel #minigame-content {
+        width: calc(980 * var(--s));
+        max-width: 66%;
+        margin: 0 0 calc(10 * var(--s));
+      }
+      #minigame-card.duel #minigame-hint {
+        margin: 0 0 calc(26 * var(--s));
+        font-size: calc(17 * var(--s));
+        color: var(--paper-dim);
+      }
+      #minigame-card.duel #minigame-verdict {
+        position: absolute;
+        top: 38%;
+        margin: 0;
+        font-family: var(--font-head);
+        font-size: calc(84 * var(--s));
+        letter-spacing: 0.12em;
+        padding: calc(6 * var(--s)) calc(44 * var(--s));
+        background: rgba(10, 9, 7, 0.95);
+        text-shadow: 0 calc(4 * var(--s)) calc(20 * var(--s)) rgba(0, 0, 0, 0.9);
+      }
+      #minigame-card.duel #minigame-verdict:empty { display: none; }
+      /* 심문 배치에서는 화면을 덜 어둡게 덮는다 — 뒤의 수로가 보여야 "여기서
+         마주쳤다"가 되고, 통째로 검게 깔면 인물만 뜬 다른 화면처럼 보인다. */
+      #minigame:has(.duel) { background: rgba(10, 9, 7, 0.55); }
 
       /* 심문 답변 — 선택지는 세로로 쌓고, 그 아래 자유 입력을 둔다. */
       .mg-col { display: flex; flex-direction: column; gap: 8px; }

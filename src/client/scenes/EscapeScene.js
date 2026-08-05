@@ -30,6 +30,7 @@ import { EVA, RESPAWN_GRACE_MS, SENTRY_HOMES, SPAWN, TILE, at } from '../world/e
 import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
+import { FONTS } from '../ui/theme.js';
 
 /**
  * 스테이지 3 — 저택 탈출.
@@ -80,6 +81,14 @@ const GAUGE_GRACE_MS = 1000;
  * 96px 보다 큰 값을 넣으면 꺾이는 자리가 구역 밖으로 나가 걷는 칸이라는 보장이 깨진다.
  */
 const EVA_DESCENT = TILE * 1.5;
+
+/**
+ * 심문을 통과하고 혼자 남아 속으로 하는 말 (2026-08-06 기획 목업).
+ *
+ * 괄호로 묶은 것은 오타가 아니다 — **소리 내지 않은 말**이다. 이 장면에 남은
+ * 사람은 자기 하나뿐이라 대사로 적으면 허공에 말하는 것이 된다.
+ */
+const MONOLOGUE = '( 그냥 보내 주겠다고? 확실히 보통 로봇들과는 달라… )';
 
 export class EscapeScene extends Phaser.Scene {
   constructor() {
@@ -142,17 +151,33 @@ export class EscapeScene extends Phaser.Scene {
     // 그 역할을 하는 것이 nineslice 다. 좌우 캡 25px · 위아래 레일 10px 은
     // public/ui/alert-gauge.png(292×42)를 재서 정했다.
     //
-    // ⚠ 채워지는 막대가 **액자보다 먼저** 와야 한다. 순서를 바꾸면 막대가 액자 위를
-    //   덮어 청동 캡이 가려진다 (Phaser 는 추가 순서가 곧 그리는 순서다).
+    // ⚠ **액자를 먼저 깔고 막대를 그 위에 얹는다.** 반대로 두었다가 게이지가 통째로
+    //   안 보였다 — CSS 의 `border-image` 는 slice 에 `fill` 이 없으면 가운데를 아예
+    //   안 그리지만, **Phaser 의 nineslice 는 가운데도 그린다.** 액자 그림의 가운데는
+    //   불투명한 검은 쇠(실측 100%)라 그 아래 붉은 막대를 완전히 덮었다.
+    //
+    //   막대가 캡을 가리지는 않는다. 액자가 460 인데 막대는 410 이고(좌우 캡 25씩),
+    //   높이도 46 대 18 이라 위아래 레일 안쪽에 들어앉는다.
     const GAUGE_W = 410; // 액자 460 에서 좌우 캡 25씩 뺀 안쪽 폭
+    this.gaugeFrame = this.add.nineslice(960, 40, 'alert-gauge', undefined, 460, 46, 25, 25, 10, 10);
     this.gaugeBg = this.add.rectangle(960, 40, GAUGE_W, 18, 0x000000, 0.55);
     this.gaugeFill = this.add.rectangle(960 - GAUGE_W / 2, 40, 0, 18, 0xc25b4a, 0.95).setOrigin(0, 0.5);
-    this.gaugeFrame = this.add.nineslice(960, 40, 'alert-gauge', undefined, 460, 46, 25, 25, 10, 10);
+    /**
+     * 발각 경고 — 콘 안에 있는 동안만 게이지 위에 뜬다.
+     *
+     * 게이지 막대만으로는 **지금 걸리고 있다**가 안 읽힌다. 화면 맨 위의 얇은 띠라
+     * 발밑을 보며 걷는 동안에는 시야 밖이고, 붉은 콘 안에 서 있어도 그 콘이 원래
+     * 붉어서 "들어왔다"는 순간이 안 잡힌다. 글자 하나가 그 순간을 못박는다.
+     */
+    this.alertText = this.add.text(960, 84, '발 각 됨', {
+      fontFamily: FONTS.head, fontSize: '34px', color: '#ff5a3c',
+      stroke: '#2a0d06', strokeThickness: 6,
+    }).setOrigin(0.5).setAlpha(0);
     this.vignette = this.add.rectangle(960, 540, 1920, 1080, 0xc2251a, 0).setOrigin(0.5);
     this.retryText = this.add.text(1880, 24, '', {
       fontFamily: 'monospace', fontSize: '20px', color: '#8a8378',
     }).setOrigin(1, 0);
-    this.asUi(this.gaugeBg, this.gaugeFill, this.gaugeFrame, this.vignette, this.retryText);
+    this.asUi(this.gaugeFrame, this.gaugeBg, this.gaugeFill, this.alertText, this.vignette, this.retryText);
 
     this.panel = new MinigamePanel();
     this.dialogue = new DialogueBox();
@@ -245,17 +270,38 @@ export class EscapeScene extends Phaser.Scene {
       this.gauge = Math.max(0, this.gauge - (GAUGE_FALL * delta) / 1000);
     }
 
-    this.#drawGauge();
+    this.#drawGauge(seen);
 
     if (this.gauge >= GAUGE_MAX) this.#caught();
   }
 
-  #drawGauge() {
+  /**
+   * 위험도를 화면에 세 겹으로 알린다.
+   *
+   * 한 겹으로는 부족했다. 게이지 막대는 화면 맨 위의 얇은 띠라 발밑을 보며 걷는
+   * 동안 시야 밖이고, 붉은 콘은 원래 붉어서 "들어왔다"는 **순간**이 안 잡힌다.
+   *
+   *   1. 막대 — 얼마나 찼는가 (숫자에 해당하는 정보)
+   *   2. 비네트 — 안 보고 있어도 화면 가장자리가 붉어진다
+   *   3. 경고 글자 — 콘 안에 **있는 동안만** 깜빡인다 (지금 걸리는 중이라는 사실)
+   *
+   * @param {boolean} seen 이번 프레임에 콘 안에 있었는가
+   */
+  #drawGauge(seen) {
     const ratio = this.gauge / GAUGE_MAX;
     // 410 은 액자 안쪽 폭이다 (create 의 GAUGE_W). 액자 폭을 고치면 여기도 고친다.
     this.gaugeFill.width = 410 * ratio;
-    // 게이지가 오르는 동안 화면 가장자리가 붉어진다 — 바를 안 보고 있어도 읽힌다.
-    this.vignette.fillAlpha = 0.28 * ratio;
+    // 찰수록 달아오른다 — 같은 붉은색이 길어지기만 하면 얼마나 급한지가 안 읽힌다.
+    this.gaugeFill.fillColor = ratio > 0.66 ? 0xff3a20 : ratio > 0.33 ? 0xe0662a : 0xc98a27;
+
+    // 가장자리가 붉어진다. 0.28 은 너무 옅어 바닥의 붉은 콘에 묻혔다 — 게다가
+    // 비율에 정비례하면 초반이 거의 안 보인다. 제곱근을 쓰면 **들어서자마자** 뜬다.
+    this.vignette.fillAlpha = 0.45 * Math.sqrt(ratio);
+
+    // 콘 안에 있는 동안만. 깜빡임은 시간으로 만든다 — 트윈을 켜고 끄면 벗어나는
+    // 순간 어중간한 밝기에서 굳는다.
+    this.alertText.setAlpha(seen ? 0.55 + 0.45 * Math.sin(this.time.now / 90) : 0);
+
     this.retryText.setText(this.retries ? `재시도 ${this.retries}` : '');
   }
 
@@ -288,6 +334,9 @@ export class EscapeScene extends Phaser.Scene {
     this.eva.setVisible(false);
     this.gauge = 0;
     this.fallAt = 0;
+    // 화면에도 곧바로 반영한다 — 안 그리면 다음 프레임까지 붉은 비네트와 '발각됨'
+    // 글자가 남아, 되살아난 순간 아직 걸려 있는 것처럼 보인다.
+    this.#drawGauge(false);
     // 순찰 위상을 되돌리지 않으면 리스폰하자마자 코앞에 로봇이 있는 판이 반복된다.
     // 게이지만 0으로 돌리고 로봇을 그대로 두는 것이 이 설계의 최악 실패다 (스펙 §6).
     for (const s of this.sentries) s.reset();
@@ -417,7 +466,41 @@ export class EscapeScene extends Phaser.Scene {
     });
   }
 
-  #toEnding() {
+  /**
+   * 심문을 통과한 뒤 — 본부로 넘어가기 전 한 박자 (2026-08-06 기획 목업).
+   *
+   * 곧바로 암전하면 **방금 무슨 일이 있었는지 삼킬 틈이 없다.** 이 게임의 반전이
+   * 여기서 끝나는데, 통과 판정이 뜨자마자 화면이 검어지면 그게 그냥 관문 하나
+   * 넘은 것으로 읽힌다. 그래서 세 박자를 둔다:
+   *
+   *   1. **에바가 사라진다** — 보내 준 쪽이 먼저 자리를 뜬다. 툭 꺼지지 않고
+   *      옅어지며 물러나야 "돌려보냈다"로 읽힌다.
+   *   2. **혼자 남아 속으로 말한다** — 화자 이름도 초상도 없다. 괄호로 묶인
+   *      혼잣말이라 말이 아니라 생각이고, 이 장면에 다른 사람은 없다.
+   *   3. 그러고 나서 암전 → 본부.
+   *
+   * 주인공 일러스트는 세우지 않는다 (기획 지시). 수로에 혼자 서 있는 그림은
+   * 이미 화면에 있는 스프라이트가 하고 있다.
+   */
+  async #toEnding() {
+    // 에바가 물러난다. 스프라이트를 곧장 숨기지 않고 트윈으로 옅어지게 한다 —
+    // ⚠ 트윈이 alpha 를 0 으로 만들어 두므로 setVisible(false) 만으로는 안 되고,
+    //   다시 세울 때 alpha 를 되돌려야 한다 (#respawn 은 이 경로를 안 타지만,
+    //   나중에 재시작이 붙으면 여기서 물린다).
+    await new Promise((resolve) => {
+      this.tweens.add({
+        targets: this.eva, alpha: 0, duration: 700, ease: 'Sine.easeIn',
+        onComplete: () => { this.eva.setVisible(false).setAlpha(1); resolve(); },
+      });
+    });
+    await this.#beat(400);
+
+    // 혼잣말. 화자 칸을 비우면 이름표가 통째로 접힌다 (#dialogue-speaker:empty).
+    this.dialogue.show('', MONOLOGUE);
+    await this.#beat(4200);
+    this.dialogue.hide();
+    await this.#beat(500);
+
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Ending'));

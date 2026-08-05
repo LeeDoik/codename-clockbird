@@ -117,12 +117,22 @@ function askIdentity(panel, choices) {
   });
 }
 
-/** 질문 하나에 자유 입력으로 답한다. 선택지는 없다 — 연기는 고르는 것이 아니다. */
+/**
+ * 질문 하나에 자유 입력으로 답한다. 선택지는 없다 — 연기는 고르는 것이 아니다.
+ *
+ * 신분을 고른 뒤부터는 **마주 선 장면**이다 (layout: 'duel'). 에바가 왼쪽, 당신이
+ * 오른쪽에 서고 대화 상자가 그 사이에 놓인다 — 카드 안의 문답이 아니라 둘이
+ * 마주 보고 주고받는 말이라야 이 대목의 긴장이 산다.
+ *
+ * 제목은 이제 **말하는 사람**이다. 신분은 아래 안내로 내렸다 — 대화 상자의 머리에
+ * 「단어」가 붙어 있으면 에바가 그 단어를 말하는 것처럼 읽힌다.
+ */
 function askAnswer(panel, question, identityWord) {
   return panel.run({
-    title: `심문 — 「${identityWord}」`,
+    title: '에바',
     subtitle: question,
-    hint: '직접 답한다',
+    hint: `당신은 지금 「${identityWord}」다 — 그 사람으로 답한다`,
+    layout: 'duel',
     showVerdict: false,
     render: ({ content, finish }) => {
       const free = document.createElement('div');
@@ -171,12 +181,15 @@ async function showReply(panel, r, identityWord) {
     );
   }
 
+  // 에바의 대답은 **대화 상자 안**에 온다 (title/subtitle). 예전에는 본문 칸에
+  // 넣었는데, 마주 선 배치에서는 상자에 아직 앞 질문이 걸려 있어 "묻고 답하는"
+  // 순서가 어긋나 보였다. 상자가 곧 그 사람의 입이다.
+  panel.titleEl.textContent = '에바';
+  panel.subtitleEl.textContent = r.npcReply;
+
+  // 이번 턴에 벌어진 일과 눈금은 상자 밖 — 대사가 아니라 기록이다.
   const box = document.createElement('div');
   box.className = 'mg-col';
-
-  const reply = document.createElement('div');
-  reply.textContent = r.npcReply;
-  box.append(reply);
 
   for (const n of notes) {
     const p = document.createElement('div');

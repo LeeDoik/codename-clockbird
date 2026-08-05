@@ -14,7 +14,7 @@
  * 'card' 는 여기 없다 — 기본 배치라 아무 클래스도 안 붙는다. 판이 끝날 때 이 셋을
  * 통째로 떼어야 다음 미니게임이 남의 배치를 물려받지 않는다.
  */
-const LAYOUTS = ['stage', 'lock'];
+const LAYOUTS = ['stage', 'lock', 'duel'];
 
 let instance = null;
 
