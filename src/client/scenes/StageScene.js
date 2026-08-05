@@ -3,8 +3,7 @@ import { DialogueBox } from '../ui/DialogueBox.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { runLockPuzzle } from '../minigames/lockPuzzle.js';
-import { runTimingLock } from '../minigames/timingLock.js';
-import { runInterrogation } from '../minigames/interrogation.js';
+import { runBombThrow } from '../minigames/bombThrow.js';
 import { Patrol, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
 import {
   buildColliders,
@@ -28,8 +27,6 @@ import streetProps from '../assets/street-props.json';
  * 시야·순찰 NPC 는 W3 에서 얹는다.
  */
 const SPEED = 200;
-/** 자석 수류탄 시작 개수 (스토리보드 p16 — 다 쓰면 게임오버) */
-const GRENADES_START = 2;
 /** 검문이 끝난 뒤 다시 잡히지 않는 시간. 서버의 checkpointCooldownUntil 과 같은 값이어야 한다. */
 const CHECKPOINT_COOLDOWN_MS = 10_000;
 const TILE = mapData.tileSize; // 32
@@ -77,8 +74,6 @@ export class StageScene extends Phaser.Scene {
     this.reinforced = false;
     // 검문 진행 중 — 감지·입력·중복 호출을 한꺼번에 막는 스위치.
     this.checkpointActive = false;
-    // 자석 수류탄 — 적발에서 빠져나갈 수단. 0 이 되면 다음 적발이 곧 게임오버다.
-    this.grenades = GRENADES_START;
   }
 
   create() {
@@ -475,8 +470,7 @@ export class StageScene extends Phaser.Scene {
 
     const active = this.state.allies.filter((a) => !a.arrested);
     const lines = [
-      `경계 레벨 ${this.state.alertLevel} / 3   |   접선 가능 ${active.length}/${this.state.allies.length}` +
-        `   |   자석 수류탄 ${'◆'.repeat(this.grenades)}${'◇'.repeat(GRENADES_START - this.grenades)}`,
+      `경계 레벨 ${this.state.alertLevel} / 3   |   접선 가능 ${active.length}/${this.state.allies.length}`,
     ];
     if (this.answerShown && this.debugAnswer) {
       lines.push(`[디버그] 접선 코드: 「${this.debugAnswer.codeWord}」 (${this.debugAnswer.category})`);
@@ -668,8 +662,11 @@ export class StageScene extends Phaser.Scene {
   /**
    * 발각 → 검문.
    *
-   * 1단은 지연 0 인 타이밍 게임이라 대부분의 조우가 여기서 끝난다. 놓쳤을 때만
-   * LLM 심문이 마지막 기회로 열린다 (계획서 §5.1 의 AI 활용 지점 4번).
+   * 신원 스캔 없이 곧장 자석 폭탄 충전·투척으로 들어간다 — 성공하면 로봇이 굳은 틈에
+   * 폭탄을 회수하므로 대가가 없고, 실패하면 경계 레벨만 오른다. 소모품을 따로 추적하지
+   * 않는 이유: 경계 레벨 3 에서 걸리면 그 자체로 게임오버라(checkpoint/start 의
+   * INSTANT_ARREST_ALERT), 별도의 "다 쓰면 게임오버"를 얹으면 같은 패배 조건을 두
+   * 갈래로 관리하게 된다.
    */
   async #startCheckpoint() {
     if (this.checkpointActive) return;
@@ -688,34 +685,28 @@ export class StageScene extends Phaser.Scene {
         return;
       }
 
-      const passed = await runTimingLock(this.minigame, this.state.alertLevel);
+      const passed = await runBombThrow(this.minigame, this.state.alertLevel);
       if (this.ended) return;
+
+      const r = await this.#post('checkpoint/qte', { result: passed ? 'pass' : 'fail' });
+      this.state = r.state;
+      this.#updateHud();
 
       if (passed) {
-        const r = await this.#post('checkpoint/qte', { result: 'pass' });
-        this.state = r.state;
-        this.#updateHud();
-        return;
+        this.cameras.main.flash(220, 210, 230, 255);
+        this.cameras.main.shake(180, 0.006);
+        this.dialogue.show(
+          '자석 폭탄',
+          '푸른 섬광. 로봇의 관절이 서로 들러붙어 굳는다.\n\n그 틈에 폭탄을 회수하고 골목으로 몸을 던졌다.',
+        );
+        this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
+      } else {
+        this.dialogue.show(
+          '자석 폭탄',
+          `빗나갔다. 로봇이 이상을 감지하고 경계를 강화한다.\n\n경계 레벨 ${this.state.alertLevel}/3`,
+        );
+        this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
       }
-
-      const outcome = await runInterrogation(this.minigame, {
-        // 질문 생성(LLM 2~4초)이 여기서 돈다 — 패널의 "신원 조회 중…" 이 그 대기를 덮는다.
-        fetchQuestion: async () => {
-          const r = await this.#post('checkpoint/qte', { result: 'fail' });
-          this.state = r.state;
-          this.#updateHud();
-          return r;
-        },
-        submitAnswer: async (answer, source) => {
-          const r = await this.#post('checkpoint/answer', { answer, source });
-          this.state = r.state;
-          this.#updateHud();
-          return r;
-        },
-      });
-
-      if (this.ended) return;
-      if (outcome === 'caught') this.#useGrenade();
     } catch (err) {
       // 검문이 네트워크 사고로 게임을 멈추게 두지 않는다. 패널을 접고 그냥 보내 준다.
       this.minigame.close();
@@ -770,46 +761,6 @@ export class StageScene extends Phaser.Scene {
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Mansion'));
-  }
-
-  /**
-   * 자석 수류탄 — 검문에 적발됐을 때의 마지막 수단 (스토리보드 p16, 계획서 §4.3).
-   *
-   * 강한 자기장으로 로봇의 구동부를 잠깐 붙여 놓고 그 틈에 빠져나간다.
-   * 두 개로 시작하고, **다 쓰면 게임오버**다 — "게임오버 = 자석 수류탄 소진"이
-   * 이 스테이지의 패배 조건이다. 적발 자체가 즉사가 아니라, 빠져나갈 수단이
-   * 남아 있느냐가 판을 가른다.
-   *
-   * ※ 지금은 클라이언트가 개수를 센다. 판이 끝나면 세션도 끝나 되돌릴 여지가 없어
-   *   당장 문제는 없지만, 서버 권위가 원칙이므로 세션으로 옮기는 것이 옳다 (후속).
-   */
-  #useGrenade() {
-    if (this.grenades <= 0) {
-      this.dialogue.show(
-        '검문 적발',
-        '주머니를 더듬었지만 아무것도 잡히지 않는다.\n\n' +
-          '자석 수류탄이 없다. 로봇의 팔이 어깨를 붙든다.',
-      );
-      this.#endGame('caught', { delay: 1800 });
-      return;
-    }
-
-    this.grenades -= 1;
-    this.#updateHud();
-
-    // 자기장이 터지는 순간 — 화면이 한 번 희게 튀고 로봇들이 굳는다.
-    this.cameras.main.flash(220, 210, 230, 255);
-    this.cameras.main.shake(180, 0.006);
-    for (const p of this.patrols) p.halt();
-
-    this.dialogue.show(
-      '자석 수류탄',
-      '진술이 받아들여지지 않았다. 팔이 뻗어 오는 순간, 주머니의 수류탄을 굴렸다.\n\n' +
-        '푸른 섬광. 로봇의 관절이 서로 들러붙어 굳는다. 그 틈에 골목으로 몸을 던졌다.\n\n' +
-        `경계 레벨 ${this.state.alertLevel}/3   ·   남은 수류탄 ${this.grenades}개` +
-        (this.grenades === 0 ? '\n\n이제 다음은 없다.' : ''),
-    );
-    this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
 
   /** 상태를 갱신하는 POST 한 번. 실패는 예외로 올린다. */

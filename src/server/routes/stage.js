@@ -16,7 +16,6 @@ import {
   raiseAlert,
   inCheckpoint,
 } from '../session.js';
-import { generateInterrogation, judgeCheckpointAnswer } from '../ai/checkpoint.js';
 
 const router = express.Router();
 
@@ -135,10 +134,6 @@ router.post('/rescue', (req, res) => {
  * — 통과하자마자 같은 자리에서 다시 잡히면 빠져나갈 방법이 없다.
  */
 const CHECKPOINT_COOLDOWN_MS = 10_000;
-/** 열어 둔 채 잊힌 검문은 파기한다 (탭을 놔두고 자리를 뜬 경우). */
-const CHECKPOINT_STALE_MS = 120_000;
-/** 자유 입력 답변 길이 상한 — 프롬프트를 통째로 밀어 넣는 시도를 입구에서 자른다. */
-const MAX_ANSWER_LEN = 120;
 
 /** 검문 라우트 공통 전처리: 세션 조회 + 종료 여부 확인. */
 function checkpointSession(req, res) {
@@ -176,100 +171,35 @@ router.post('/checkpoint/start', (req, res) => {
     return res.status(409).json({ error: '방금 검문을 통과했습니다.' });
   }
 
-  // 앞단은 지연 0 인 타이밍 게임이다. LLM 은 이걸 놓쳤을 때만 부른다.
   session.checkpoint = { stage: 'qte', startedAt: Date.now() };
   res.json({ outcome: 'qte', state: toClientView(session) });
 });
 
 /**
  * POST /api/stage/checkpoint/qte  { sessionId, result: 'pass'|'fail' }
- * 타이밍 게임 결과 보고. 통과면 대가 없이 끝나고, 실패면 LLM 심문이 열린다.
+ *
+ * 검문 결과 보고. result 는 자석 폭탄 투척 미니게임(클라이언트)의 최종 결과다.
+ * 통과면 대가 없이 끝나고, 실패하면 경계 레벨만 오른다 — 레벨 3 에서 걸리면
+ * 그 자체로 게임오버라(checkpoint/start 의 INSTANT_ARREST_ALERT), 별도의
+ * "몇 번 실패하면 게임오버" 를 여기 얹지 않는다.
  */
-router.post('/checkpoint/qte', async (req, res, next) => {
-  try {
-    const session = checkpointSession(req, res);
-    if (!session) return;
-    if (session.checkpoint?.stage !== 'qte') {
-      return res.status(409).json({ error: '진행 중인 검문이 없습니다.' });
-    }
-
-    if (req.body?.result === 'pass') {
-      session.checkpoint = null;
-      session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
-      return res.json({ outcome: 'pass', state: toClientView(session) });
-    }
-
-    const interrogation = await generateInterrogation({
-      alertLevel: session.alertLevel,
-      arrestedCount: arrestedCount(session),
-    });
-    session.checkpoint = {
-      stage: 'question',
-      startedAt: Date.now(),
-      question: interrogation.question,
-      choices: interrogation.choices,
-    };
-
-    res.json({
-      outcome: 'question',
-      question: interrogation.question,
-      choices: interrogation.choices,
-      state: toClientView(session),
-    });
-  } catch (err) {
-    next(err);
+router.post('/checkpoint/qte', (req, res) => {
+  const session = checkpointSession(req, res);
+  if (!session) return;
+  if (session.checkpoint?.stage !== 'qte') {
+    return res.status(409).json({ error: '진행 중인 검문이 없습니다.' });
   }
-});
 
-/**
- * POST /api/stage/checkpoint/answer  { sessionId, answer, source }
- * 심문 답변 심사. 적발되어도 게임오버가 아니라 경계 +1 후 풀려난다 — 발각은 반복되는
- * 사건이라, 한 번 걸렸다고 판이 끝나면 반복 플레이 자체가 성립하지 않는다.
- */
-router.post('/checkpoint/answer', async (req, res, next) => {
-  try {
-    const session = checkpointSession(req, res);
-    if (!session) return;
+  session.checkpoint = null;
+  session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
 
-    const cp = session.checkpoint;
-    if (cp?.stage !== 'question') return res.status(409).json({ error: '진행 중인 심문이 없습니다.' });
-    if (Date.now() - cp.startedAt > CHECKPOINT_STALE_MS) {
-      session.checkpoint = null;
-      return res.status(409).json({ error: '검문이 만료되었습니다.' });
-    }
+  if (req.body?.result !== 'pass') raiseAlert(session);
 
-    const raw = typeof req.body?.answer === 'string' ? req.body.answer.trim() : '';
-    if (!raw) return res.status(400).json({ error: '빈 답변입니다.' });
-    const answer = raw.slice(0, MAX_ANSWER_LEN);
-    // 선택지에서 골랐다고 주장하지만 실제 선택지에 없으면 자유 입력으로 강등한다
-    // — 심사 프롬프트가 "제시된 선택지"라는 이유로 관대해지는 걸 막는다.
-    const source = req.body?.source === 'choice' && cp.choices.includes(answer) ? 'choice' : 'free';
+  console.log(
+    `[checkpoint] 세션 ${session.id.slice(0, 8)} — ${req.body?.result === 'pass' ? 'pass' : 'fail'} (경계 ${session.alertLevel})`,
+  );
 
-    const verdict = await judgeCheckpointAnswer({
-      question: cp.question,
-      answer,
-      answerSource: source,
-      alertLevel: session.alertLevel,
-      arrestedCount: arrestedCount(session),
-    });
-
-    session.checkpoint = null;
-    session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
-
-    if (verdict.verdict === 'caught') raiseAlert(session);
-
-    console.log(
-      `[checkpoint] 세션 ${session.id.slice(0, 8)} — ${source} "${answer}" → ${verdict.verdict} (${verdict.reason})`,
-    );
-
-    res.json({
-      outcome: verdict.verdict,
-      npcReply: verdict.npcReply,
-      state: toClientView(session),
-    });
-  } catch (err) {
-    next(err);
-  }
+  res.json({ outcome: req.body?.result === 'pass' ? 'pass' : 'fail', state: toClientView(session) });
 });
 
 /**

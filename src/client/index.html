@@ -494,6 +494,746 @@
       .mg-zone { position: absolute; top: 0; bottom: 0; background: rgba(94, 139, 126, 0.32); }
       .mg-cursor { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--brass); }
 
+      /* 충전 게이지 — 자석 폭탄 투척 1단계. 세그먼트가 하나씩 채워진다. */
+      .mg-gauge { display: flex; gap: 4px; }
+      .mg-gauge-seg {
+        flex: 1;
+        height: 28px;
+        background: #0f0d0a;
+        border: 1px solid var(--brass-lo);
+        border-radius: 3px;
+        transition: background 80ms linear;
+      }
+      .mg-gauge-seg.filled {
+        background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 60%, var(--brass-lo) 100%);
+      }
+
+      /* 자기력 폭탄 투척 전용 리스킨 — bt- 접두사로 다른 미니게임(신원 스캔 등)이
+         공유하는 .mg-track/.mg-gauge 와 완전히 분리해, 이 미니게임만 그림 소품을 쓴다.
+         목업처럼 장면 그림이 카드 전체(가장자리까지)를 채우는 배경이고, 제목·타이머·경고 배너는
+         그 위에 얹는 오버레이다 — 그림을 먼저 깔고 그 위에 틀을 얹어야 틀의 불투명한 테두리가
+         그림의 각진 경계를 자연스럽게 덮는다(반대로 하면 그림이 중간에 뜬 사진처럼 붕 떠 보인다).
+         카드 자체를 고정 높이(440px)로 박아서 두 단계(충전/투척) 사이에 크기가 절대 안 바뀐다 —
+         예전엔 콘텐츠 높이에 따라 카드가 자동으로 늘어나 두 화면이 다른 크기로 보였다.
+         배경 이미지 자체는 JS(bombThrow.js)가 인라인으로 얹는다 — Vite 에셋 파이프라인을
+         타려면 import 된 URL 이어야 하고, 이 정적 <style> 블록의 문자열 url() 로는 그 처리를
+         받지 못한다. */
+      #minigame-card.bt-active {
+        width: calc(1280 * var(--s));
+        min-width: 0;
+        max-width: 94vw;
+        height: calc(880 * var(--s));
+        padding: 0;
+        background-color: #0f0d0a;
+        border: calc(4 * var(--s)) solid var(--brass-lo);
+        border-radius: calc(20 * var(--s));
+        overflow: hidden;
+        box-shadow: 0 calc(48 * var(--s)) calc(120 * var(--s)) rgba(0, 0, 0, 0.7);
+        text-align: left;
+        position: relative;
+      }
+      /* 장면 그림(손+폭탄 / 캐릭터+로봇) — ?bomblayout 에디터에서 사용자가 직접 드래그·줌으로
+         잡은 좌표(실제 px)를 그대로 쓴다. CSS background-position/size 대신 실제 <img> 로
+         다뤄야 에디터에서 뽑은 width/left/top 값을 손실 없이 그대로 옮길 수 있다. 카드의
+         맨 처음 자식으로 넣어서(JS 에서 insertBefore) 항상 다른 요소들보다 뒤에 깔린다. */
+      .bt-bg { position: absolute; left: 0; top: 0; pointer-events: none; }
+      /* 제목 — ?bomblayout 에서 잡은 좌표 그대로. 텍스트 위치(textLeft/textTop)는 padding 으로
+         옮긴다(안의 글자가 상자 왼쪽 위 기준으로 그 자리에서부터 흐르게). */
+      #minigame-card.bt-active #minigame-title {
+        position: absolute;
+        top: calc(-14 * var(--s));
+        left: 0;
+        width: calc(862 * var(--s));
+        height: calc(294 * var(--s));
+        margin: 0;
+        padding: calc(78 * var(--s)) calc(32 * var(--s)) 0 calc(172 * var(--s));
+        box-sizing: border-box;
+        font-size: calc(44 * var(--s));
+        text-align: left;
+        text-shadow: 0 calc(4 * var(--s)) calc(8 * var(--s)) rgba(0, 0, 0, 0.8);
+        background-size: 100% 100%;
+        background-repeat: no-repeat;
+        z-index: 1;
+      }
+      /* 부제 — 제목판 안, 큰 제목 글자 바로 아래에 놓이는 작은 설명 줄. 제목과 같은
+         가로 인셋(padding-left:86px)을 그대로 맞춰서 왼쪽 정렬 라인이 일치하게 한다. */
+      #minigame-card.bt-active #minigame-subtitle {
+        display: block;
+        position: absolute;
+        top: calc(118 * var(--s));
+        left: 0;
+        width: calc(862 * var(--s));
+        margin: 0;
+        padding: 0 calc(32 * var(--s)) 0 calc(172 * var(--s));
+        box-sizing: border-box;
+        font-size: calc(26 * var(--s));
+        line-height: 1.35;
+        opacity: 0.85;
+        text-align: left;
+        text-shadow: 0 calc(2 * var(--s)) calc(6 * var(--s)) rgba(0, 0, 0, 0.9);
+        white-space: pre-line;
+        z-index: 1;
+      }
+      /* 자체 디지털 타이머(.bt-timer-chip)를 따로 두므로, 공유 황동 게이지 바는 숨긴다. */
+      #minigame-card.bt-active #minigame-timer { display: none; }
+      /* 장면 그림은 카드 자체 배경이라, 콘텐츠 박스는 그 위에 게이지·막대·버튼을 얹는 투명한
+         전체 오버레이일 뿐이다 — 카드 전체(#minigame-card)를 기준으로 좌표를 잡는다. */
+      #minigame-card.bt-active #minigame-content {
+        position: absolute;
+        inset: 0;
+        margin: 0;
+        padding: 0;
+      }
+      #minigame-card.bt-active #minigame-hint {
+        position: absolute;
+        left: calc(114 * var(--s));
+        top: calc(592 * var(--s));
+        width: calc(1084 * var(--s));
+        height: calc(130 * var(--s));
+        margin: 0;
+        padding: calc(34 * var(--s)) calc(48 * var(--s)) 0 calc(400 * var(--s));
+        box-sizing: border-box;
+        font-size: calc(26 * var(--s));
+        text-align: left;
+        line-height: 1.3;
+        /* 자동 줄바꿈만 믿으면 판넬의 장식 테두리 안쪽 좁은 안전 영역을 넘어갈 수 있어서,
+           JS 쪽 문구에 \n 을 박아 원하는 자리에서 줄을 끊는다 — pre-line 이 그 \n 은 그대로
+           줄바꿈으로 살리면서, 넘치는 단어는 여전히 자동으로도 감싼다. */
+        white-space: pre-line;
+        text-shadow: 0 calc(2 * var(--s)) calc(6 * var(--s)) rgba(0, 0, 0, 0.9);
+        background-size: 100% 100%;
+        background-repeat: no-repeat;
+        /* 공유 #minigame-hint 기본 규칙이 opacity:0.5 를 주는데(다른 미니게임의 "옅은 안내문"
+           스타일), 여기서 안 덮으면 경고판 배경까지 반투명해져서 뒤 그림이 비쳐 보인다. */
+        opacity: 1;
+        z-index: 1;
+      }
+      #minigame-card.bt-active #minigame-verdict { position: absolute; left: 0; right: 0; bottom: calc(148 * var(--s)); font-size: calc(36 * var(--s)); text-align: center; z-index: 1; }
+
+      /* 자체 디지털 타이머 — 20:00 → 19:00 → … → 00:00 형태의 연출용 표기(실제 분:초 아님).
+         제목·경고판처럼 양쪽에 톱니 메달이 있는 프레임이 아니라, 시계 아이콘만 있고 옆은
+         완전히 비어 있는 전용 판(bomb-timer-panel.png)을 쓴다 — 시계는 이미 그림에 그려져
+         있으니 이모지로 또 그리지 않고, 숫자만 그 옆 빈 자리에 얹는다. 좌표는 ?bomblayout 에서
+         잡은 값 그대로. */
+      .bt-timer-chip {
+        position: absolute;
+        top: calc(46 * var(--s));
+        left: calc(860 * var(--s));
+        width: calc(414 * var(--s));
+        height: calc(168 * var(--s));
+        padding: calc(68 * var(--s)) 0 0 calc(184 * var(--s));
+        box-sizing: border-box;
+        background-size: 100% 100%;
+        background-repeat: no-repeat;
+        z-index: 1;
+      }
+      .bt-timer-text {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(42 * var(--s));
+        color: #e35d43;
+        letter-spacing: 0.02em;
+        text-shadow: 0 0 calc(12 * var(--s)) rgba(227, 93, 67, 0.5);
+      }
+      .bt-timer-text.blink { animation: bt-blink 0.4s steps(1) infinite; }
+      @keyframes bt-blink { 50% { opacity: 0.25; } }
+
+      /* 1단 충전 — 세로 게이지. 좌표는 ?bomblayout 에서 잡은 값(실제 px, 카드 기준 좌상단).
+         게이지 프레임의 실제 그림 비율(268:1110)을 aspect-ratio 로 지켜서 늘어나거나
+         찌그러지지 않게 한다. */
+      .bt-gauge {
+        position: absolute;
+        left: calc(888 * var(--s));
+        top: calc(220 * var(--s));
+        width: calc(88 * var(--s));
+        aspect-ratio: 268 / 1110;
+        filter: drop-shadow(0 calc(12 * var(--s)) calc(28 * var(--s)) rgba(0, 0, 0, 0.7));
+      }
+      .bt-gauge img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+      .bt-gauge-fill { clip-path: inset(100% 0 0 0); }
+
+      /* 2단 조준 — 가로 막대. 좌표는 ?bomblayout 에서 잡은 값.
+         막대 그림의 실제 비율(2430:350)을 aspect-ratio 로 지킨다 — 억지로 다른 비율 박스에
+         밀어 넣으면 그림이 찌그러지고, 그 위에 얹는 목표 구간·손잡이도 어긋나 보인다.
+         (원본 소품엔 채널 한가운데에 고정된 톱니바퀴 손잡이가 그림으로 박혀 있었는데, 그건
+         목표 구간이 매판 랜덤으로 움직이는 우리 방식과 안 맞아 늘 어긋나 보였다 — 그 부분을
+         잘라낸 버전을 쓰고, 우리가 실제로 움직이는 손잡이(.bt-handle)만 얹는다.) */
+      .bt-track { position: absolute; left: calc(270 * var(--s)); top: calc(224 * var(--s)); width: calc(720 * var(--s)); aspect-ratio: 2430 / 350; }
+      .bt-track img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+      /* 목표 구간 표시 — 채널 내부 영역(그림에서 픽셀로 실측: 위 24%·아래 13%·좌 7%·우 7.4%)에
+         딱 맞춰 빨강↔초록 그라디언트를 얹는다 — 성공 구간이 초록, 그 밖은 빨강으로 채널 전체가
+         물든다. 색 자체(그라디언트 정지점)는 실제 목표 위치·폭에 맞춰 JS 가 매판 계산해서 넣는다. */
+      .bt-gradient {
+        position: absolute;
+        top: 24%;
+        bottom: 13%;
+        left: 7%;
+        right: 7.4%;
+        border-radius: 2px;
+        opacity: 0.88;
+        mix-blend-mode: screen;
+      }
+      /* 손잡이 — 톱니바퀴+오벌 플런저 모양(610:1220). 위치 이동은 바깥 래퍼(left%)가, 회전은
+         안쪽 이미지가 맡는다(같은 엘리먼트에서 translateX(-50%) 와 회전을 같이 걸면 매 프레임
+         계산이 꼬인다). 십자 손잡이 축(그림 세로 29% 지점)이 채널 중심에 오도록 margin-top 을
+         절반이 아니라 그 비율만큼만 끌어올린다. */
+      .bt-handle {
+        position: absolute;
+        top: 55.5%;
+        width: calc(92 * var(--s));
+        height: calc(184 * var(--s));
+        margin-left: calc(-46 * var(--s));
+        margin-top: calc(-53.4 * var(--s));
+      }
+      .bt-handle img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 calc(4 * var(--s)) calc(12 * var(--s)) rgba(0, 0, 0, 0.8));
+      }
+
+      /* SPACE 버튼 — 평소엔 normal, 누르는 순간 pressed(주황 발광)로 바뀌며 살짝 튀어오른다.
+         1단(충전)은 원형 다이얼(.bt-dial), 2단(투척)은 직사각 명판(.bt-plate) — 좌표는
+         ?bomblayout 에서 잡은 값(카드 기준 좌상단, 중앙 정렬용 transform 없이 직접 배치). */
+      .bt-space-btn {
+        position: absolute;
+        filter: drop-shadow(0 calc(8 * var(--s)) calc(20 * var(--s)) rgba(0, 0, 0, 0.8));
+        transition: transform 90ms ease-out;
+      }
+      .bt-space-btn img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+      .bt-space-pressed { opacity: 0; }
+      .bt-space-btn.pressed .bt-space-pressed { opacity: 1; }
+      .bt-space-btn.pressed .bt-space-normal { opacity: 0; }
+      .bt-space-btn.pressed { transform: scale(1.12); }
+      .bt-space-btn.bt-plate { left: calc(542 * var(--s)); top: calc(452 * var(--s)); width: calc(210 * var(--s)); aspect-ratio: 820 / 460; }
+      .bt-space-btn.bt-dial { left: calc(536 * var(--s)); top: calc(280 * var(--s)); width: calc(254 * var(--s)); aspect-ratio: 460 / 456; }
+
+      /* 감옥 퍼즐 — 배선 잇기 전용 리스킨. 카드 = 상단 헤더(제목·시계·타이머·초기화) +
+         좌측 안내판 + 우측 배선 그리드(BG_1, 번호 4개·도형 4개가 이미 그려진 판)의 3분할
+         구조다. bt- 와 마찬가지로 좌표는 전부 실측값을 calc(N*var(--s)) 로 적어 카드
+         크기가 바뀌어도 안의 모든 요소가 같은 비율로 늘고 줄게 한다. */
+      #minigame-card.wp-active {
+        width: calc(1600 * var(--s));
+        min-width: 0;
+        max-width: 94vw;
+        height: calc(904 * var(--s));
+        padding: 0;
+        background-color: #0f0d0a;
+        border: calc(2 * var(--s)) solid var(--brass-lo);
+        border-radius: calc(14 * var(--s));
+        overflow: hidden;
+        box-shadow: 0 calc(24 * var(--s)) calc(60 * var(--s)) rgba(0, 0, 0, 0.7);
+        text-align: left;
+        position: relative;
+      }
+      /* 헤더 — 제목(#minigame-title), 타이머 숫자판(.wp-timer-chip), 초기화 라벨을 얹는다. */
+      .wp-header {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: calc(1600 * var(--s));
+        height: calc(177 * var(--s));
+        z-index: 1;
+      }
+      #minigame-card.wp-active #minigame-title {
+        position: absolute;
+        left: calc(125.83 * var(--s));
+        top: calc(64.17 * var(--s));
+        width: calc(500 * var(--s));
+        margin: 0;
+        font-size: calc(32 * var(--s));
+        text-align: left;
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.8);
+        z-index: 2;
+      }
+      #minigame-card.wp-active #minigame-subtitle { display: none; }
+      #minigame-card.wp-active #minigame-timer { display: none; }
+      .wp-timer-chip {
+        position: absolute;
+        left: calc(830 * var(--s));
+        top: calc(28 * var(--s));
+        width: calc(280 * var(--s));
+        height: calc(122 * var(--s));
+        z-index: 2;
+      }
+      .wp-timer-text {
+        position: absolute;
+        left: calc(83.33 * var(--s));
+        top: calc(31.67 * var(--s));
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(34 * var(--s));
+        color: #e35d43;
+        letter-spacing: 0.02em;
+        text-shadow: 0 0 calc(6 * var(--s)) rgba(227, 93, 67, 0.5);
+      }
+      .wp-timer-text.blink { animation: bt-blink 0.4s steps(1) infinite; }
+      /* 초기화 라벨 — 장식용. 실제 초기화 동작은 없다(틀려도 그 자리에서 바로 다시 고르면
+         되는 방식이라 별도 리셋이 필요 없다) — 헤더 그림이 이미 그 자리에 빈 명판을
+         그려놨으니 자리를 비워두지 않고 문구만 얹는다. */
+      .wp-reset-label {
+        position: absolute;
+        left: calc(1385.83 * var(--s));
+        top: calc(71.83 * var(--s));
+        width: calc(155 * var(--s));
+        font-size: calc(22 * var(--s));
+        color: var(--paper-dim);
+        opacity: 0.75;
+        z-index: 2;
+      }
+      /* 좌측 안내판 — "i" 아이콘 밑으로 규칙(#minigame-subtitle) + 진행 피드백
+         (#minigame-hint) 을 세로로 쌓는다. */
+      .wp-info {
+        position: absolute;
+        left: calc(5 * var(--s));
+        top: calc(179.5 * var(--s));
+        width: calc(299 * var(--s));
+        height: calc(727 * var(--s));
+        z-index: 1;
+      }
+      #minigame-card.wp-active #minigame-subtitle {
+        display: block;
+        position: absolute;
+        left: calc(43.83 * var(--s));
+        top: calc(322.5 * var(--s));
+        width: calc(198 * var(--s));
+        margin: 0;
+        font-size: calc(18 * var(--s));
+        line-height: 1.5;
+        opacity: 0.9;
+        text-align: left;
+        white-space: pre-line;
+        z-index: 2;
+      }
+      #minigame-card.wp-active #minigame-hint {
+        position: absolute;
+        left: calc(28 * var(--s));
+        top: calc(560 * var(--s));
+        width: calc(243 * var(--s));
+        margin: 0;
+        padding: 0;
+        font-size: calc(17 * var(--s));
+        line-height: 1.5;
+        text-align: left;
+        white-space: pre-line;
+        opacity: 1;
+        color: var(--brass-hi);
+        z-index: 2;
+      }
+      /* 우측 배선 그리드 — BG_1 그림 한 장이 번호 4개(빈 링)·도형 4개(빈 테두리)를
+         전부 갖고 있다. 그 위에 번호 버튼(그림, 값 고정 없음 — 매판 배치만 그대로)과
+         도형 클릭 영역(투명, 정답이면 색이 들어온다)을 얹는다. */
+      .wp-grid {
+        position: absolute;
+        left: calc(300 * var(--s));
+        top: calc(178 * var(--s));
+        width: calc(1301 * var(--s));
+        height: calc(727 * var(--s));
+        z-index: 1;
+      }
+      .wp-grid img.wp-bg-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+      /* 번호 버튼 — 항상 1,2,3,4 순서로 같은 자리(그림의 빈 링과 같은 좌표). 정답 매칭이
+         끝나면(done) 살짝 가라앉는 정도만 표시하고 자리는 그대로 둔다 — 자리가 바뀌면
+         이미 이어진 호스와 어긋난다. */
+      .wp-num-btn {
+        position: absolute;
+        width: calc(149 * var(--s));
+        height: calc(149 * var(--s));
+        margin-left: calc(-74.5 * var(--s));
+        margin-top: calc(-74.5 * var(--s));
+        cursor: pointer;
+        z-index: 3;
+        transition: transform 90ms ease-out, filter 90ms ease-out;
+      }
+      .wp-num-btn img { width: 100%; height: 100%; object-fit: contain; }
+      .wp-num-btn.sel { transform: scale(1.08); filter: drop-shadow(0 0 calc(10 * var(--s)) rgba(232, 193, 90, 0.9)); }
+      .wp-num-btn.bad { filter: drop-shadow(0 0 calc(10 * var(--s)) rgba(160, 51, 37, 0.95)); }
+      .wp-num-btn.done { opacity: 0.55; cursor: default; }
+      /* 도형 클릭 영역 — 그림엔 이미 테두리만 그려져 있어 투명한 히트박스만 얹는다.
+         선택하면 옅은 테두리로, 정답이면 그 도형의 색으로 채워 "이어졌다" 를 보여준다. */
+      .wp-shape-btn {
+        position: absolute;
+        width: calc(150 * var(--s));
+        height: calc(150 * var(--s));
+        margin-left: calc(-75 * var(--s));
+        margin-top: calc(-75 * var(--s));
+        cursor: pointer;
+        z-index: 3;
+        border-radius: calc(18 * var(--s));
+        background: transparent;
+        transition: background 120ms ease-out;
+      }
+      .wp-shape-btn.sel { background: rgba(232, 193, 90, 0.18); }
+      .wp-shape-btn.bad { background: rgba(160, 51, 37, 0.35); }
+      .wp-shape-btn.done { cursor: default; }
+      /* 정답이면 도형별 steampunk_brass_ 포트 그림으로 채운다(색만 칠하던 것 대신
+         실제 모양 그림) — 평소엔 숨겨두고 done 이 붙는 순간 살짝 커지며 나타난다. */
+      .wp-shape-fill {
+        position: absolute;
+        inset: calc(-6 * var(--s));
+        width: calc(100% + 12 * var(--s));
+        height: calc(100% + 12 * var(--s));
+        object-fit: contain;
+        opacity: 0;
+        transform: scale(0.7);
+        transition: opacity 150ms ease-out, transform 150ms ease-out;
+        pointer-events: none;
+        filter: drop-shadow(0 calc(3 * var(--s)) calc(8 * var(--s)) rgba(0, 0, 0, 0.6));
+      }
+      .wp-shape-btn.done .wp-shape-fill { opacity: 1; transform: scale(1); }
+      /* 호스 — 번호 우측 가장자리에서 도형 좌측 가장자리로, 두 점 사이 각도·거리만큼
+         회전·신축한다(원본은 고정된 S자 곡선 그림이라 이렇게 늘려 붙이는 방식이 유일한
+         선택이다). transform-origin 을 왼쪽(시작점)에 둬서 그 점을 축으로 돈다. */
+      .wp-hose {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform-origin: 0% 50%;
+        z-index: 2;
+        pointer-events: none;
+      }
+      .wp-hose img { width: 100%; height: 100%; object-fit: fill; }
+      /* 연결 표(정답 표) — 도형 이름으로 "1→네모" 식으로 보여준다. 그림 위, 번호줄
+         위쪽 빈 명판에 얹는다. */
+      .wp-legend {
+        position: absolute;
+        left: calc(692 * var(--s));
+        top: calc(178 * var(--s));
+        width: calc(500 * var(--s));
+        height: calc(46 * var(--s));
+        z-index: 4;
+      }
+      .wp-legend-text {
+        position: absolute;
+        left: calc(99.17 * var(--s));
+        top: calc(53.33 * var(--s));
+        font-size: calc(19 * var(--s));
+        font-weight: 700;
+        color: var(--brass-hi);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+
+      /* 감옥 퍼즐 — 압력 밸브 조절(순서) 전용 리스킨. steampunk_valve_template 은 헤더·
+         안내판·밸브 4개까지 전부 한 장에 이미 그려진 완성형 배경이라(연출이 많이 필요
+         없어 그대로 쓰기로 함), 낱장을 따로 배치하던 배선 잇기와 달리 배경 이미지 한
+         장(.op-bg) 위에 텍스트·클릭 영역만 얹는다. 우하단 Meta AI 워터마크는 초기화
+         버튼(.op-reset)을 그 자리에 얹어서 가린다 — 장식이 아니라 실제로 누르면
+         지금까지 고른 순서를 지운다(판 자체를 실패 처리하지 않는다). */
+      #minigame-card.op-active {
+        width: calc(1600 * var(--s));
+        min-width: 0;
+        max-width: 94vw;
+        height: calc(1032 * var(--s));
+        padding: 0;
+        background-color: #0f0d0a;
+        border: calc(2 * var(--s)) solid var(--brass-lo);
+        border-radius: calc(14 * var(--s));
+        overflow: hidden;
+        box-shadow: 0 calc(24 * var(--s)) calc(60 * var(--s)) rgba(0, 0, 0, 0.7);
+        text-align: left;
+        position: relative;
+      }
+      .op-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+        z-index: 0;
+      }
+      #minigame-card.op-active #minigame-title {
+        position: absolute;
+        left: calc(88 * var(--s));
+        top: calc(63.111 * var(--s));
+        width: calc(1000 * var(--s));
+        margin: 0;
+        font-size: calc(28 * var(--s));
+        text-align: left;
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.8);
+        z-index: 2;
+      }
+      #minigame-card.op-active #minigame-subtitle {
+        display: block;
+        position: absolute;
+        left: calc(76.889 * var(--s));
+        top: calc(141.333 * var(--s));
+        width: calc(1000 * var(--s));
+        margin: 0;
+        font-size: calc(15 * var(--s));
+        opacity: 0.85;
+        text-align: left;
+        white-space: pre-line;
+        z-index: 2;
+      }
+      .op-timer-text {
+        position: absolute;
+        left: calc(1315.556 * var(--s));
+        top: calc(102.778 * var(--s));
+        white-space: nowrap;
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(26 * var(--s));
+        color: #e35d43;
+        letter-spacing: 0.02em;
+        text-shadow: 0 0 calc(6 * var(--s)) rgba(227, 93, 67, 0.5);
+        z-index: 2;
+      }
+      .op-timer-text.blink { animation: bt-blink 0.4s steps(1) infinite; }
+      /* 좌측 안내판 — 배경 그림에 이미 빈 명판 둘(피드백/규칙)과 네모 4칸이 그려져 있어,
+         그 위에 글자만 얹는다. */
+      #minigame-card.op-active #minigame-hint {
+        position: absolute;
+        left: calc(191.667 * var(--s));
+        top: calc(320.556 * var(--s));
+        width: calc(390 * var(--s));
+        margin: 0;
+        padding: 0;
+        font-size: calc(16 * var(--s));
+        line-height: 1.5;
+        text-align: left;
+        white-space: pre-line;
+        opacity: 1;
+        color: var(--brass-hi);
+        z-index: 2;
+      }
+      .op-rule {
+        position: absolute;
+        left: calc(99.444 * var(--s));
+        top: calc(477.222 * var(--s));
+        width: calc(390 * var(--s));
+        font-size: calc(18 * var(--s));
+        font-weight: 700;
+        line-height: 1.5;
+        text-align: left;
+        color: var(--brass-hi);
+        z-index: 2;
+      }
+      .op-progress-label {
+        position: absolute;
+        left: calc(97.222 * var(--s));
+        top: calc(666.667 * var(--s));
+        font-size: calc(15 * var(--s));
+        opacity: 0.8;
+        z-index: 2;
+      }
+      .op-progress-slot {
+        position: absolute;
+        top: calc(800 * var(--s));
+        width: calc(60 * var(--s));
+        height: calc(60 * var(--s));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: calc(22 * var(--s));
+        font-weight: 700;
+        color: var(--brass-hi);
+        text-shadow: 0 calc(1 * var(--s)) calc(2 * var(--s)) rgba(0, 0, 0, 0.8);
+        z-index: 2;
+      }
+      /* 밸브 클릭 영역 — 배경에 이미 그려진 게이지·바퀴 위에 얹는 투명 히트박스.
+         4개 다 같은 크기라 좌표만 다르게 4곳에 둔다. */
+      .op-valve {
+        position: absolute;
+        width: calc(150 * var(--s));
+        height: calc(160 * var(--s));
+        margin-left: calc(-75 * var(--s));
+        z-index: 2;
+        cursor: pointer;
+        border-radius: calc(12 * var(--s));
+        background: transparent;
+        transition: background 120ms ease-out, transform 90ms ease-out;
+      }
+      .op-valve.sel { background: rgba(232, 193, 90, 0.18); transform: scale(1.03); }
+      .op-valve.bad { background: rgba(160, 51, 37, 0.35); }
+      .op-valve.done { cursor: default; opacity: 0.55; }
+      .op-valve-value {
+        position: absolute;
+        left: calc(59.444 * var(--s));
+        top: calc(8 * var(--s));
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(24 * var(--s));
+        color: var(--brass-hi);
+        text-shadow: 0 calc(1 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
+        pointer-events: none;
+        z-index: 3;
+      }
+      .op-valve-unit {
+        position: absolute;
+        left: calc(59.444 * var(--s));
+        top: calc(78.889 * var(--s));
+        font-size: calc(11 * var(--s));
+        font-weight: 700;
+        color: var(--brass-hi);
+        text-shadow: 0 calc(1 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 3;
+      }
+      /* 초기화 버튼 — aged_brass_plate_1, Meta AI 워터마크를 가리는 자리에 얹는다.
+         실제로 누르면 현재 선택 순서를 지운다(판정에는 영향 없음). */
+      .op-reset-btn {
+        position: absolute;
+        left: calc(1352 * var(--s));
+        top: calc(891.778 * var(--s));
+        width: calc(207.778 * var(--s));
+        aspect-ratio: 260 / 118;
+        z-index: 4;
+        cursor: pointer;
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }
+      .op-reset-btn img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+      .op-reset-btn span {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: calc(16 * var(--s));
+        font-weight: 700;
+        color: #2a2416;
+        text-shadow: none;
+      }
+      .op-reset-btn:active { transform: scale(0.96); }
+
+      /* 감옥 퍼즐 — 압력 조정(합) 전용 리스킨. steampunk_gear_puzzle_template 도 순서
+         퍼즐과 같은 이유로(연출이 많이 필요 없음) 배경 한 장(.pp-bg)만 쓰고, 그 위에
+         텍스트·클릭 영역만 얹는다. 게이지 4개가 그림에 이미 그려져 있어 값 텍스트만
+         그 중심에 얹고, 아래 작은 원 2개는 지금까지 고른 값을 보여주는 슬롯으로 쓴다. */
+      #minigame-card.pp-active {
+        width: calc(1600 * var(--s));
+        min-width: 0;
+        max-width: 94vw;
+        height: calc(904 * var(--s));
+        padding: 0;
+        background-color: #0f0d0a;
+        border: calc(2 * var(--s)) solid var(--brass-lo);
+        border-radius: calc(14 * var(--s));
+        overflow: hidden;
+        box-shadow: 0 calc(24 * var(--s)) calc(60 * var(--s)) rgba(0, 0, 0, 0.7);
+        text-align: left;
+        position: relative;
+      }
+      .pp-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+        z-index: 0;
+      }
+      #minigame-card.pp-active #minigame-title {
+        position: absolute;
+        left: calc(344.444 * var(--s));
+        top: calc(38.333 * var(--s));
+        width: calc(460 * var(--s));
+        margin: 0;
+        font-size: calc(26 * var(--s));
+        text-align: left;
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.8);
+        z-index: 2;
+      }
+      #minigame-card.pp-active #minigame-subtitle {
+        display: block;
+        position: absolute;
+        left: calc(346.667 * var(--s));
+        top: calc(86.889 * var(--s));
+        width: calc(460 * var(--s));
+        margin: 0;
+        font-size: calc(14 * var(--s));
+        opacity: 0.85;
+        text-align: left;
+        white-space: pre-line;
+        z-index: 2;
+      }
+      .pp-timer-text {
+        position: absolute;
+        left: calc(1401.111 * var(--s));
+        top: calc(71.667 * var(--s));
+        white-space: nowrap;
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(24 * var(--s));
+        color: #e35d43;
+        letter-spacing: 0.02em;
+        text-shadow: 0 0 calc(6 * var(--s)) rgba(227, 93, 67, 0.5);
+        z-index: 2;
+      }
+      .pp-timer-text.blink { animation: bt-blink 0.4s steps(1) infinite; }
+      #minigame-card.pp-active #minigame-hint {
+        position: absolute;
+        left: calc(100 * var(--s));
+        top: calc(626.667 * var(--s));
+        width: calc(360 * var(--s));
+        margin: 0;
+        padding: 0;
+        font-size: calc(15 * var(--s));
+        line-height: 1.5;
+        text-align: left;
+        white-space: pre-line;
+        opacity: 1;
+        color: var(--brass-hi);
+        z-index: 2;
+      }
+      .pp-rule {
+        position: absolute;
+        left: calc(82.222 * var(--s));
+        top: calc(288.889 * var(--s));
+        width: calc(480 * var(--s));
+        font-size: calc(20 * var(--s));
+        font-weight: 700;
+        line-height: 1.5;
+        text-align: left;
+        color: var(--brass-hi);
+        text-shadow: 0 calc(1 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
+        z-index: 2;
+      }
+      .pp-slot {
+        position: absolute;
+        width: calc(80 * var(--s));
+        height: calc(80 * var(--s));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-head);
+        font-size: calc(26 * var(--s));
+        font-weight: 700;
+        color: var(--brass-hi);
+        text-shadow: 0 calc(1 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
+        z-index: 2;
+      }
+      /* 게이지 클릭 영역 — 배경에 이미 그려진 톱니바퀴 위에 얹는 투명 히트박스.
+         4개 다 같은 크기라 좌표만 다르게 4곳에 둔다. */
+      .pp-gear {
+        position: absolute;
+        width: calc(220 * var(--s));
+        height: calc(220 * var(--s));
+        margin-left: calc(-110 * var(--s));
+        margin-top: calc(-110 * var(--s));
+        z-index: 2;
+        cursor: pointer;
+        border-radius: 50%;
+        background: transparent;
+        transition: background 120ms ease-out, transform 90ms ease-out;
+      }
+      .pp-gear.sel { background: rgba(232, 193, 90, 0.18); transform: scale(1.03); }
+      .pp-gear.bad { background: rgba(160, 51, 37, 0.35); }
+      .pp-gear-value {
+        position: absolute;
+        left: calc(55.556 * var(--s));
+        top: calc(-31.111 * var(--s));
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(34 * var(--s));
+        color: var(--brass-hi);
+        text-shadow: 0 calc(1 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
+        pointer-events: none;
+        z-index: 3;
+      }
+
       /* 결과 화면 — 씬 전환이 아니라 정지된 월드 위에 덮는 오버레이. */
       #result {
         position: absolute;
@@ -584,7 +1324,102 @@
           <div id="result-wait"></div>
         </div>
       </div>
+      <!-- 개발용 — ?minigametest 로만 보인다. 검문 타이밍/감옥 자물쇠를 실제 스테이지 없이
+           바로 반복 실행해 보는 패널. MinigamePanel 이 DOM 만 쓰므로 Phaser 씬 없이도 동작한다. -->
+      <div
+        id="minigame-test-menu"
+        style="display:none; position:fixed; top:12px; right:12px; z-index:9999; background:#1a1712; border:1px solid #4a4234; border-radius:6px; padding:14px; color:#e8dcc0; font-family:system-ui, sans-serif; font-size:13px; width:240px;"
+      >
+        <div style="font-weight:700; color:#c9a227; margin-bottom:10px;">🧪 미니게임 테스트</div>
+        <div style="opacity:0.7; margin-bottom:4px;">신원 스캔 — 경계 수위</div>
+        <div id="mgt-scan-btns" style="display:flex; gap:4px; margin-bottom:12px;"></div>
+        <div style="opacity:0.7; margin-bottom:4px;">자석 폭탄 투척 — 경계 수위</div>
+        <div id="mgt-bomb-btns" style="display:flex; gap:4px; margin-bottom:12px;"></div>
+        <div style="opacity:0.7; margin-bottom:4px;">감옥 자물쇠 퍼즐</div>
+        <div id="mgt-lock-btns" style="display:flex; flex-direction:column; gap:4px;"></div>
+        <div id="mgt-result" style="margin-top:12px; font-size:12px; opacity:0.85; min-height:2.6em; white-space:pre-wrap;"></div>
+      </div>
     </div>
     <script type="module" src="./main.js"></script>
+    <script type="module">
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('bomblayout')) {
+        const { initBombLayoutEditor } = await import('./dev/bombLayoutEditor.js');
+        initBombLayoutEditor();
+      }
+      if (params.has('wiringlayout')) {
+        const { initWiringLayoutEditor } = await import('./dev/wiringLayoutEditor.js');
+        initWiringLayoutEditor();
+      }
+      if (params.has('orderlayout')) {
+        const { initOrderLayoutEditor } = await import('./dev/orderLayoutEditor.js');
+        initOrderLayoutEditor();
+      }
+      if (params.has('pressurelayout')) {
+        const { initPressureLayoutEditor } = await import('./dev/pressureLayoutEditor.js');
+        initPressureLayoutEditor();
+      }
+      if (params.has('minigametest')) {
+        const { MinigamePanel } = await import('./ui/MinigamePanel.js');
+        const { runTimingLock } = await import('./minigames/timingLock.js');
+        const { runBombThrow } = await import('./minigames/bombThrow.js');
+        const { runLockPuzzle } = await import('./minigames/lockPuzzle.js');
+
+        const panel = new MinigamePanel();
+        const menu = document.getElementById('minigame-test-menu');
+        const resultEl = document.getElementById('mgt-result');
+        menu.style.display = 'block';
+
+        const mkBtn = (label, onClick) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText =
+            'padding:6px 0; background:#4a4234; color:#e8dcc0; border:0; border-radius:3px; cursor:pointer; font-size:13px;';
+          b.onclick = onClick;
+          return b;
+        };
+
+        const scanBtns = document.getElementById('mgt-scan-btns');
+        for (const level of [0, 1, 2, 3]) {
+          const b = mkBtn(String(level), async () => {
+            resultEl.textContent = `신원 스캔 (경계 ${level}) 진행 중…`;
+            const ok = await runTimingLock(panel, level);
+            resultEl.textContent = `신원 스캔 (경계 ${level}): ${ok ? '성공 ✔' : '실패 ✘'}`;
+          });
+          b.style.flex = '1';
+          b.style.textAlign = 'center';
+          scanBtns.appendChild(b);
+        }
+
+        const bombBtns = document.getElementById('mgt-bomb-btns');
+        for (const level of [0, 1, 2, 3]) {
+          const b = mkBtn(String(level), async () => {
+            resultEl.textContent = `자석 폭탄 (경계 ${level}) 진행 중…`;
+            const ok = await runBombThrow(panel, level);
+            resultEl.textContent = `자석 폭탄 (경계 ${level}): ${ok ? '성공 ✔' : '실패 ✘'}`;
+          });
+          b.style.flex = '1';
+          b.style.textAlign = 'center';
+          bombBtns.appendChild(b);
+        }
+
+        const lockBtns = document.getElementById('mgt-lock-btns');
+        const lockTypes = [
+          ['배선 잇기', 'wiring'],
+          ['압력 밸브', 'keypad'],
+          ['압력 조정', 'pressure'],
+          ['무작위', undefined],
+        ];
+        for (const [label, type] of lockTypes) {
+          lockBtns.appendChild(
+            mkBtn(label, async () => {
+              resultEl.textContent = `자물쇠 (${label}) 진행 중…`;
+              const ok = await runLockPuzzle(panel, type);
+              resultEl.textContent = `자물쇠 (${label}): ${ok ? '성공 ✔' : '실패 ✘'}`;
+            }),
+          );
+        }
+      }
+    </script>
   </body>
 </html>

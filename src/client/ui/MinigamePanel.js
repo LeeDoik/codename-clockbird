@@ -94,7 +94,7 @@ export class MinigamePanel {
    * @param {number} [opts.timeLimitMs]  0/생략이면 제한 시간 없음
    * @param {boolean} [opts.showVerdict]  false 면 성공/실패 연출 없이 finish 값을 그대로 돌려준다
    *        (심문처럼 판정이 아직 안 난, 값만 받아 오는 단계에 쓴다)
-   * @param {(ctx: {content: HTMLElement, finish: (ok: boolean) => void, setHint: (s: string) => void}) => (void | (() => void))} opts.render
+   * @param {(ctx: {content: HTMLElement, finish: (ok: boolean) => void, setHint: (s: string) => void, setSubtitle: (s: string) => void}) => (void | (() => void))} opts.render
    *        본문을 그린다. 정리 함수를 반환하면 판이 끝날 때 호출된다.
    * @returns {Promise<boolean>} 성공 여부
    */
@@ -142,6 +142,7 @@ export class MinigamePanel {
       };
 
       const setHint = (s) => { this.hintEl.textContent = s; };
+      const setSubtitle = (s) => { this.subtitleEl.textContent = s; };
 
       if (timeLimitMs > 0) {
         this.timerEl.classList.add('visible');
@@ -166,7 +167,7 @@ export class MinigamePanel {
         this.timerEl.classList.remove('visible');
       }
 
-      cleanup = render({ content: this.contentEl, finish, setHint }) ?? null;
+      cleanup = render({ content: this.contentEl, finish, setHint, setSubtitle }) ?? null;
 
       // 판이 끝나기 전에 씬이 갈아엎히면(재시작) 타이머가 유령으로 남는다.
       this.abort = () => {

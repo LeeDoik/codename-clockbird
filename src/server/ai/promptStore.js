@@ -20,8 +20,6 @@ const TEMPLATES = [
   'mansion-stance',
   'mansion-ally',
   'mansion-civ',
-  'checkpoint-question',
-  'checkpoint-judge',
 ];
 const isProd = process.env.NODE_ENV === 'production';
 const cache = new Map();

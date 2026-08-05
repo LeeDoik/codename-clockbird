@@ -22,10 +22,6 @@ import hqProps from '../assets/hq-props.json';
 const TILE = hqData.tileSize;
 const PLAYER_FRAME = 0;
 
-// 배경 가구가 캐릭터 대비 크다 — 그림을 0.3배로 줄여 깔고(hq.json 의 tileSize 도
-// 32→9.6으로 같은 비율로 줄여 가구·충돌 칸 인덱스는 그대로 유지), 캐릭터(고정
-// 픽셀 크기)는 손대지 않아 상대적으로 커 보이게 한다.
-const BG_SCALE = 0.3;
 // 방이 작아서 스크롤이 필요 없다 — 방 전체 높이(rows*TILE)가 내부 해상도
 // 1080px 에 꼭 맞는 배율로 고정해 카메라가 플레이어를 따라다니지 않고
 // 방 전체를 계속 보여주게 한다(세로 기준: 가로 1920 에 맞추면 위아래가
@@ -90,7 +86,7 @@ export class TutorialScene extends Phaser.Scene {
 
     // 거리·저택과 같은 방식 — 바닥·벽·가구·조명을 한 장에 구운 배경을 깔고
     // 충돌만 따로 세운다 (scripts/gen-hq-art.js).
-    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setScale(BG_SCALE).setDepth(-100);
+    this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setDepth(-100);
     this.walls = buildColliders(this, hqData, hqProps.blocked);
     this.player = createPlayer(this, hqData, this.walls, PLAYER_FRAME);
     // 충돌 판정은 이 안 보이는 스프라이트가 그대로 맡고, 화면에는 방향 애니메이션이

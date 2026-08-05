@@ -15,6 +15,13 @@ import tutorialPlayerIdleUrl from '../assets/player/tutorial-idle.png';
 import tutorialPlayerWalkUrl from '../assets/player/tutorial-walk.png';
 import stage1PlayerIdleUrl from '../assets/player/stage1-idle.png';
 import stage1PlayerWalkUrl from '../assets/player/stage1-walk.png';
+import sewerPlayerIdleUrl from '../assets/player/sewer-idle.png';
+import sewerPlayerWalkUrl from '../assets/player/sewer-walk.png';
+import sewerBgUrl from '../assets/sewer-bg.png';
+import sewerCrateUrl from '../assets/sewer-crate.png';
+import sewerBarrelsUrl from '../assets/sewer-barrels.png';
+import sewerPillarUrl from '../assets/sewer-pillar.png';
+import sewerMossUrl from '../assets/sewer-moss.png';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -68,6 +75,20 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 256,
       frameHeight: 256,
     });
+    this.load.spritesheet('sewerPlayerIdle', sewerPlayerIdleUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
+    this.load.spritesheet('sewerPlayerWalk', sewerPlayerWalkUrl, {
+      frameWidth: 256,
+      frameHeight: 256,
+    });
+    // 스테이지3(지하수로) — 배경 한 장 + 은/엄폐물 낱장(스텔스 메커닉 붙을 때 개별로 쓰려고 분리해둔다).
+    this.load.image('sewer-bg', sewerBgUrl);
+    this.load.image('sewer-crate', sewerCrateUrl);
+    this.load.image('sewer-barrels', sewerBarrelsUrl);
+    this.load.image('sewer-pillar', sewerPillarUrl);
+    this.load.image('sewer-moss', sewerMossUrl);
   }
 
   create() {
@@ -87,7 +108,7 @@ export class BootScene extends Phaser.Scene {
     // 걸리도록 프레임 수에 맞춰 frameRate 를 방향마다 역산한다.
     const CYCLE_SECONDS = 0.6;
     const WALK_RANGES = { Down: [0, 21], Up: [22, 27], Left: [28, 43] };
-    for (const prefix of ['tutorial', 'stage1']) {
+    for (const prefix of ['tutorial', 'stage1', 'sewer']) {
       const idleKey = `${prefix}PlayerIdle`;
       if (!this.anims.exists(idleKey)) {
         this.anims.create({
@@ -120,6 +141,17 @@ export class BootScene extends Phaser.Scene {
       waitForFonts(2000).then(() => this.scene.start('Mansion'));
       return;
     }
+
+    // 개발용 — 지하수로로 곧장 들어간다. NPC·서버 세션이 없는 씬이라 대기할 것도 없다.
+    if (import.meta.env.DEV && params.has('sewer')) {
+      waitForFonts(2000).then(() => this.scene.start('Sewer'));
+      return;
+    }
+
+    // 개발용 — 검문 타이밍/감옥 자물쇠 미니게임만 따로 테스트한다. 실제 스테이지를
+    // 안 띄우므로 LLM 호출도 오프닝도 없다 — index.html 의 미니게임 테스트 오버레이가
+    // 전부 처리한다 (이 씬은 그냥 여기서 멈춘다).
+    if (import.meta.env.DEV && params.has('minigametest')) return;
 
     // 스테이지 시작을 지금 쏘고 그 대기를 오프닝이 가린다. 프로미스는 {state} 또는 {error}
     // 로만 resolve 하게 감싼다 — 오프닝이 끝날 때까지 소비되지 않아도 unhandledrejection

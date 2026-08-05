@@ -37,8 +37,6 @@ const RECOMMENDED_VARS = {
   'mansion-ally': ['mood'],
   'mansion-civ': ['mood'],
   'mansion-dialogue': ['backstory', 'personality'],
-  'checkpoint-question': ['alertLevel', 'arrestedCount'],
-  'checkpoint-judge': ['alertLevel', 'arrestedCount', 'strictness'],
 };
 
 function missingVars(name, text) {
