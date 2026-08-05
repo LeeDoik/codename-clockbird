@@ -136,13 +136,23 @@ export class EscapeScene extends Phaser.Scene {
     setupCameras(this, escapeData, this.player);
 
     // 게이지 바와 비네트는 화면 고정이다 — UI 카메라에 붙인다.
-    this.gaugeBg = this.add.rectangle(960, 40, 420, 14, 0x000000, 0.45);
-    this.gaugeFill = this.add.rectangle(960 - 210, 40, 0, 14, 0xc25b4a, 0.95).setOrigin(0, 0.5);
+    //
+    // 액자는 9분할(nineslice)이다. 통짜 이미지를 늘리면 양끝 청동 캡과 리벳이 같이
+    // 늘어나 뭉개진다 — DOM 쪽 `border-image ... round` 와 같은 이유이고, 캔버스에서
+    // 그 역할을 하는 것이 nineslice 다. 좌우 캡 25px · 위아래 레일 10px 은
+    // public/ui/alert-gauge.png(292×42)를 재서 정했다.
+    //
+    // ⚠ 채워지는 막대가 **액자보다 먼저** 와야 한다. 순서를 바꾸면 막대가 액자 위를
+    //   덮어 청동 캡이 가려진다 (Phaser 는 추가 순서가 곧 그리는 순서다).
+    const GAUGE_W = 410; // 액자 460 에서 좌우 캡 25씩 뺀 안쪽 폭
+    this.gaugeBg = this.add.rectangle(960, 40, GAUGE_W, 18, 0x000000, 0.55);
+    this.gaugeFill = this.add.rectangle(960 - GAUGE_W / 2, 40, 0, 18, 0xc25b4a, 0.95).setOrigin(0, 0.5);
+    this.gaugeFrame = this.add.nineslice(960, 40, 'alert-gauge', undefined, 460, 46, 25, 25, 10, 10);
     this.vignette = this.add.rectangle(960, 540, 1920, 1080, 0xc2251a, 0).setOrigin(0.5);
     this.retryText = this.add.text(1880, 24, '', {
       fontFamily: 'monospace', fontSize: '20px', color: '#8a8378',
     }).setOrigin(1, 0);
-    this.asUi(this.gaugeBg, this.gaugeFill, this.vignette, this.retryText);
+    this.asUi(this.gaugeBg, this.gaugeFill, this.gaugeFrame, this.vignette, this.retryText);
 
     this.panel = new MinigamePanel();
     this.dialogue = new DialogueBox();
@@ -242,7 +252,8 @@ export class EscapeScene extends Phaser.Scene {
 
   #drawGauge() {
     const ratio = this.gauge / GAUGE_MAX;
-    this.gaugeFill.width = 420 * ratio;
+    // 410 은 액자 안쪽 폭이다 (create 의 GAUGE_W). 액자 폭을 고치면 여기도 고친다.
+    this.gaugeFill.width = 410 * ratio;
     // 게이지가 오르는 동안 화면 가장자리가 붉어진다 — 바를 안 보고 있어도 읽힌다.
     this.vignette.fillAlpha = 0.28 * ratio;
     this.retryText.setText(this.retries ? `재시도 ${this.retries}` : '');

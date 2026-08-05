@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CSS, FONTS } from '../ui/theme.js';
 import { IntroVideo } from '../ui/IntroVideo.js';
+import { TransitionScreen } from '../ui/TransitionScreen.js';
 
 /**
  * 오프닝 시네마틱 — "HEART OF STEEL" 스토리보드 10컷을 재생하고 첫 접선(튜토리얼)로 넘긴다.
@@ -367,33 +368,37 @@ export class IntroScene extends Phaser.Scene {
     this.scene.start('Tutorial');
   }
 
-  /** 스테이지 상태가 준비됐으면 넘어가고, 아직이면 잠깐 대기한다. */
+  /**
+   * 스테이지 상태가 준비됐으면 넘어가고, 아직이면 로딩 화면을 세운다.
+   *
+   * 예전에는 여기서 Phaser 텍스트 한 줄을 깜빡였다. 같은 기다림을 덮는 화면이 네
+   * 군데에 **따로** 있었고 생김새가 다 달랐는데, 하필 이 자리가 실제 플레이어가
+   * 오프닝 뒤에 처음 보는 로딩이면서 가장 헐벗은 판이었다. 이제 넷이 같은
+   * TransitionScreen 을 쓴다 — 여는 쪽이 show, **도착한 씬이 hide** 다
+   * (StageScene#create 가 걷는다).
+   */
   #waitAndStartStage() {
-    const waiting = this.add
-      .text(W / 2, H / 2, '동료들의 암호를 수신하는 중…', {
-        fontFamily: FONTS.body,
-        fontSize: '28px',
-        color: FAINT,
-      })
-      .setOrigin(0.5)
-      .setDepth(51)
-      .setAlpha(0);
+    const transition = new TransitionScreen();
+    let arrived = false;
 
     // Boot 가 얹어둔 프로미스는 {state} 또는 {error} 로만 resolve 한다 (절대 reject 안 함).
     Promise.resolve(this.registry.get('startPromise')).then((res) => {
+      arrived = true;
       if (!res || res.error) {
-        waiting.destroy();
+        // 안 띄웠으면 hide 는 무해하다 — TransitionScreen 의 규약이 그렇다.
+        transition.hide();
         this.#showError(res?.error ?? '스테이지 시작에 실패했습니다.');
         return;
       }
+      // 로딩 화면은 켠 채로 넘긴다 — StageScene 이 다 지어진 뒤 스스로 걷는다.
       this.scene.start('Stage', { state: res.state });
     });
 
-    // 스테이지가 이미 준비돼 있으면 위 then 이 즉시 씬을 바꾼다. 아직이라 남아 있을 때만 문구를 띄운다.
+    // ⚠ 곧바로 띄우지 않는다. 스테이지가 이미 준비돼 있으면 위 then 이 즉시 씬을
+    //   바꾸는데, 그때 로딩 화면을 세웠다면 회중시계가 한 번 번쩍하고 사라져
+    //   연출이 아니라 고장으로 보인다. 150ms 는 예전 문구가 쓰던 값 그대로다.
     this.time.delayedCall(150, () => {
-      if (waiting.active) {
-        this.tweens.add({ targets: waiting, alpha: 1, duration: 300, yoyo: true, repeat: -1 });
-      }
+      if (!arrived) transition.show('거리로 이동 중', '동료들의 암호를 수신하고 있다');
     });
   }
 

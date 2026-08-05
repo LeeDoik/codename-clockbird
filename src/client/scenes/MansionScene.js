@@ -3,6 +3,7 @@ import { DialogueBox } from '../ui/DialogueBox.js';
 import { Hud } from '../ui/Hud.js';
 import { DocumentPanel } from '../ui/DocumentPanel.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
+import { TransitionScreen } from '../ui/TransitionScreen.js';
 import {
   buildColliders,
   createPlayer,
@@ -162,6 +163,11 @@ export class MansionScene extends Phaser.Scene {
     this.docPanel = new DocumentPanel();
     this.result = new ResultOverlay();
     this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
+    // 로딩 화면도 같이 걷는다 — **떠나는 쪽이 show, 도착한 쪽이 hide** 라는
+    // TransitionScreen 의 규약이다. 결과창의 [다시 잠입한다]가 그 화면을 세우고
+    // 넘기므로(ui/ResultOverlay.js#restart), 여기서 안 걷으면 저택으로 되돌아온
+    // 판이 로딩 판에 덮인 채 멈춘다. 안 떠 있어도 무해하다.
+    new TransitionScreen().hide();
 
     // 그림은 구운 배경 한 장, 충돌은 따로. 배경은 무엇보다 뒤에 깔린다.
     this.add.image(0, 0, 'mansion-bg').setOrigin(0, 0).setDepth(-100);

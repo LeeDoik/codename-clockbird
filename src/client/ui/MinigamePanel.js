@@ -8,6 +8,14 @@
  * 캔버스보다 훨씬 싸게 붙고, 대화창과 같은 방식이라 스타일이 따로 놀지 않는다.
  */
 
+/**
+ * 카드에 붙을 수 있는 배치 클래스들.
+ *
+ * 'card' 는 여기 없다 — 기본 배치라 아무 클래스도 안 붙는다. 판이 끝날 때 이 셋을
+ * 통째로 떼어야 다음 미니게임이 남의 배치를 물려받지 않는다.
+ */
+const LAYOUTS = ['stage', 'lock'];
+
 let instance = null;
 
 export class MinigamePanel {
@@ -114,7 +122,11 @@ export class MinigamePanel {
     this.verdictEl.textContent = '';
     this.verdictEl.className = '';
     this.contentEl.replaceChildren();
-    this.cardEl.classList.toggle('stage', layout === 'stage');
+    // 배치는 이름 하나로 정한다 — 'card' 는 아무것도 안 붙이고, 나머지는 같은 이름의
+    // 클래스가 붙는다 ('stage' → .stage, 'lock' → .lock). 새 배치를 더할 때
+    // 여기를 고칠 필요가 없다.
+    this.cardEl.classList.remove(...LAYOUTS);
+    if (layout !== 'card') this.cardEl.classList.add(layout);
     this.root.classList.add('visible');
 
     return new Promise((resolve) => {
@@ -199,7 +211,7 @@ export class MinigamePanel {
     this.contentEl.replaceChildren();
     this.timerEl.classList.remove('visible');
     // 배치는 판마다 정해진다 — 남겨 두면 다음 미니게임이 남의 배치를 물려받는다.
-    this.cardEl.classList.remove('stage');
+    this.cardEl.classList.remove(...LAYOUTS);
     this.abort = null;
   }
 }

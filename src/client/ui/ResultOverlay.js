@@ -1,4 +1,5 @@
 import { fetchStageStart } from '../net.js';
+import { TransitionScreen } from './TransitionScreen.js';
 
 /**
  * 결과 화면 (클리어 / 게임오버).
@@ -34,6 +35,7 @@ export class ResultOverlay {
     instance = this;
 
     this.root = document.getElementById('result');
+    this.cardEl = document.getElementById('result-card');
     this.titleEl = document.getElementById('result-title');
     this.lineEl = document.getElementById('result-line');
     this.codeEl = document.getElementById('result-code');
@@ -66,6 +68,10 @@ export class ResultOverlay {
 
     this.titleEl.textContent = title;
     this.lineEl.textContent = line;
+    // 판정 도장 — 카드 모서리에 걸쳐 내리찍힌다 (index.html 의 #result-card::after).
+    // 결말 넷 중 성공은 'cleared' 하나뿐이고 나머지 셋은 전부 패배다.
+    this.cardEl.classList.toggle('ok', outcome === 'cleared');
+    this.cardEl.classList.toggle('fail', outcome !== 'cleared');
     // 정답을 모른 채 끝나는 판이 없게 한다 — 못 맞힌 판일수록 정답이 궁금하다.
     this.codeEl.innerHTML = codeWord
       ? `접선 코드는 <b>「${codeWord}」</b>였다.`
@@ -85,17 +91,28 @@ export class ResultOverlay {
     if (this.restartBtn.disabled) return; // 연타 방지
     this.restartBtn.disabled = true;
     // 새 판은 연상 단어 생성 때문에 11~20초 걸린다. 버튼을 눌렀는데 아무 반응이
-    // 없으면 고장으로 읽히므로 대기 문구를 세운다 (오프닝이 하던 역할의 축소판).
+    // 없으면 고장으로 읽히므로 대기 화면을 세운다 (오프닝이 하던 역할의 축소판).
+    //
+    // 카드 안의 한 줄이 아니라 **화면을 통째로 덮는 로딩 화면**을 쓴다. 11~20초는
+    // 결과를 다 읽고도 한참 남는 시간이라, 다 읽은 결과창을 그대로 두고 그 아래에
+    // 작은 글씨만 바뀌면 멈춘 것처럼 보인다. 게다가 이 기다림은 다른 씬으로 넘어가는
+    // 대기와 같은 것이므로 같은 화면을 써야 한다 (IntroScene·BootScene 과 한 규약).
     this.waitEl.textContent = this.waitText;
+    const transition = new TransitionScreen();
+    transition.show('거리로 이동 중', this.waitText);
 
     const result = await this.restartFn();
 
     if (result.error) {
+      // 오류는 결과창으로 되돌아와 읽게 한다 — 로딩 판 위에 올리면 [다시 잠입한다]가
+      // 그 아래 깔려 손댈 수가 없다 (TutorialScene 이 같은 이유로 같은 선택을 한다).
+      transition.hide();
       this.waitEl.textContent = `재시작 실패 — ${result.error}`;
       this.restartBtn.disabled = false;
       return;
     }
 
+    // 로딩 화면은 켠 채로 넘긴다 — 재시작된 씬이 다 지어진 뒤 스스로 걷는다.
     this.hide();
     this.onRestart?.(result.state);
   }

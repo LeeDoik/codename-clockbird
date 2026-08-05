@@ -170,7 +170,11 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
     // 이 판에 나올 얼굴은 정해져 있다 — 첫 접선에서 그림이 늦게 붙지 않게 미리 받는다.
-    this.dialogue.preload(this.state.allies.map((a) => a.id));
+    // 시민 넷도 함께 — 초상 규약이 동료와 같아졌다 (#registerCitizenNode).
+    this.dialogue.preload([
+      ...this.state.allies.map((a) => a.id),
+      ...(mapData.spawns.citizens ?? []).map((z) => z.id),
+    ]);
     this.result = new ResultOverlay();
     this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
     this.minigame = new MinigamePanel();
@@ -308,8 +312,8 @@ export class StageScene extends Phaser.Scene {
    *
    * 기본 동작(type 'npc')을 쓰지 않고 onInteract 를 다는 것은 **말을 걸었다는 사실을
    * 알아야** 다음 번에 다른 대사를 낼 수 있어서다 — 레이어는 그 시점을 알려 주지 않는다.
-   * 초상은 넘기지 않는다. 이 넷은 아직 초상 그림이 없어서(design/characters/portrait-map.md)
-   * 넘겨 봐야 404 를 한 번 받고 대화창이 초상 없는 넓은 배치로 되돌아갈 뿐이다.
+   * 초상은 동료와 같은 규약으로 넘긴다 — 설정서 일러스트가 2026-08-05 에 들어왔다
+   * (design/characters/portrait-map.md 의 거리 시민 표, public/portraits/<id>.png).
    */
   #registerCitizenNode(entry) {
     this.interact.register({
@@ -319,7 +323,7 @@ export class StageScene extends Phaser.Scene {
       onInteract: () => {
         const line = entry.spoken ? entry.repeat : entry.line;
         entry.spoken = true;
-        this.dialogue.show(`${entry.name} (${entry.role})`, line);
+        this.dialogue.show(`${entry.name} (${entry.role})`, line, { portrait: entry.id });
         this.dialogue.setHint('[Space] 다음 · [Esc] 닫기');
       },
     });
@@ -899,8 +903,11 @@ export class StageScene extends Phaser.Scene {
    * 자리**라, 창을 하나 덮어 흐름을 끊으면 "한 판 더?"로 읽힌다 (계획서 §4.3 마지막 줄
    * — 클리어 → 저택 잠입 연결 연출).
    *
-   * 연결 대사의 화자는 요른이다. 스토리보드 수정안 p.19 에서 이 대사의 화자가
-   * 비어 있던 것을 시계 수리공으로 확정했고, 그가 곧 스테이지 2 의 동행이 된다.
+   * 저택으로 데려가는 사람은 **누구에게 암호를 건넸든 에이던**이다 (2026-08-05 기획
+   * 목업). 저택 쪽 안내인이 이미 에이던 고정이라(mansion.json escort, 2026-08-04),
+   * 여기서 암호를 받아 준 동료가 "나와 같이 가자"고 말하면 저택에 도착하는 순간
+   * 사람이 바뀌어 버린다. 암호를 받은 동료는 코드를 인정하는 것까지만 하고,
+   * 저택행 브리핑은 **페이드 아웃된 화면 위에서 에이던이** 한다 (목업의 연출 순서).
    */
   async #toMansion(codeWord) {
     if (this.ended) return;
@@ -911,32 +918,41 @@ export class StageScene extends Phaser.Scene {
     // 수첩은 DOM 이라 아래의 카메라 페이드가 걸리지 않아 저택까지 따라온다.
     this.clueBook.close();
 
-    // 코드를 받아 준 그 동료가 접선책이다 — 저택까지 데려가는 사람도 그다.
+    // 암호를 받아 준 동료가 코드를 인정한다 — 동료로 확인되는 순간. 그의 역할은 여기까지다.
+    // ⚠ 줄바꿈은 한 번만 — 빈 줄을 넣으면 대화창이 페이지를 나눠 뒷문장이 ▼ 뒤에
+    // 숨는데, 연출 중에는 [Space] 로 넘길 수 없다 (#toMansion 은 ended 뒤에 돈다).
     const b = this.state.allies.find((a) => a.id === this.codeTargetId);
     this.dialogue.show(
       `${b.name} (${b.role})`,
-      `접선 코드는 「${codeWord}」 였다.\n\n"…맞군. 늦지 않아서 다행이야."`,
+      `접선 코드는 「${codeWord}」 였다.\n"…맞군. 늦지 않아서 다행이야."`,
       { portrait: b.id },
     );
     await this.#beat(2600);
-
-    // 저택에 들어갈 명분은 동료마다 다르다 (personas.json 의 cover) — 시계공이면
-    // 괘종시계, 정비공이면 증기 배관이다. 예전에는 접선책이 시계공 한 사람뿐이라
-    // 이 대사가 고정이었다.
-    this.dialogue.show(
-      `${b.name} (${b.role})`,
-      `"${b.cover} 너는 내 보조로 같이 간다.\n\n` +
-        '내가 안에서 시간을 끄는 동안, 저택에 있는 동료를 찾아 정보를 받아 와."',
-      { portrait: b.id },
-    );
-    await this.#beat(4200);
-
     this.dialogue.hide();
-    // 월드와 HUD 를 함께 접는다 — 메인 카메라만 어둡게 하면 HUD 가 허공에 뜬다.
+
+    // 월드를 먼저 접는다 — 에이던의 브리핑은 암전 위에서 나온다. 대화창은 DOM 이라
+    // 카메라 페이드에 걸리지 않아 검은 화면 위에 또렷이 뜬다 (목업 그대로).
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
     this.hud.fadeOut(900); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Mansion'));
+    await new Promise((done) => this.cameras.main.once('camerafadeoutcomplete', done));
+
+    // 에이던은 다섯 동료 중 하나라 언제나 state 에 있다 — 이름·직함은 그쪽에서 읽는다.
+    // 두 문장을 한 박스에 넣지 않는 것은 대화창이 빈 줄마다 페이지를 나누기 때문이다
+    // (EscapeScene#playIntro 와 같은 이유 — 연출 중에는 [Space] 로 넘길 수 없다).
+    const aiden = this.state.allies.find((a) => a.id === 'watchmaker');
+    const speaker = `${aiden?.name ?? '에이던'} (${aiden?.role ?? '시계 수리공'})`;
+    this.dialogue.show(speaker, '이번에 저택에서 괘종시계 수리 의뢰가 들어왔다.', {
+      portrait: 'watchmaker',
+    });
+    await this.#beat(2400);
+    this.dialogue.show(speaker, '보조공 역할을 해줄 어린 단원이 필요했는데 딱 맞게 찾았군…', {
+      portrait: 'watchmaker',
+    });
+    await this.#beat(3000);
+
+    this.dialogue.hide();
+    this.scene.start('Mansion');
   }
 
   /**

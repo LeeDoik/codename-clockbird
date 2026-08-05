@@ -127,17 +127,76 @@ function body(asset) {
   };
 }
 
+/** v2 는 잔액 단위가 다르다 — 아래 balance() 주석 참고. */
+const API2 = process.env.PIXELLAB_BASE_URL_V2 ?? 'https://api.pixellab.ai/v2';
+const auth = { Authorization: `Bearer ${SECRET}` };
+const authJson = { ...auth, 'Content-Type': 'application/json' };
+
+/**
+ * 잔액.
+ *
+ * ⚠ **달러가 아니라 `generations` 다.** v1 의 /balance 는 USD 크레딧만 보여 줘서
+ *   매 호출이 `$0.0000` 으로 찍혔고, 그래서 한동안 "요금이 안 붙는다"고 오해했다.
+ *   실제로는 구독 풀(Tier 1 = 월 2000)에서 깎인다. v2 의 /balance 가 둘 다 준다.
+ *
+ *   표준(pixflux) 한 장은 1~2, **Pro 한 장은 20** 이다. Pro 를 함부로 돌리면
+ *   한 달 치가 스물몇 장에 사라진다.
+ */
 async function balance() {
-  const r = await fetch(`${API}/balance`, { headers: { Authorization: `Bearer ${SECRET}` } });
+  const r = await fetch(`${API2}/balance`, { headers: auth });
   if (!r.ok) throw new Error(`잔액 조회 실패 ${r.status}: ${await r.text()}`);
-  return (await r.json()).usd;
+  const j = await r.json();
+  return { usd: j.credits?.usd ?? 0, gen: j.subscription?.generations ?? 0, plan: j.subscription?.plan ?? '' };
+}
+
+/**
+ * Pro 로 굽는다 (v2 `/generate-image-v2`).
+ *
+ * 표준(v1 pixflux)과 다른 점이 셋이고, 셋 다 프롬프트 쓰는 법을 바꾼다.
+ *
+ *   1. **비동기다.** 202 로 job id 만 오고, `/background-jobs/{id}` 를 물어봐야 한다.
+ *      한 장에 1~2분 걸린다 (표준은 10초 안쪽).
+ *   2. **negative_description 도 color_image 도 안 받는다.** 표준에서 색을 붙잡던
+ *      팔레트 그림이 여기엔 없다 — 색·금지 사항을 전부 description 안에 적어야 한다.
+ *   3. 그림이 `last_response.images[0]` 에 있다 (v1 은 `image`).
+ *
+ * 512×512 까지 되지만 171px 이상이면 어차피 한 장만 나온다 (그 아래는 여러 장을
+ * 격자로 묶어 준다). 부품 하나를 원하는 것이므로 늘 171 이상으로 잡는다.
+ */
+async function generatePro(asset) {
+  const req = {
+    description: asset.description,
+    image_size: asset.size,
+    ...(asset.opts?.no_background ? { no_background: true } : {}),
+  };
+  const r = await fetch(`${API2}/generate-image-v2`, {
+    method: 'POST', headers: authJson, body: JSON.stringify(req),
+  });
+  if (!r.ok) throw new Error(`${asset.id}: HTTP ${r.status}\n${(await r.text()).slice(0, 600)}`);
+  const { background_job_id: id } = await r.json();
+
+  // 4초 간격으로 최대 4분. 그보다 오래 걸리면 뭔가 잘못된 것이라 붙잡고 있을 이유가 없다.
+  for (let i = 0; i < 60; i++) {
+    await new Promise((s) => setTimeout(s, 4000));
+    const j = await fetch(`${API2}/background-jobs/${id}`, { headers: auth });
+    if (!j.ok) continue;
+    const o = await j.json();
+    if (o.status === 'completed') {
+      const b64 = o.last_response?.images?.[0]?.base64;
+      if (!b64) throw new Error(`${asset.id}: 끝났다는데 그림이 없다\n${JSON.stringify(o).slice(0, 400)}`);
+      return { png: Buffer.from(b64, 'base64'), gen: o.usage?.generations ?? 0 };
+    }
+    if (o.status === 'failed' || o.status === 'error') {
+      throw new Error(`${asset.id}: 작업 실패\n${JSON.stringify(o).slice(0, 400)}`);
+    }
+  }
+  throw new Error(`${asset.id}: 4분이 지나도 안 끝났다 (job ${id})`);
 }
 
 async function generate(asset) {
+  if (asset.model === 'pro') return generatePro(asset);
   const r = await fetch(`${API}/generate-image-pixflux`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body(asset)),
+    method: 'POST', headers: authJson, body: JSON.stringify(body(asset)),
   });
   if (!r.ok) {
     // 402 는 잔액 부족, 422 는 치수가 규격을 벗어난 것, 500 은 딸려 보낸 그림의
@@ -145,7 +204,7 @@ async function generate(asset) {
     throw new Error(`${asset.id}: HTTP ${r.status}\n${(await r.text()).slice(0, 600)}`);
   }
   const json = await r.json();
-  return { png: Buffer.from(json.image.base64, 'base64'), usd: json.usage?.usd ?? 0 };
+  return { png: Buffer.from(json.image.base64, 'base64'), gen: json.usage?.generations ?? 1 };
 }
 
 /**
@@ -183,24 +242,26 @@ if (flags.has('--dry')) {
 
 let spent = 0;
 const before = await balance();
-console.log(`잔액 $${before.toFixed(3)} — ${todo.length}개를 굽는다\n`);
+const pro = todo.filter((a) => a.model === 'pro').length;
+console.log(`${before.plan} · 남은 generations ${before.gen} (USD 크레딧 $${before.usd.toFixed(2)})`);
+console.log(`${todo.length}개를 굽는다${pro ? ` — 그중 Pro ${pro}장 (한 장 20 generations · 1~2분)` : ''}\n`);
 
 for (const a of todo) {
   process.stdout.write(`${a.id.padEnd(16)} `);
   try {
     // 한 장씩 순서대로 — 동시에 쏘면 429 가 나고, 어느 것이 실패했는지도 흐려진다.
-    const { png, usd } = await generate(a);
+    const { png, gen } = await generate(a);
     fs.writeFileSync(path.join(OUT_DIR, `${a.id}.png`), png);
     writePreview(a.id, png);
-    spent += usd;
-    console.log(`✔ ${a.size.width}×${a.size.height}  $${usd.toFixed(4)}`);
+    spent += gen;
+    console.log(`✔ ${a.size.width}×${a.size.height}  ${gen} gen`);
   } catch (err) {
     console.log('✘');
     console.error(`   ${err.message}\n`);
   }
 }
 
-console.log(`\n이번에 쓴 돈 $${spent.toFixed(3)} · 남은 잔액 $${(before - spent).toFixed(3)}`);
+console.log(`\n이번에 쓴 generations ${spent} · 남은 ${before.gen - spent}`);
 console.log(`받은 그림: ${OUT_DIR}/  —  <id>.preview8x.png 로 확대해 보고 고른다.`);
 console.log('통과한 것만 반입한다:  node scripts/import-ui-assets.js');
 console.log('다시 굽는 것은 프롬프트를 고치지 말고 그대로 굴려라 — 문장을 손대면 부품끼리 화풍이 갈린다.');

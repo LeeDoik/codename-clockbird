@@ -105,6 +105,98 @@ function cutBackground(img) {
   return { cut, skipped: false };
 }
 
+/**
+ * 계기 문자판을 말끔히 비운다 (`retouch: 'clearDial'`).
+ *
+ * 압력 밸브의 다이얼에 **바늘이 그려져 나온다.** 프롬프트에 `no markings on the
+ * dial` 을 넣어도 그린다 — 계기라는 물건 자체가 바늘을 부르는 형태다. 그런데 그
+ * 자리에 값을 얹어야 해서, 바늘이 숫자를 가로질러 읽기가 어렵다.
+ *
+ * 다시 굽지 않는 이유: Pro 한 장이 20 generations 인데 다시 굴려도 또 그릴 공산이
+ * 크고, 지우는 것은 확실하다. **반입 단계에 두는 이유**는 다시 구웠을 때 손질이
+ * 자동으로 따라붙게 하려는 것이다 — 손으로 지우면 다음 판에서 조용히 사라진다.
+ *
+ * 자리를 좌표로 못 박지 않고 **찾아낸다**: 가장 큰 '아주 밝은' 연결 덩어리가 곧
+ * 문자판이다 (금속에도 하이라이트가 있지만 잘게 흩어져 있다). 그 원의 안쪽
+ * 82% 에서만 지우므로 테두리 놋쇠 링과 눈금은 그대로 남는다.
+ */
+function clearDial(img) {
+  const { w, h, data } = img;
+  const lum = (i) => (data[i * 4] + data[i * 4 + 1] + data[i * 4 + 2]) / 3;
+  const pale = (i) => data[i * 4 + 3] >= 200 && lum(i) > 200;
+
+  // 가장 큰 밝은 덩어리 = 문자판
+  const seen = new Uint8Array(w * h);
+  let best = null;
+  for (let i = 0; i < w * h; i++) {
+    if (seen[i] || !pale(i)) continue;
+    const stack = [i];
+    seen[i] = 1;
+    const cells = [];
+    while (stack.length) {
+      const p = stack.pop();
+      cells.push(p);
+      const x = p % w;
+      const y = (p / w) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const q = ny * w + nx;
+        if (seen[q] || !pale(q)) continue;
+        seen[q] = 1;
+        stack.push(q);
+      }
+    }
+    if (!best || cells.length > best.length) best = cells;
+  }
+  if (!best || best.length < 200) return 0; // 문자판이라 할 만한 것이 없다
+
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (const p of best) {
+    const x = p % w;
+    const y = (p / w) | 0;
+    if (x < x0) x0 = x;
+    if (y < y0) y0 = y;
+    if (x > x1) x1 = x;
+    if (y > y1) y1 = y;
+  }
+  const cx = (x0 + x1) / 2;
+  const cy = (y0 + y1) / 2;
+  // 0.9 인 이유: 잰 반지름은 **문자판 면**의 반지름이고 놋쇠 링은 그 바깥이라
+  // 여기까지는 안전하다. 0.82 로 조였더니 바늘 **끝**이 반경 밖에 걸려 한 점이
+  // 남았다 (바늘은 가운데가 아니라 가장자리까지 뻗는다).
+  const rr = ((x1 - x0 + 1) / 2) * 0.9;
+
+  // 덮을 색 — 문자판 픽셀들의 중앙값. 평균을 쓰면 바늘 언저리의 회색이 섞여 탁해진다.
+  const chan = [0, 1, 2].map((k) => {
+    const vals = best.map((p) => data[p * 4 + k]).sort((a, b) => a - b);
+    return vals[vals.length >> 1];
+  });
+
+  // ⚠ 기준을 고정 밝기로 두면 안 된다. 185 로 잡았더니 바늘의 흐린 가장자리
+  //   (190~205)가 그대로 남아 문자판에 얼룩처럼 보였다. **문자판 색과의 차이**로
+  //   판정하면 그림이 밝든 어둡든 같은 결과가 나온다.
+  //
+  //   덤으로 문자판의 옅은 음영까지 같이 눌린다 — 숫자를 얹을 판이라 평평한 쪽이 낫다.
+  const base = (chan[0] + chan[1] + chan[2]) / 3;
+  let wiped = 0;
+  for (let y = Math.floor(cy - rr); y <= Math.ceil(cy + rr); y++) {
+    for (let x = Math.floor(cx - rr); x <= Math.ceil(cx + rr); x++) {
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      if ((x - cx) ** 2 + (y - cy) ** 2 > rr * rr) continue;
+      const i = y * w + x;
+      if (data[i * 4 + 3] < 200 || lum(i) >= base - 8) continue;
+      for (let k = 0; k < 3; k++) data[i * 4 + k] = chan[k];
+      data[i * 4 + 3] = 255;
+      wiped++;
+    }
+  }
+  return wiped;
+}
+
+const RETOUCH = { clearDial };
+
 /** 투명 여백을 잘라 내용물에 딱 맞춘다. 전부 투명이면 원본을 그대로 돌려준다. */
 function trim(img) {
   const { w, h, data } = img;
@@ -157,6 +249,13 @@ for (const a of todo) {
   const was = `${img.w}×${img.h}`;
   let note;
   let out = img;
+  // 손질은 **자르기 전에** 한다 — 여백을 자른 뒤에는 좌표가 달라져 다시 찾아야 한다.
+  let touched = '';
+  if (a.retouch) {
+    const fn = RETOUCH[a.retouch];
+    if (!fn) throw new Error(`${a.id}: 모르는 손질 '${a.retouch}'`);
+    touched = ` · ${a.retouch} ${fn(img)}px`;
+  }
   if (a.opaque) {
     // 판 전체가 그림이다. 벗기면 하늘과 안개가 배경으로 읽혀 통째로 날아간다.
     note = '판째 그림 — 안 건드림';
@@ -168,7 +267,7 @@ for (const a of todo) {
     // 조용히 설치하면 화면에서야 알게 된다. 여기서 소리를 낸다.
     if (!skipped && cut / (img.w * img.h) > 0.9) note += '  ⚠ 몸통까지 먹혔을 수 있다 — 확인해라';
   }
-  console.log(`${a.id.padEnd(18)}${was.padEnd(12)}${`${out.w}×${out.h}`.padEnd(14)}${note}`);
+  console.log(`${a.id.padEnd(18)}${was.padEnd(12)}${`${out.w}×${out.h}`.padEnd(14)}${note}${touched}`);
   if (!dry) fs.writeFileSync(path.join(OUT_DIR, `${a.id}.png`), encodePng(out.w, out.h, out.data));
 }
 

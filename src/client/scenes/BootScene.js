@@ -66,6 +66,7 @@ import {
 } from '../entities/evaSprite.js';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
+import { TransitionScreen } from '../ui/TransitionScreen.js';
 
 /**
  * 로딩 씬.
@@ -92,6 +93,12 @@ export class BootScene extends Phaser.Scene {
     this.load.image('mansion-bg', mansionBgUrl);
     this.load.image('escape-bg', escapeBgUrl);
     this.load.image('mansion-door-open', mansionDoorUrl);
+    // 발각 게이지 액자 — UI 부품 중 **유일하게 캔버스에 그려지는 것**이다
+    // (나머지는 DOM 이라 CSS 가 `/ui/...` 를 직접 부른다).
+    // 다른 캔버스 그림들처럼 `../assets/` 에서 import 하지 않고 URL 로 싣는 이유:
+    // 이 파일은 public/ui/ 에 있고 gen/import 파이프라인이 거기로 넣는다. import 로
+    // 쓰려면 같은 그림을 두 군데 두어야 하는데, 다시 구울 때마다 둘이 갈라진다.
+    this.load.image('alert-gauge', '/ui/alert-gauge.png');
     // 캐릭터 8프레임 — 이제 둘만 남았다. 0 은 **보이지 않는 충돌 바디**(worldParts.createPlayer
     // 가 그 위에 진짜 그림을 얹는다), 5 는 탈출의 아이다.
     // 나머지(거리 인물·순찰 로봇·감시 로봇)는 전부 전용 아트로 갈아 끼웠다 (2026-08-04).
@@ -289,31 +296,28 @@ export class BootScene extends Phaser.Scene {
     });
   }
 
-  /** 개발용(?nointro) — 오프닝을 건너뛰고 기존 로딩 화면을 거쳐 곧장 스테이지로 간다. */
+  /**
+   * 개발용(?nointro) — 오프닝을 건너뛰고 로딩 화면을 거쳐 곧장 스테이지로 간다.
+   *
+   * 예전에는 여기서 Phaser 텍스트 두 줄을 직접 그렸다. 같은 기다림을 덮는 화면이
+   * 네 군데에 따로 있었는데, 이제 넷이 같은 TransitionScreen 을 쓴다 —
+   * 여는 쪽이 show, **도착한 씬이 hide** 다 (StageScene#create 가 걷는다).
+   *
+   * ⚠ 문구도 고쳤다. 예전 제목이 '저택에 잠입하는 중' 이었는데 이 길은 저택(스테이지 2)이
+   *   아니라 **거리(Stage)** 로 간다 — 씬 이름과 어긋난 문구였다.
+   */
   #legacyBoot(startPromise) {
-    const { width, height } = this.scale;
-
-    this.add
-      .text(width / 2, height / 2 - 36, '저택에 잠입하는 중...', {
-        fontFamily: FONTS.body,
-        fontSize: '38px',
-        color: CSS.brass,
-      })
-      .setOrigin(0.5);
-
-    const sub = this.add
-      .text(width / 2, height / 2 + 26, '동료들의 암호를 수신하고 있습니다', {
-        fontFamily: FONTS.body,
-        fontSize: '24px',
-        color: CSS.paperDim,
-      })
-      .setOrigin(0.5);
-
-    this.tweens.add({ targets: sub, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+    const transition = new TransitionScreen();
+    transition.show('거리로 이동 중', '동료들의 암호를 수신하고 있다');
 
     startPromise.then((r) => {
-      if (r.error) this.#showError(r.error);
-      else this.scene.start('Stage', { state: r.state });
+      if (r.error) {
+        transition.hide();
+        this.#showError(r.error);
+      } else {
+        // 로딩 화면은 켠 채로 넘긴다 — StageScene 이 다 지어진 뒤 스스로 걷는다.
+        this.scene.start('Stage', { state: r.state });
+      }
     });
   }
 

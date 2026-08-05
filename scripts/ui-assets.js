@@ -48,6 +48,9 @@ export const PALETTES = {
   alarm: [C.ink, C.charcoal, C.iron, C.wax, C.trackRed, C.paper, C.paperDim],
   // 종이 — 크림색 세 단계 + 얼룩질 갈색. 청동은 집게 하나 몫이고, 봉랍은 도장 몫이다.
   paper: [C.ink, C.leather, C.paperDim, C.paper, C.paperHi, C.paperLo, C.brassLo, C.wax],
+  // 녹청 — 성공 도장 하나가 쓴다. 게임이 성공을 이 색으로 말하기 때문이다
+  // (index.html 의 `#minigame-verdict.ok`). 황동을 빼야 놋쇠로 안 끌려간다.
+  verdigris: [C.ink, C.charcoal, C.iron, C.patina, C.paperDim, C.paper],
   // 장면·인물 — 전부 쓴다. 여기서만 색이 넉넉해야 그림이 산다.
   scene: Object.values(C),
 };
@@ -162,16 +165,25 @@ export const ASSETS = [
   },
   {
     id: 'screen-frame',
-    label: '화면 바깥 액자 — 목업 맨 바깥 나사 박힌 철판 테두리 (선택)',
+    label: '화면 테두리 — 게임 화면 전체를 가두는 기계 베젤',
     palette: 'metal',
     size: { width: 296, height: 224 },
-    slice: 14, // 실측: 나사 박힌 모서리 14px
-    target: '#minigame-card.stage 바깥 (지금은 .sp-panel 의 CSS 리벳)',
+    slice: 26, // 실측: 모서리 볼트판 26px (레일 두께도 거의 같다)
+    target: '#game-root 전체 (지금은 1px 황동 실선)',
+    // ⚠ 이것은 게임 **바깥**을 두르는 테두리다. 다른 액자들과 요구가 반대다 —
+    //   저것들은 그 안의 글자를 돋보이게 하려고 장식을 얹지만, 이건 화면 전체를
+    //   두르므로 **눈에 안 띄어야 한다.** 화려하면 매 순간 게임과 경쟁한다.
+    //
+    //   1차는 밝은 금색 실선에 모서리 문양이 들어간 판이 나왔다. 문양은 확대하면
+    //   뭉개진 얼룩이었고(모델이 작은 칸에 무늬를 넣으면 늘 그렇다), 금색은 맵보다
+    //   밝아서 시선이 테두리로 갔다. 이번엔 두껍고 어두운 쇠판에 볼트만 박는다.
     description:
-      'a plain dark iron plate border, symmetrical on all four sides, a single thin warm amber pinstripe ' +
-      'running just inside the edge, one small round screw head in each of the four corners, ' +
-      'very thin flat frame, hollow empty center, ' + METAL,
-    negative: NO_FRAME + ', cogwheel, gear, thick frame, ornate, rivets along the rails',
+      'a thick soot-blackened iron bezel framing a rectangular viewport, symmetrical on all four sides, ' +
+      'a plain flat iron plate with a square bolt plate in each of the four corners each holding one ' +
+      'large hex bolt, a single thin warm amber pinstripe running along the inner edge of the opening, ' +
+      'plain unadorned metal along the four rails, very dark and matte, hollow empty center, ' + METAL,
+    negative: NO_FRAME + ', cogwheel, gear, ornate, emblem, crest, badge, engraving, pattern, ' +
+      'filigree, bright, glowing, gold, brass rails, thin frame, hairline',
     opts: { detail: 'low detail', shading: 'basic shading', outline: 'single color outline', view: 'side', no_background: true },
   },
 
@@ -361,6 +373,276 @@ export const ASSETS = [
     negative: 'text, paper, sheet, document, frame, border, background, shadow, perspective, 3d, ' +
       'bright gold, shiny, glossy, many clips, thin, wire, hairline, slender, oval loop, safety pin',
     opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', no_background: true, view: 'side' },
+  },
+
+  // ── 감옥 퍼즐 · 공용 패널 ──────────────────────────────────────
+  //
+  // 카드 액자는 **새로 안 굽는다.** 감옥 퍼즐과 결과창은 둘 다 `.sp-panel` 을 쓰므로
+  // 거기에 stage-frame 을 걸면 두 화면이 한 번에 바뀐다. 남는 것은 그 안의 버튼이다.
+  {
+    id: 'key-plate',
+    label: '감옥 퍼즐 버튼 판 — 숫자·기호 키',
+    palette: 'metal',
+    size: { width: 128, height: 64 },
+    slice: 14,
+    fill: true, // 판이 곧 배경이다 — 빼면 숫자가 허공에 뜬다
+    target: '.mg-btn (지금은 검은 네모)',
+    description:
+      'a small square brass keypad key seen flat from the front, a raised bevelled edge catching a warm ' +
+      'amber highlight along the top and a dark shadow along the bottom, a flat dark charcoal face in the ' +
+      'middle for a number to sit on, a tiny rivet in each corner, scratched grimy metal, ' + METAL,
+    negative: NO_FRAME + ', hollow, transparent center, engraving, symbol, keyboard, many keys, round',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
+
+  // ── 감옥 퍼즐 세 유형 (2026-08-05 기획 목업) ───────────────────
+  //
+  // lockPuzzle.js 의 세 유형에 각각 얼굴을 준다. **게임 방식은 하나도 안 건드린다** —
+  // 배선 잇기는 여전히 기호→번호이고, 눈금 조정은 여전히 여섯 개를 순서대로,
+  // 압력 맞추기는 여전히 다섯 중 둘을 골라 합을 맞춘다. 바뀌는 것은 그 단추가
+  // 무엇으로 보이느냐뿐이다.
+  //
+  // ⚠ 목업은 밸브 4개·기어 4개로 그려져 있지만 코드는 6개·5개를 낸다. 그림 수에
+  //   맞추려면 규칙을 고쳐야 하므로 **코드 쪽 수를 따른다.**
+  //
+  // ⚠ 이 다섯만 Pro(v2)다. 목업이 요구하는 것이 "금속 부품 한 점"이라 표준 모델의
+  //   200~400px 로는 계기 눈금과 리벳이 뭉갠다. 대신 Pro 는 negative 도 팔레트도
+  //   안 받으므로 금지 사항을 전부 문장 안에 적었다 (gen-ui-assets.js 의 generatePro 참고).
+  {
+    id: 'wire-port',
+    label: '전선 포트 — 기호 단자 (배선 잇기 왼쪽)',
+    model: 'pro',
+    size: { width: 256, height: 256 },
+    target: '[data-puzzle="wiring"] .lp-left .mg-btn',
+    description:
+      'a round brass steampunk cable port seen straight on from the front, a heavy riveted bronze ring ' +
+      'with small bolts spaced around it, a flat pale bone-white disc in the very centre left completely ' +
+      'blank for a symbol to be printed on later, a short pipe collar at the bottom edge, ' +
+      'weathered tarnished brass, soot and grime in the crevices, matte not shiny, ' +
+      'dim gaslit Victorian steampunk, chunky pixel art, limited palette, crisp hard edges, ' +
+      'dark warm-brown outlines, no text, no letters, no numbers, no symbol in the centre, ' +
+      'nothing behind it, plain empty background',
+    opts: { no_background: true },
+  },
+  {
+    id: 'wire-terminal',
+    label: '전선 단자 — 번호 단자 (배선 잇기 오른쪽)',
+    model: 'pro',
+    size: { width: 256, height: 224 },
+    target: '[data-puzzle="wiring"] .lp-right .mg-btn',
+    // 왼쪽은 원, 오른쪽은 사각이다. 모양이 갈려야 "무엇을 무엇에 잇는가"가 눈에 보인다.
+    description:
+      'a square brass steampunk terminal plate seen straight on from the front, a heavy riveted bronze ' +
+      'bracket frame around a flat dark slate panel, one bolt in each of the four corners, ' +
+      'a short pipe collar entering from the left edge, weathered tarnished brass, soot and grime, ' +
+      'matte not shiny, dim gaslit Victorian steampunk, chunky pixel art, limited palette, ' +
+      'crisp hard edges, dark warm-brown outlines, no text, no letters, no numbers, ' +
+      'the centre panel completely blank, nothing behind it, plain empty background',
+    opts: { no_background: true },
+  },
+  {
+    id: 'valve-stack',
+    label: '압력 밸브 한 벌 — 계기 + 몸통 + 손잡이 바퀴 (눈금 조정)',
+    model: 'pro',
+    // 세로로 긴 부품이다. 계기가 위, 바퀴가 아래 — 목업의 배치 그대로다.
+    size: { width: 224, height: 384 },
+    // ⚠ 다이얼에 **바늘이 그려져 나온다.** 아래 문장에 `no markings on the dial` 을
+    //   넣어도 그린다 — 계기라는 물건 자체가 바늘을 부르는 형태다. 그런데 그 자리에
+    //   압력 값을 얹어야 해서 바늘이 숫자를 가로지른다. 다시 굴려도 또 그릴 공산이
+    //   크므로 반입할 때 지운다 (import-ui-assets.js 의 clearDial).
+    retouch: 'clearDial',
+    target: '.lp-valve (감옥 퍼즐 · 압력 밸브)',
+    description:
+      'a tall steampunk pressure valve assembly seen straight on from the front, at the top a round brass ' +
+      'pressure gauge with a pale cream dial face left completely blank, below it a riveted iron valve body ' +
+      'with pipes and bolts, at the bottom a large spoked iron valve handwheel with a red-brown rim, ' +
+      'weathered tarnished brass and dark iron, soot and grime, matte not shiny, ' +
+      'dim gaslit Victorian steampunk, chunky pixel art, limited palette, crisp hard edges, ' +
+      'dark warm-brown outlines, no text, no letters, no numbers, no markings on the dial, ' +
+      'nothing behind it, plain empty background',
+    opts: { no_background: true },
+  },
+  {
+    id: 'gear-dial',
+    label: '숫자 톱니바퀴 (기어비 계산)',
+    model: 'pro',
+    size: { width: 256, height: 256 },
+    target: '[data-puzzle="pressure"] .mg-btn',
+    description:
+      'a single brass steampunk gear seen straight on from the front, chunky square teeth sticking outward ' +
+      'from the rim all the way around, a ring of small bolts inside the rim, a flat dark slate disc in the ' +
+      'very centre left completely blank for a number to be printed on later, ' +
+      'weathered tarnished brass, soot and grime in the crevices, matte not shiny, ' +
+      'dim gaslit Victorian steampunk, chunky pixel art, limited palette, crisp hard edges, ' +
+      'dark warm-brown outlines, no text, no letters, no numbers in the centre, ' +
+      'nothing behind it, plain empty background',
+    opts: { no_background: true },
+  },
+  {
+    id: 'puzzle-board',
+    label: '퍼즐 안쪽 배경판 — 세 유형이 같이 쓴다',
+    model: 'pro',
+    // 목업 셋 모두 부품이 어두운 철판 위에 얹혀 있다. 그 판이 없으면 단추들이
+    // 액자 속 허공에 떠 있다.
+    size: { width: 384, height: 256 },
+    target: '#minigame-content (감옥 퍼즐일 때만)',
+    description:
+      'a flat dark iron machine panel seen straight on from the front, a large plain riveted steel plate ' +
+      'with a faint blueprint grid of thin blue lines etched across it, rows of small rivets along the ' +
+      'edges, patches of rust and verdigris, scratched and grimy, very dark so that bright parts placed on ' +
+      'top of it stand out, matte not shiny, dim gaslit Victorian steampunk, chunky pixel art, ' +
+      'limited palette, crisp hard edges, no text, no letters, no numbers, no machinery, no gauges, ' +
+      'nothing on the plate, empty flat surface',
+    opts: {},
+  },
+
+  // ── HUD ────────────────────────────────────────────────────────
+  {
+    id: 'hud-plate',
+    label: 'HUD 명판 — 상태·조작 안내·방 이름이 같이 쓴다',
+    palette: 'metal',
+    size: { width: 200, height: 72 },
+    slice: 16,
+    fill: true,
+    target: '#hud-status · #hud-keys · #hud-room (지금은 액자 없는 맨 글자)',
+    // ⚠ 이 판은 **맵 위에 얹힌다.** 액자류처럼 속이 비면 안 되고(글자가 배경 그림에
+    //   묻힌다), 그렇다고 꽉 찬 판이면 화면을 가린다. 그래서 가운데를 어둡게 채우되
+    //   가장자리로 갈수록 옅어지는 판으로 굽는다.
+    description:
+      'a thin dark iron name plate seen flat from the front, a narrow bevelled bronze rail along the top ' +
+      'and bottom edges only with a small rivet at each end, the middle filled with flat near-black ' +
+      'charcoal metal, no rails on the left and right sides, worn and grimy, ' + METAL,
+    negative: NO_FRAME + ', hollow, transparent center, thick frame, cogwheel, ornate, engraving',
+    opts: { detail: 'low detail', shading: 'basic shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
+
+  // ── 결과창 도장 ────────────────────────────────────────────────
+  //
+  // 결말은 넷이지만(cleared·caught·spotted·reported) 도장은 둘이다. 셋을 따로 굽는
+  // 것은 낭비다 — 패배 셋의 차이는 제목과 문장이 이미 말한다. 도장이 말해야 하는
+  // 것은 "됐다"와 "안 됐다" 하나뿐이다.
+  {
+    id: 'seal-clear',
+    label: '승인 도장 — 잠입 성공',
+    // ⚠ metal 로 뒀다가 **놋쇠 톱니**가 나왔다. 녹청이 팔레트에 아예 없었으니
+    //   당연한 결과다. 프롬프트에 `verdigris green ink` 라고 적어 둔 것만으로는
+    //   색이 안 따라온다 — 색은 팔레트가 정한다.
+    palette: 'verdigris',
+    size: { width: 160, height: 160 },
+    target: '#result-card 에 비스듬히 찍힌다 (신규)',
+    // ⚠ **링을 그리게 하면 안 된다.** 1차에 "두 겹 원 링" 을 시켰더니 그 링을 따라
+    //   가짜 알파벳이 빙 둘러 박혀 나왔다 (실측: seal-fail 에 "HO DO LIES OR HER…"
+    //   비슷한 뜻 없는 획). negative 에 text·letters·words 를 넣어도 소용없었다 —
+    //   **둥근 도장 링 자체가 글자를 부르는 형태**이기 때문이다. 링을 빼고 안쪽
+    //   모양 하나만 남기면 글자가 앉을 자리가 사라진다.
+    description:
+      'a rubber ink stamp impression of a single cogwheel, seen straight on, just the cogwheel shape and ' +
+      'nothing else, no ring or border around it, printed in muted verdigris green ink, the ink patchy and ' +
+      'uneven with gaps where it did not take, ' +
+      'chunky pixel art, limited palette, crisp hard edges',
+    negative: 'text, letters, words, numbers, glyphs, ring, circle border, outline ring, badge, coin, ' +
+      'wax, seal blob, ribbon, gold, brass, metal, solid fill, clean print, background, shadow, 3d',
+    opts: { detail: 'medium detail', shading: 'flat shading', outline: 'lineless', no_background: true, view: 'side' },
+  },
+  {
+    id: 'seal-fail',
+    label: '기각 도장 — 붙잡힘·밀고·검거',
+    palette: 'alarm',
+    size: { width: 160, height: 160 },
+    target: '#result-card 에 비스듬히 찍힌다 (신규)',
+    // ⚠ seal-clear 와 같은 이유로 링이 없다. 1차에 링을 시켰더니 그 위로 가짜
+    //   알파벳이 빙 둘러 박혔다.
+    description:
+      'a rubber ink stamp impression of two thick diagonal bars crossing each other like a big X, ' +
+      'seen straight on, just the two bars and nothing else, no ring or border around them, ' +
+      'printed in deep sealing-wax red ink, the ink patchy and uneven with gaps where it did not take, ' +
+      'chunky pixel art, limited palette, crisp hard edges',
+    negative: 'text, letters, words, numbers, glyphs, ring, circle border, outline ring, badge, coin, ' +
+      'wax, seal blob, ribbon, gold, brass, metal, solid fill, clean print, background, shadow, 3d',
+    opts: { detail: 'medium detail', shading: 'flat shading', outline: 'lineless', no_background: true, view: 'side' },
+  },
+
+  // ── 대화창 부속 ────────────────────────────────────────────────
+  {
+    id: 'dlg-arrow',
+    label: '계속 표시 — 다음 대사가 남았다',
+    palette: 'metal',
+    size: { width: 48, height: 40 },
+    target: '#dialogue-more (지금은 ▼ 글자)',
+    // ⚠ 1차는 **위아래 양쪽을 가리키는 쌍화살표**가 나왔다. "arrow" 라는 낱말이
+    //   축과 꼬리를 부르고, 그 김에 반대쪽 촉까지 붙는다. 화살이 아니라
+    //   **아래를 가리키는 삼각형 하나**라고 도형으로 적는다.
+    description:
+      'a single solid triangle pointing downward, seen flat from the front, a wide flat top edge tapering ' +
+      'to a point at the bottom, made of weathered bronze with a warm amber highlight along the top edge ' +
+      'and a dark iron outline, one shape only, nothing above it and nothing below it, ' + METAL,
+    negative: NO_FRAME + ', arrow, arrowhead, shaft, tail, feathers, line, stem, double headed, ' +
+      'two triangles, pointing up, many shapes, background, curved',
+    opts: { detail: 'medium detail', shading: 'basic shading', outline: 'single color outline', no_background: true, view: 'side' },
+  },
+  {
+    id: 'dlg-field',
+    label: '자유 대화 입력칸 — 글을 새겨 넣는 홈',
+    palette: 'metal',
+    size: { width: 200, height: 64 },
+    slice: 16,
+    fill: true,
+    target: '#dialogue-field (지금은 맨 테두리)',
+    // 눌러 들어간 홈이라야 "여기 쓴다"로 읽힌다. 튀어나온 판이면 버튼으로 읽혀
+    // 옆의 [대화][닫기] 버튼과 구별이 안 간다.
+    description:
+      'a long horizontal recessed slot in a dark iron plate seen flat from the front, the slot pressed ' +
+      'inward with a dark shadow along its top and inner-left edge and a faint warm amber highlight along ' +
+      'its bottom edge, the inside filled with flat near-black charcoal, a small rivet at each end, ' + METAL,
+    negative: NO_FRAME + ', raised, button, hollow, transparent center, text, cursor, keyboard',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
+
+  // ── 문서 열람 ──────────────────────────────────────────────────
+  {
+    id: 'doc-paper',
+    label: '공문서 — 훔쳐 읽는 서류',
+    palette: 'paper',
+    size: { width: 320, height: 236 },
+    target: '#docpanel-paper (지금은 매끈한 크림색 사각형)',
+    // ⚠ 단서 수첩(clue-paper)과 **다른 물건**이어야 한다. 그쪽은 주머니에서 꺼낸
+    //   찢긴 쪽지고 이쪽은 서류철에서 빼낸 공문서다. 가장자리를 자로 자른 듯
+    //   곧게 두고(찢지 않는다) 괘선과 직인 자국으로 격을 만든다.
+    //   배경을 검게 시키는 것은 clue-paper 와 같은 이유다 — 안 그러면 모델이
+    //   종이색을 배경에도 깔아 컷아웃이 종이를 통째로 먹는다.
+    description:
+      'a single sheet of official document paper lying flat on a plain solid pure black background, ' +
+      'seen straight on from above, straight clean-cut edges all the way around, ' +
+      'a printed border rule just inside the edge, faint horizontal ruled lines across the sheet, ' +
+      'a smudged round official ink stamp mark in one lower corner, a few brown age spots, ' +
+      'blank with nothing written on it, chunky pixel art, limited palette, crisp hard edges',
+    negative: 'text, letters, handwriting, writing, torn edges, ragged edges, crumpled, fold creases, ' +
+      'curled, rolled, notebook, book, binding, metal, table, desk, perspective, tilted, 3d, ' +
+      'cream background, light background',
+    opts: { detail: 'highly detailed', shading: 'basic shading', outline: 'selective outline', no_background: true, view: 'high top-down' },
+  },
+
+  // ── 지하 탈출 경계 게이지 ──────────────────────────────────────
+  {
+    id: 'alert-gauge',
+    label: '발각 게이지 액자 — 0 에서 올라 100 에서 터진다',
+    palette: 'metal',
+    size: { width: 320, height: 72 },
+    slice: '18 24',
+    target: 'EscapeScene 의 gaugeBg (Phaser 캔버스 — DOM 이 아니다)',
+    // ⚠ 이것만 캔버스다. 나머지 부품은 CSS `border-image` 로 붙지만 이쪽은
+    //   Phaser 의 nineslice 로 얹어야 한다 (BootScene 에서 미리 싣는다).
+    // ⚠ 1차는 오른쪽 끝만 **창끝처럼 뾰족하게** 나왔다. 9분할은 좌우 모서리를 각각
+    //   원본 크기로 박으므로 양끝이 다르면 액자가 짝짝이가 된다. 대칭을 못박는다.
+    description:
+      'a long horizontal metal gauge housing seen flat from the side, perfectly symmetrical left to right, ' +
+      'hollow empty channel running through the middle, a flat square bronze end cap at the left end and ' +
+      'an identical mirrored one at the right end, each cap with two rivets, ' +
+      'thin dark iron rails along the top and bottom of the channel, ' +
+      'a row of small engraved tick marks along the top rail, ' + METAL,
+    negative: NO_FRAME + ', filled bar, colored fill, red, green, progress bar, bulbous, pipe, numbers, ' +
+      'asymmetric, pointed end, arrow, spear tip, tapering, one end different',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', view: 'side', no_background: true },
   },
 
   // ── 씬 전환 로딩 (튜토리얼 → 거리) ────────────────────────────

@@ -55,8 +55,34 @@
         position: relative;
         width: min(100vw - 32px, calc((100vh - 72px) * 16 / 9));
         aspect-ratio: 16 / 9;
-        box-shadow: 0 0 0 1px var(--brass-lo), 0 12px 48px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
         container-type: inline-size;
+      }
+      /* 화면 테두리 (public/ui/screen-frame.png, 244×175 · PixelLab).
+         게임 화면 전체를 가두는 기계 베젤 — 예전에는 box-shadow 로 그은 1px 황동
+         실선이었다.
+
+         ⚠ `#game-root::after` 로 못 만든다. `--s` 가 `#game-root > *` 에 걸려 있는데
+           그 선택자는 **가상 요소를 안 잡는다** (컨테이너가 자기 자신을 질의하지 못해
+           일부러 자식에 건 값이다 — 위 주석 참고). 그래서 진짜 요소 하나를 둔다.
+
+         ⚠ #game-root 에 직접 border 를 걸어도 안 된다. `aspect-ratio: 16/9` 가
+           테두리를 포함한 상자에 걸려 안쪽이 16:9 가 아니게 되고, 그러면 Phaser 의
+           FIT 이 캔버스를 레터박스로 밀어 넣는다.
+
+         맨 마지막 자식이라 로딩 화면까지 포함해 **모든 것 위에** 온다. 그게 맞다 —
+         이것은 화면 안의 창이 아니라 화면을 담은 기계의 앞판이다.
+
+         두께는 slice(26)에 맞췄다. 이보다 얇게 잡으면 모서리 볼트가 눌려 사라지고
+         호박색 실선만 남아 예전 1px 선과 다를 바가 없어진다 (18 로 해 보고 알았다). */
+      #screen-frame {
+        position: absolute;
+        inset: 0;
+        border: calc(28 * var(--s)) solid transparent;
+        border-image: url('/ui/screen-frame.png') 26 / calc(28 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        pointer-events: none; /* 클릭은 전부 게임으로 흘려보낸다 */
+        z-index: 20;
       }
       /* --s = "1920 기준 1px". DOM 오버레이 치수를 calc(N * var(--s)) 로 적으면
          캔버스와 같은 비율로 늘고 줄어든다 — 고정 px 로 두면 창 크기에 따라
@@ -82,26 +108,54 @@
         font-family: var(--font-body);
         text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.85);
       }
+      /* HUD 명판 (public/ui/hud-plate.png, 183×52 · PixelLab).
+
+         예전에는 액자 없이 맨 글자에 그림자 하나로 버텼다. 본부처럼 배경이 밝고
+         복잡한 방에서는 그것으로 부족해서 상태 문구가 맵 그림에 묻혔다.
+
+         ⚠ 명판은 **글자 길이만큼만** 넓어야 한다. 늘 화면을 가로지르면 맵을 가린다.
+           그래서 셋 다 `width: max-content` 로 내용에 맞춘다 — #hud-status 는 예전에
+           `right: 20` 으로 화면 끝까지 뻗어 있었는데, 명판을 씌우려면 그 습관을
+           버려야 한다 (여러 줄이 되는 거리 씬의 디버그 표시는 줄바꿈으로 늘어난다). */
+      #hud-status,
+      #hud-keys,
+      #hud-room {
+        border: calc(14 * var(--s)) solid transparent;
+        border-image: url('/ui/hud-plate.png') 16 fill / calc(14 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        width: max-content;
+        max-width: calc(100% - 40 * var(--s));
+      }
       /* 좌상단 진행 상태. 거리 씬의 디버그 표시는 여러 줄이 될 수 있다. */
+      /* ⚠ 좌표가 20/16 이 아닌 것은 여백 취향이 아니다. 화면 테두리(#screen-frame)가
+         사방 28px 을 먹으므로, 예전 값 그대로 두면 명판이 베젤 **아래로 반쯤 밀려
+         들어간다.** 테두리 두께를 고치면 여기 셋도 같이 고친다. */
       #hud-status {
         position: absolute;
-        left: calc(20 * var(--s));
-        top: calc(16 * var(--s));
-        right: calc(20 * var(--s));
+        left: calc(42 * var(--s));
+        top: calc(38 * var(--s));
         font-size: calc(22 * var(--s));
         line-height: 1.35;
-        color: var(--paper-dim);
+        color: var(--paper);
         white-space: pre-wrap;
       }
-      /* 좌하단 조작 안내 — 씬마다 다르다. 공백을 그대로 살려 칸을 맞춘다. */
+      /* 좌하단 조작 안내 — 씬마다 다르다. 공백을 그대로 살려 칸을 맞춘다.
+
+         ⚠ 흰색이다. 원래는 `--paper-dim`(#8a7f6a) 이었는데 명판을 씌우고 나니
+           판의 검댕빛과 글자가 너무 가까워 읽히지 않았다. 이 줄은 "지금 무슨 키를
+           누를 수 있나"라서, 분위기보다 읽히는 것이 먼저다. */
       #hud-keys {
         position: absolute;
-        left: calc(20 * var(--s));
-        bottom: calc(22 * var(--s));
+        left: calc(42 * var(--s));
+        bottom: calc(42 * var(--s));
         font-size: calc(20 * var(--s));
-        color: #6b6152; /* ui/theme.js 의 CSS.faint — :root 에 짝 없음 */
+        color: #fff;
         white-space: pre;
       }
+      /* 빈 문자열일 때는 통째로 접는다 — 안 그러면 아무것도 안 적힌 명판이
+         화면 구석에 덩그러니 떠 있다 (예전에는 글자가 없으면 아무것도 안 보였다). */
+      #hud-status:empty,
+      #hud-keys:empty { display: none; }
       /* 방 이름 — 들어간 순간 잠깐 떴다가 700ms 에 걸쳐 사라진다 (저택). */
       #hud-room {
         position: absolute;
@@ -121,21 +175,27 @@
       #hud-room.visible { opacity: 1; transition: none; }
 
       /* ── 스팀펑크 공용 부품 ─────────────────────────────── */
-      /* 황동 프레임 패널: 가죽 바탕 + 바깥 어두운/안쪽 밝은 이중 선 + 모서리 리벳 4개 */
+      /* 공용 액자 (public/ui/stage-frame.png, 283×203 · PixelLab).
+
+         감옥 퍼즐(#minigame-card)과 결과 화면(#result-card)이 이것을 같이 쓴다.
+         수류탄 무대가 쓰는 그림과 **같은 한 장**이다 — 따로 구우면 같은 게임 안에서
+         액자가 두 종류가 되고, 다시 구울 때마다 둘을 맞춰야 한다.
+
+         예전에는 리벳 네 개를 radial-gradient 로 찍고 이중 선을 box-shadow 로 그렸다.
+         그림으로 바꾸면서 그 셋(리벳·이중선·모서리)이 전부 액자 안으로 들어갔다.
+
+         ⚠ 안쪽 배경은 남긴다. slice 에 `fill` 이 없어 가운데는 안 그려지므로,
+           지우면 액자 속으로 뒷 화면이 그대로 비쳐 글자가 안 읽힌다. */
       .sp-panel {
+        border: calc(22 * var(--s)) solid transparent;
+        border-image: url('/ui/stage-frame.png') 36 / calc(22 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        border-radius: 0;
         background:
-          radial-gradient(circle at 10px 10px, var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
-          radial-gradient(circle at calc(100% - 10px) 10px, var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
-          radial-gradient(circle at 10px calc(100% - 10px), var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
-          radial-gradient(circle at calc(100% - 10px) calc(100% - 10px), var(--brass-hi) 0 2px, var(--brass-lo) 2.6px, transparent 4.2px),
           var(--noise),
           linear-gradient(160deg, #322419 0%, var(--leather) 55%, #241a12 100%);
-        border: 2px solid var(--brass-lo);
-        border-radius: 6px;
-        box-shadow:
-          inset 0 0 0 1px rgba(232, 193, 90, 0.55),
-          inset 0 0 24px rgba(0, 0, 0, 0.55),
-          0 10px 30px rgba(0, 0, 0, 0.6);
+        background-clip: padding-box;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
       }
       /* 황동 버튼: 금속 세로 그라디언트, hover 광택, active 눌림 */
       .sp-btn {
@@ -296,13 +356,21 @@
         white-space: pre-wrap;
         text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.85);
       }
-      /* 다음 페이지 표식 — 안내 문구 바로 위에서 깜빡인다 */
+      /* 다음 페이지 표식 (public/ui/dlg-arrow.png, 32×32 · PixelLab).
+         안내 문구 바로 위에서 깜빡인다.
+
+         ⚠ 글자(▼)를 지우지 않는다. `font-size: 0` 으로 접어 둘 뿐이다 — DialogueBox 가
+           이 칸에 텍스트를 넣는지 클래스만 토글하는지에 상관없이 그림이 뜨게 하려면
+           칸 자체는 살아 있어야 한다. */
       #dialogue-more {
         position: absolute;
         right: calc(46 * var(--s));
         bottom: calc(66 * var(--s));
-        font-size: calc(24 * var(--s));
-        color: var(--brass);
+        width: calc(26 * var(--s));
+        height: calc(26 * var(--s));
+        font-size: 0;
+        background: url('/ui/dlg-arrow.png') center / contain no-repeat;
+        image-rendering: pixelated;
         display: none;
         animation: dlg-blink 1.1s ease-in-out infinite;
       }
@@ -322,19 +390,27 @@
       }
       #dialogue-input { display: none; margin-top: calc(18 * var(--s)); }
       #dialogue-input.visible { display: block; }
+      /* 자유 대화 입력칸 (public/ui/dlg-field.png, 169×33 · PixelLab).
+         눌러 들어간 홈이라 "여기 쓴다"로 읽힌다 — 튀어나온 판이면 옆의 [대화][닫기]
+         버튼과 구별이 안 간다. */
       #dialogue-field {
         width: 100%;
-        background: rgba(8, 7, 5, 0.9);
-        border: 1px solid var(--brass-lo);
-        border-radius: calc(3 * var(--s));
+        box-sizing: border-box;
+        border: calc(13 * var(--s)) solid transparent;
+        border-image: url('/ui/dlg-field.png') 16 fill / calc(13 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        background: none;
+        border-radius: 0;
         color: var(--paper);
         font-family: var(--font-body);
         font-size: calc(26 * var(--s));
-        padding: calc(11 * var(--s)) calc(16 * var(--s));
+        padding: calc(4 * var(--s)) calc(8 * var(--s));
       }
       #dialogue-field:focus {
         outline: none;
-        border-color: var(--brass);
+        /* 테두리가 그림이라 border-color 로는 아무 일도 안 일어난다. 홈 안쪽이
+           달아오르는 것으로 초점을 말한다. */
+        filter: brightness(1.25);
         box-shadow: 0 0 calc(8 * var(--s)) rgba(201, 162, 39, 0.35);
       }
       #dialogue-field:disabled { opacity: 0.4; }
@@ -638,17 +714,27 @@
         z-index: 4;
       }
       #docpanel.visible { display: flex; }
+      /* 공문서 (public/ui/doc-paper.png, 211×162 · PixelLab).
+
+         단서 수첩(clue-paper)과 **다른 물건**이다. 그쪽은 주머니에서 꺼낸 찢긴
+         쪽지고 이쪽은 서류철에서 빼낸 공문서라, 가장자리가 자로 자른 듯 곧고
+         인쇄 괘선과 직인 자국이 있다. 나란히 놓았을 때 종류가 갈려 보여야 한다.
+
+         `100% 100%` 로 늘이는 것은 괜찮다 — 괘선이 가로줄이라 세로로 늘어나도
+         줄 간격만 벌어지고 무늬가 안 깨진다. */
       #docpanel-paper {
         width: calc(880 * var(--s));
         max-height: 78%;
         overflow-y: auto;
-        padding: calc(48 * var(--s)) calc(56 * var(--s));
-        background:
-          var(--noise),
-          linear-gradient(174deg, #efe3c4 0%, #e2d3ac 60%, #d3c096 100%);
+        /* ⚠ 아래 여백이 넉넉한 이유는 미관이 아니다. 종이 **오른쪽 아래 모서리가
+           접혀 있어서**, 예전 여백(48)으로는 안내 문구가 그 접힌 자락에 물려 잘렸다.
+           단서 수첩에서 겪은 것과 같은 함정이고(찢긴 가장자리), 그림을 다시 구우면
+           다시 재야 하는 값인 것도 같다. */
+        padding: calc(48 * var(--s)) calc(64 * var(--s)) calc(84 * var(--s));
+        background: url('/ui/doc-paper.png') center / 100% 100% no-repeat;
+        image-rendering: pixelated;
         color: var(--ink);
-        border: 1px solid #b9a878;
-        box-shadow: 0 calc(18 * var(--s)) calc(48 * var(--s)) rgba(0, 0, 0, 0.75);
+        filter: drop-shadow(0 calc(18 * var(--s)) calc(40 * var(--s)) rgba(0, 0, 0, 0.75));
         transform: rotate(-0.5deg);
       }
       #docpanel-title {
@@ -665,7 +751,8 @@
         line-height: 1.8;
         white-space: pre-wrap;
       }
-      #docpanel-hint { margin-top: calc(26 * var(--s)); opacity: 0.5; font-size: calc(19 * var(--s)); text-align: right; }
+      /* 오른쪽 아래는 접힌 자락, 왼쪽 아래는 직인 자국이다 — 가운데만 비어 있다. */
+      #docpanel-hint { margin-top: calc(26 * var(--s)); opacity: 0.5; font-size: calc(19 * var(--s)); text-align: center; }
 
       /* ── 단서 수첩 ([C]) ─────────────────────────────────
          ui/ClueBook.js 와 짝. 캔버스 컨테이너를 그대로 옮긴 것이라 치수도 그때
@@ -812,24 +899,430 @@
       /* 미니게임 부품 — 퍼즐과 타이밍 게임이 함께 쓴다. */
       .mg-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
       .mg-row + .mg-row { margin-top: 12px; }
+      /* 잠금장치 키 (public/ui/key-plate.png, 48×48 · PixelLab).
+         감옥 퍼즐의 숫자·기호 단추다. slice 에 `fill` 이 붙는다 — 판이 곧 배경이라
+         빼면 숫자가 허공에 뜬다.
+
+         ⚠ 상태 넷(기본·고름·맞춤·틀림)을 그림 넷으로 굽지 않는다. 같은 판을 네 번
+           구우면 넷의 금속 톤이 미묘하게 갈리고, 무엇보다 상태가 바뀔 때마다 다른
+           그림으로 **갈아 끼워지는 것**이 보인다. 한 장에 filter 를 걸면 같은 판이
+           달아오르거나 식는 것으로 읽힌다. */
       .mg-btn {
-        min-width: 52px;
-        padding: 10px 12px;
-        background: #0f0d0a;
-        border: 1px solid var(--brass-lo);
-        border-radius: 3px;
+        min-width: calc(58 * var(--s));
+        padding: calc(8 * var(--s)) calc(12 * var(--s));
+        border: calc(11 * var(--s)) solid transparent;
+        border-image: url('/ui/key-plate.png') 14 fill / calc(11 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        background: none;
         color: var(--paper);
         font-family: inherit;
         font-size: 1rem;
+        text-shadow: 0 calc(2 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.9);
         cursor: pointer;
+        transition: filter 90ms ease;
       }
-      .mg-btn:hover:not(:disabled) { border-color: var(--brass); }
+      .mg-btn:hover:not(:disabled) { filter: brightness(1.2); }
       .mg-btn:disabled { cursor: default; }
-      .mg-btn.sel { border-color: var(--brass); background: #2a2416; color: var(--brass); }
-      .mg-btn.done { opacity: 0.3; }
-      .mg-btn.bad { border-color: var(--wax); color: var(--wax); }
+      /* 고른 것 — 호박빛이 돈다 */
+      .mg-btn.sel { filter: brightness(1.35) saturate(1.4); color: var(--brass-hi); }
+      /* 맞춰 잠긴 것 — 식어서 물러난다 */
+      .mg-btn.done { filter: brightness(0.45) saturate(0.4); opacity: 0.55; }
+      /* 틀린 것 — 봉랍빛으로 달아오른다 (250ms 뒤 JS 가 뗀다) */
+      .mg-btn.bad { filter: brightness(1.15) sepia(0.7) hue-rotate(-38deg) saturate(3.2); color: var(--paper); }
       .mg-legend { opacity: 0.75; font-size: 0.85rem; letter-spacing: 0.08em; margin-bottom: 14px; }
       .mg-legend b { color: var(--brass); }
+
+      /* ──────────────────────────────────────────────────────────────
+         감옥 퍼즐 — lock 배치 (2026-08-06 기획 목업 셋)
+
+         목업 셋이 전부 같은 골격을 쓴다. 그림을 입히기 전에 이 골격부터 있어야
+         한다 — 처음엔 부품만 갈아 끼웠더니 여전히 "가운데 뜬 작은 카드에 아이콘이
+         한 줄" 이었다. 문제는 그림이 아니라 배치였다.
+
+             ┌───────────────────────────── head  (제목 · 부제)   timer (시계 · 남은 시간)
+             │  rail   │        board                          │
+             └───────────────────────────── hint  (바닥 경고 한 줄)
+
+         규칙은 lockPuzzle.js 그대로다. 여기는 그것을 어떻게 앉히느냐만 정한다.
+         ────────────────────────────────────────────────────────────── */
+      #minigame-card.lock {
+        width: calc(1180 * var(--s));
+        max-width: 94%;
+        padding: calc(18 * var(--s));
+        display: grid;
+        grid-template-columns: 1fr calc(300 * var(--s));
+        grid-template-areas: 'head clock' 'stage stage' 'warn warn';
+        gap: calc(14 * var(--s));
+        text-align: left;
+      }
+      /* 머리띠·시계띠·바닥띠는 수류탄 무대와 **같은 액자 한 장**을 쓴다. 감옥이라고
+         다른 액자를 쓰면 같은 게임 안에서 창틀이 두 종류가 된다. */
+      #minigame-card.lock #minigame-head,
+      #minigame-card.lock #minigame-timer,
+      #minigame-card.lock #minigame-hint {
+        border: calc(24 * var(--s)) solid transparent;
+        border-image: url('/ui/stage-frame.png') 36 / calc(24 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        border-radius: 0;
+        box-shadow: none;
+        background: linear-gradient(180deg, #241a12, #14100b);
+        background-clip: padding-box;
+      }
+      #minigame-card.lock #minigame-head {
+        display: block;
+        grid-area: head;
+        padding: calc(6 * var(--s)) calc(10 * var(--s));
+      }
+      #minigame-card.lock #minigame-title {
+        font-size: calc(30 * var(--s));
+        color: var(--brass-hi);
+        text-shadow: 0 0 calc(10 * var(--s)) rgba(201, 162, 39, 0.35);
+      }
+      #minigame-card.lock #minigame-subtitle {
+        margin-top: calc(4 * var(--s));
+        font-size: calc(17 * var(--s));
+        opacity: 0.8;
+      }
+      #minigame-card.lock #minigame-timer {
+        grid-area: clock;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: calc(14 * var(--s));
+        height: auto;
+        margin: 0;
+        padding: calc(4 * var(--s)) calc(10 * var(--s));
+        overflow: visible;
+        position: relative; /* 남은 시간 막대가 붙을 기준 */
+      }
+      #minigame-card.lock #minigame-timer::before {
+        content: '';
+        width: calc(38 * var(--s));
+        height: calc(38 * var(--s));
+        margin-right: auto;
+        background: url('/ui/clock-face.png') center / contain no-repeat;
+        image-rendering: pixelated;
+      }
+      #minigame-card.lock #minigame-timer-fill {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: calc(3 * var(--s));
+      }
+      #minigame-card.lock #minigame-clock {
+        display: block;
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(38 * var(--s));
+        letter-spacing: 0.04em;
+        color: #d8402c;
+        text-shadow: 0 0 calc(12 * var(--s)) rgba(216, 64, 44, 0.55);
+        font-variant-numeric: tabular-nums;
+      }
+      /* 바닥 경고 띠 — 왼쪽에 붉은 삼각형이 박힌다 (무대와 같은 규약). */
+      #minigame-card.lock #minigame-hint {
+        grid-area: warn;
+        margin: 0;
+        opacity: 1;
+        font-size: calc(17 * var(--s));
+        color: #c9b79a;
+        text-align: center;
+        padding: calc(6 * var(--s)) calc(48 * var(--s));
+        background:
+          url('/ui/warn-triangle.png') calc(16 * var(--s)) center / auto calc(26 * var(--s)) no-repeat,
+          linear-gradient(180deg, #241a12, #14100b);
+      }
+      /* 본체 — 왼쪽 정보 레일 + 오른쪽 작업판 */
+      #minigame-card.lock #minigame-content {
+        grid-area: stage;
+        margin: 0;
+        display: grid;
+        grid-template-columns: calc(250 * var(--s)) 1fr;
+        gap: calc(14 * var(--s));
+        min-height: calc(420 * var(--s));
+      }
+      #minigame-card.lock #minigame-verdict {
+        grid-area: stage;
+        align-self: center;
+        justify-self: center;
+        position: relative;
+        z-index: 2;
+        margin: 0;
+        font-family: var(--font-head);
+        font-size: calc(72 * var(--s));
+        letter-spacing: 0.1em;
+        padding: calc(6 * var(--s)) calc(44 * var(--s));
+        background: rgba(10, 9, 7, 0.95);
+        border-radius: calc(4 * var(--s));
+        text-shadow: 0 calc(4 * var(--s)) calc(20 * var(--s)) rgba(0, 0, 0, 0.9);
+      }
+      #minigame-card.lock #minigame-verdict:empty { display: none; }
+
+      /* ── 왼쪽 정보 레일 ──
+         "무엇을 해야 하나"를 판이 끝날 때까지 붙들고 있는 자리. 목업 셋이 전부
+         이 칸을 갖고 있고, 그래서 부제를 읽고 잊어버려도 다시 볼 곳이 있다. */
+      .lp-rail {
+        padding: calc(16 * var(--s));
+        background:
+          url('/ui/puzzle-board.png') center / 100% 100% no-repeat,
+          linear-gradient(160deg, #1d1811, #0f0c08);
+        image-rendering: pixelated;
+        border: 1px solid var(--brass-lo);
+        display: flex;
+        flex-direction: column;
+        gap: calc(10 * var(--s));
+      }
+      .lp-rail-label {
+        font-family: var(--font-head);
+        font-size: calc(17 * var(--s));
+        letter-spacing: 0.14em;
+        color: var(--brass);
+      }
+      .lp-note {
+        margin: 0;
+        font-size: calc(16 * var(--s));
+        line-height: 1.7;
+        color: var(--paper-dim);
+        white-space: pre-line;
+      }
+      /* 배선표 — 이 판의 정답지다. 읽으라고 크게 둔다. */
+      .lp-table { display: flex; flex-direction: column; gap: calc(6 * var(--s)); }
+      .lp-table-row {
+        display: flex;
+        align-items: center;
+        gap: calc(10 * var(--s));
+        padding: calc(4 * var(--s)) calc(10 * var(--s));
+        background: rgba(10, 9, 7, 0.55);
+        border-left: calc(3 * var(--s)) solid var(--brass-lo);
+      }
+      .lp-sym { font-size: calc(26 * var(--s)); color: var(--brass-hi); }
+      .lp-arrow { color: var(--paper-dim); }
+      .lp-num { font-size: calc(24 * var(--s)); font-weight: 700; color: var(--paper); }
+      /* 목표 출력 — 기어비 판의 주인공이라 크고 붉다. */
+      .lp-target {
+        font-family: var(--font-head);
+        font-size: calc(78 * var(--s));
+        line-height: 1;
+        font-weight: 700;
+        color: #d8402c;
+        text-align: center;
+        text-shadow: 0 0 calc(16 * var(--s)) rgba(216, 64, 44, 0.5);
+        font-variant-numeric: tabular-nums;
+      }
+      /* 빈 칸들 — 연 순서(밸브)와 고른 기어가 여기 채워진다. */
+      /* 3칸씩 두 줄. flex-wrap 에 맡기면 레일 폭에 따라 4+2 로 삐뚤게 접힌다 —
+         밸브가 여섯이라 3+3 이 유일하게 고른 나눔이다. */
+      .lp-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(6 * var(--s)); }
+      .lp-slot {
+        width: calc(46 * var(--s));
+        height: calc(46 * var(--s));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: calc(22 * var(--s));
+        font-weight: 700;
+        color: var(--paper-dim);
+        background: rgba(10, 9, 7, 0.6);
+        border: calc(2 * var(--s)) solid var(--brass-lo);
+        font-variant-numeric: tabular-nums;
+      }
+      .lp-slot.filled { color: var(--brass-hi); border-color: var(--brass); }
+      .lp-slot-round { border-radius: 50%; }
+
+      /* ── 오른쪽 작업판 ── */
+      .lp-board {
+        position: relative;
+        padding: calc(18 * var(--s)) calc(22 * var(--s));
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: calc(14 * var(--s));
+        background:
+          url('/ui/puzzle-board.png') center / 100% 100% no-repeat,
+          linear-gradient(160deg, #1d1811 0%, #14100b 55%, #0f0c08 100%);
+        image-rendering: pixelated;
+        border: 1px solid var(--brass-lo);
+      }
+
+      /* ── 기계 부품 단추 ──
+         그림은 단추의 background 가 아니라 **::before 층**에 얹는다. 단추에 직접
+         걸면 `transform: rotate` 를 줬을 때 숫자까지 같이 돈다 — 기어가 돌아가는
+         동안 값을 못 읽는다 (실제로 그렇게 만들고 알았다).
+
+         ⚠ `isolation: isolate` 를 빼면 안 된다. ::before 가 `z-index: -1` 이라
+           단추가 자기 쌓임 맥락을 안 만들면 그 층이 **단추 밖으로 빠져나가** 판
+           뒤에 깔린다. position:relative 만으로는 쌓임 맥락이 안 생긴다. */
+      .lp-part {
+        position: relative;
+        isolation: isolate;
+        border: 0;
+        padding: 0;
+        background: none;
+        cursor: pointer;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: filter 90ms ease, transform 90ms ease;
+      }
+      .lp-part::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: center / contain no-repeat;
+        image-rendering: pixelated;
+      }
+      .lp-part:disabled { cursor: default; }
+      .lp-face { font-weight: 700; line-height: 1; }
+      /* 상태 넷은 그림이 아니라 filter 다 — 넷을 따로 구우면 금속 톤이 갈리고,
+         무엇보다 상태가 바뀔 때 부품이 갈아 끼워지는 것이 보인다. */
+      .lp-part:hover:not(:disabled) { filter: brightness(1.2); transform: translateY(calc(-2 * var(--s))); }
+      .lp-part.sel { filter: brightness(1.4) saturate(1.5); }
+      .lp-part.done { filter: brightness(0.4) saturate(0.3); opacity: 0.5; }
+      .lp-part.bad { filter: brightness(1.15) sepia(0.7) hue-rotate(-38deg) saturate(3.2); }
+
+      /* ── 1. 전선 연결 ──
+         왼쪽 둥근 포트에서 오른쪽 사각 단자로 케이블이 건너간다. 모양이 갈려야
+         "무엇을 무엇에 잇는가"가 눈에 보인다 — 같은 부품이면 좌우가 거울처럼
+         보여 어느 쪽이 출발인지 안 읽힌다. */
+      .lp-wire {
+        position: relative;
+        flex: 1;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+      }
+      .lp-col { display: flex; flex-direction: column; justify-content: space-around; height: 100%; }
+      .lp-col-left { grid-column: 1; }
+      .lp-col-right { grid-column: 3; }
+      /* 케이블 층 — 단자보다 **아래**다. 위에 그리면 선이 숫자를 덮는다. */
+      .lp-cables {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .lp-cable {
+        fill: none;
+        stroke-width: calc(9 * var(--s));
+        stroke-linecap: round;
+        /* 그어지는 동안 선이 자라난다 — 이어 붙였다는 것이 동작으로 읽힌다. */
+        stroke-dasharray: 1200;
+        stroke-dashoffset: 1200;
+        animation: lp-draw 380ms ease-out forwards;
+        filter: drop-shadow(0 calc(2 * var(--s)) calc(3 * var(--s)) rgba(0, 0, 0, 0.8));
+      }
+      @keyframes lp-draw { to { stroke-dashoffset: 0; } }
+      .lp-port {
+        width: calc(112 * var(--s));
+        height: calc(112 * var(--s));
+        z-index: 1;
+      }
+      /* ⚠ 90° 눕혀 놓는다. 구운 그림은 관 이음새가 **아래(6시)** 를 보는데 케이블은
+         포트의 **오른쪽 모서리**에서 나간다 (drawCable 의 x1 = 단추의 right).
+         그대로 두면 선이 이음새가 아닌 맨 쇠에서 뻗어 나온다.
+         `rotate(-90deg)` 가 6시를 3시로 옮긴다 — 화면 좌표는 y 가 아래라
+         반시계 방향이 그쪽이다. 포트는 원형이라 돌려도 위아래가 안 어색하다.
+         그림을 다시 굽지 않는 이유: Pro 한 장이 20 generations 인데 이건 회전 한 줄이다. */
+      .lp-port::before {
+        background-image: url('/ui/wire-port.png');
+        transform: rotate(-90deg);
+      }
+      /* 포트 가운데가 뼈빛이라 글자는 먹색이라야 읽힌다. */
+      .lp-port .lp-face { font-size: calc(40 * var(--s)); color: var(--ink); }
+      .lp-jack {
+        width: calc(120 * var(--s));
+        height: calc(104 * var(--s));
+        z-index: 1;
+      }
+      .lp-jack::before { background-image: url('/ui/wire-terminal.png'); }
+      .lp-jack .lp-face {
+        font-size: calc(38 * var(--s));
+        color: var(--paper);
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.95);
+      }
+
+      /* ── 2. 압력 밸브 ── */
+      .lp-valves { display: flex; justify-content: space-around; align-items: flex-end; flex: 1; }
+      .lp-valve {
+        width: calc(120 * var(--s));
+        height: calc(250 * var(--s));
+        /* 숫자는 위쪽 계기판에 앉는다. 그림(178×384)에서 다이얼 중심이 위에서
+           약 18% 지점이라 그만큼 위로 올린다 — 가운데 정렬로 두면 숫자가 밸브
+           몸통 한복판에 박힌다. */
+        align-items: flex-start;
+        padding-top: calc(18 * var(--s));
+      }
+      .lp-valve::before { background-image: url('/ui/valve-stack.png'); }
+      .lp-valve .lp-face { font-size: calc(32 * var(--s)); color: var(--ink); }
+      /* 밸브 아래 자리 번호 — 목업의 1·2·3·4 판. 값이 아니라 자리다. */
+      .lp-valve-tag {
+        position: absolute;
+        left: 50%;
+        /* 단추 **안쪽** 바닥에 붙인다. 음수로 빼면 판 가장자리에 걸려 잘린다. */
+        bottom: calc(4 * var(--s));
+        transform: translateX(-50%);
+        min-width: calc(30 * var(--s));
+        padding: 0 calc(6 * var(--s));
+        font-size: calc(18 * var(--s));
+        color: var(--brass-hi);
+        background: rgba(10, 9, 7, 0.85);
+        border: 1px solid var(--brass-lo);
+      }
+      /* 잠근 밸브는 바퀴가 돌아간 채로 멎는다 — 그림 층만 돌린다. */
+      .lp-valve.done::before { transform: rotate(-5deg); }
+
+      /* ── 3. 기어비 계산 ── */
+      .lp-gears { display: flex; justify-content: space-around; align-items: center; flex: 1; }
+      .lp-gear {
+        width: calc(124 * var(--s));
+        height: calc(124 * var(--s));
+      }
+      .lp-gear::before { background-image: url('/ui/gear-dial.png'); }
+      .lp-gear .lp-face {
+        font-size: calc(36 * var(--s));
+        color: var(--paper);
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.95);
+      }
+      /* 고른 기어는 맞물려 돈다. **그림 층만** 돌린다 — 단추째 돌리면 숫자가 같이
+         돌아 고르는 동안 값을 못 읽는다. */
+      .lp-gear.sel::before { animation: lp-spin 3.2s linear infinite; }
+      @keyframes lp-spin { to { transform: rotate(360deg); } }
+      /* 아래 계산 띠 — [선택1] + [선택2] = [출력] */
+      .lp-sum {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: calc(10 * var(--s));
+        padding: calc(10 * var(--s));
+        background: rgba(10, 9, 7, 0.55);
+        border-top: 1px solid var(--brass-lo);
+      }
+      .lp-sum-label { font-size: calc(15 * var(--s)); color: var(--paper-dim); letter-spacing: 0.1em; }
+      .lp-op { font-size: calc(30 * var(--s)); color: var(--brass); }
+      .lp-out {
+        min-width: calc(80 * var(--s));
+        padding: calc(2 * var(--s)) calc(12 * var(--s));
+        text-align: center;
+        font-size: calc(30 * var(--s));
+        font-weight: 700;
+        color: var(--paper-dim);
+        background: rgba(10, 9, 7, 0.7);
+        border: calc(2 * var(--s)) solid var(--brass-lo);
+        font-variant-numeric: tabular-nums;
+      }
+      /* 합이 목표와 맞은 순간 — 판정이 나기 전에 눈이 먼저 안다. */
+      .lp-out.hit { color: var(--patina); border-color: var(--patina); }
+
+      /* 판이 도는 동안 톱니가 계속 돌면 어지럽다 — 움직임을 줄여 달라는 설정을
+         존중한다 (선택 표시는 filter 가 이미 하고 있다). */
+      @media (prefers-reduced-motion: reduce) {
+        .lp-gear.sel::before { animation: none; }
+        .lp-cable { animation: none; stroke-dashoffset: 0; }
+      }
 
       /* 심문 답변 — 선택지는 세로로 쌓고, 그 아래 자유 입력을 둔다. */
       .mg-col { display: flex; flex-direction: column; gap: 8px; }
@@ -1145,10 +1638,57 @@
       }
       #result.visible { display: flex; }
       #result-card {
+        position: relative; /* 도장이 붙을 기준 */
         padding: 28px 36px;
         text-align: center;
         min-width: 340px;
         max-width: 80%;
+      }
+      /* 판정 도장 (public/ui/seal-clear.png · seal-fail.png · PixelLab).
+
+         결말은 넷이지만(cleared·caught·spotted·reported) 도장은 둘이다. 패배 셋의
+         차이는 제목과 문장이 이미 말한다 — 도장이 말해야 하는 것은 "됐다"와
+         "안 됐다" 하나뿐이라, 셋을 따로 굽는 것은 낭비다.
+
+         ⚠ 카드 **오른쪽 위 모서리에 걸치게** 둔다. 가운데에 찍으면 글자를 덮고,
+           안쪽으로 넣으면 인쇄된 무늬처럼 보인다. 걸쳐야 나중에 찍은 것으로 읽힌다.
+         ⚠ 도장이 먼저 눈에 들어오고 글자가 그다음이어야 하므로, 나타나는 것도
+           카드보다 늦다 (280ms 뒤에 내리찍힌다). */
+      #result-card::after {
+        content: '';
+        position: absolute;
+        top: calc(-26 * var(--s));
+        right: calc(-34 * var(--s));
+        width: calc(150 * var(--s));
+        height: calc(150 * var(--s));
+        background: center / contain no-repeat;
+        image-rendering: pixelated;
+        pointer-events: none;
+        display: none;
+      }
+      #result-card.ok::after,
+      #result-card.fail::after {
+        display: block;
+        animation: rs-stamp 260ms cubic-bezier(0.3, 1.5, 0.5, 1) 280ms both;
+      }
+      /* ⚠ 성공 도장에 채도를 얹는다. verdigris 팔레트로 구웠는데도 종이색 쪽으로
+         끌려 잿빛에 가깝게 나왔다 — 게임이 성공을 녹청으로 말하므로(#minigame-verdict.ok)
+         그 색으로 읽혀야 한다. 다시 굽는 것보다 여기서 미는 편이 확실하다. */
+      #result-card.ok::after {
+        background-image: url('/ui/seal-clear.png');
+        filter: saturate(2.2) brightness(0.95);
+      }
+      #result-card.fail::after { background-image: url('/ui/seal-fail.png'); }
+      /* 위에서 비스듬히 내려와 박힌다. 각도는 성패에 따라 반대로 기운다 —
+         같은 각도면 두 결말이 같은 몸짓으로 읽힌다. */
+      @keyframes rs-stamp {
+        0% { transform: scale(2.1) rotate(-24deg); opacity: 0; }
+        100% { transform: scale(1) rotate(-11deg); opacity: 0.92; }
+      }
+      #result-card.fail::after { animation-name: rs-stamp-fail; }
+      @keyframes rs-stamp-fail {
+        0% { transform: scale(2.1) rotate(26deg); opacity: 0; }
+        100% { transform: scale(1) rotate(13deg); opacity: 0.92; }
       }
       #result-title {
         font-family: var(--font-head);
@@ -1386,6 +1926,9 @@
         <div id="transition-title"></div>
         <div id="transition-sub"></div>
       </div>
+      <!-- 화면 테두리 — 맨 끝이라 로딩 화면까지 포함해 모든 것 위에 온다.
+           게임 안의 창이 아니라 화면을 담은 기계의 앞판이다. -->
+      <div id="screen-frame"></div>
     </div>
     <script type="module" src="./main.js"></script>
   </body>
