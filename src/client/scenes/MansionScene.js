@@ -430,7 +430,13 @@ export class MansionScene extends Phaser.Scene {
       return;
     }
 
-    this.dialogue.preload([this.state.escort.id, ...this.state.npcs.map((n) => n.id)]);
+    // sentry·player 는 경보 연출(#alarm)의 얼굴 — NPC 가 아니라서 목록에 따로 얹는다.
+    this.dialogue.preload([
+      this.state.escort.id,
+      ...this.state.npcs.map((n) => n.id),
+      'sentry',
+      'player',
+    ]);
     this.#spawnNpcs();
     this.#registerLabDoor();
     this.#registerObjects();
@@ -547,7 +553,8 @@ export class MansionScene extends Phaser.Scene {
 
   /**
    * 문이 실제로 열릴 때(#registerLabDoor 의 onOpen)만 불린다 — 벽 바디를 걷어내고
-   * 열린 문 그림을 덮어 그린 뒤, 문서 노드를 등록한다(문이 열려야 문서에 닿을 수 있다).
+   * 문서 노드를 등록한다(문이 열려야 문서에 닿을 수 있다). 열림은 방 덮개가 걷히는
+   * 것으로 보인다 — 그린 배경에 문짝이 따로 없어서 덮어 그릴 열림 그림도 없다.
    */
   #syncLabDoor() {
     if (this.labUnlocked || !this.state?.hasKey) return;
@@ -562,10 +569,6 @@ export class MansionScene extends Phaser.Scene {
         if (body) body.destroy();
       }
     }
-    // 배경(-100)보다 앞, 플레이어보다 뒤.
-    this.asWorld(
-      this.add.image(door.x * TILE, door.y * TILE, 'mansion-door-open').setOrigin(0, 0).setDepth(-90),
-    );
     this.labUnlocked = true;
     // 덮개를 잠긴 상태(0.85)에서 보통 상태로 돌린다 — 안 그러면 문을 열고 들어가도
     // 방이 계속 어둡다. 지금 그 방에 서 있으면 곧바로 밝아진다.
@@ -834,12 +837,15 @@ export class MansionScene extends Phaser.Scene {
     this.dialogue.setHint('');
     await this.#beat(2000);
 
-    // 경보 방송 — 저택의 로봇들이 깨어난다.
+    // 경보 방송 — 저택의 로봇들이 깨어난다. 방송이지만 얼굴은 로봇을 세운다:
+    // "누가 깨어났는가"를 그림 한 장으로 보여 주는 자리다. 그림은 스테이지 3 의
+    // 감시 로봇(일러스트 26_전투 로봇, 검은 장갑·붉은 센서)과 같은 기체 — 이 경보가
+    // 곧 그 추격으로 이어진다는 예고이기도 하다.
     this.cameras.main.flash(240, 194, 37, 26);
-    this.dialogue.show('경보', '"침입자 정보 발견, 경계 태세 강화."');
+    this.dialogue.show('경보', '"침입자 정보 발견, 경계 태세 강화."', { portrait: 'sentry' });
     await this.#beat(2600);
 
-    this.dialogue.show('나', '이런, 일단 이 기록들을 챙겨서 탈출하자.');
+    this.dialogue.show('나', '이런, 일단 이 기록들을 챙겨서 탈출하자.', { portrait: 'player' });
     await this.#beat(2600);
 
     // 탈출 대사 출력 후 페이드 아웃 (목업 3) — 받는 쪽 연출은 EscapeScene#playIntro.

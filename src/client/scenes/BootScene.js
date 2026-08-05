@@ -6,7 +6,6 @@ import hqBgUrl from '../assets/hq-bg.png';
 import streetBgUrl from '../assets/street-bg.png';
 import mansionBgUrl from '../assets/mansion-bg.png';
 import escapeBgUrl from '../assets/escape-bg.png';
-import mansionDoorUrl from '../assets/mansion-door-open.png';
 import charsUrl from '../assets/chars.png';
 import officerSouthUrl from '../assets/npc/officer-south.png';
 import t1SouthUrl from '../assets/npc/t1-south.png';
@@ -92,7 +91,6 @@ export class BootScene extends Phaser.Scene {
     this.load.image('street-bg', streetBgUrl);
     this.load.image('mansion-bg', mansionBgUrl);
     this.load.image('escape-bg', escapeBgUrl);
-    this.load.image('mansion-door-open', mansionDoorUrl);
     // 발각 게이지 액자 — UI 부품 중 **유일하게 캔버스에 그려지는 것**이다
     // (나머지는 DOM 이라 CSS 가 `/ui/...` 를 직접 부른다).
     // 다른 캔버스 그림들처럼 `../assets/` 에서 import 하지 않고 URL 로 싣는 이유:
