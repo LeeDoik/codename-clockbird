@@ -236,7 +236,6 @@ export class StageScene extends Phaser.Scene {
     // 없고 접선책 대사는 전부 에이던(watchmaker)의 것이라 같은 사람이 거리에 두 번 서 있었다.
 
     this.#buildSteam();
-    this.#buildPlayerLight();
     this.#spawnPatrols();
     // 여기까지가 월드 — 이후의 HUD·수첩·도움말은 UI 카메라 소속이다.
     // (경계 상승으로 나중에 붙는 증원 순찰은 #maybeReinforce 가 asWorld 로 등록한다.)
@@ -462,38 +461,6 @@ export class StageScene extends Phaser.Scene {
    * map.json 의 layout 을 깔고, solid 타일은 정적 물리 바디로 만들어 플레이어를 막는다.
    * 정적 그룹의 create 는 보이는 스프라이트와 정적 바디를 한 번에 만든다.
    */
-  /**
-   * 플레이어가 든 등불.
-   *
-   * 배경의 조명은 구워져 있어 가로등 사이가 어둡다. 밤거리로는 맞지만, 그 어둠 속을
-   * 걸을 때 발밑이 안 보이면 길찾기가 답답해진다. 인물을 따라다니는 빛을 하나 얹어
-   * "내가 선 자리만 밝다"를 만든다 — 어둠을 걷어내지 않으면서 갈 곳은 보이게 한다.
-   *
-   * ADD 합성이라 배경 위에 더해진다. 곱하기로 하면 어두운 자갈이 더 어두워질 뿐이다.
-   */
-  #buildPlayerLight() {
-    if (!this.textures.exists('player-light')) {
-      const R = 108;
-      const g = this.make.graphics({ add: false });
-      // 32단으로 끊어 그린다 — 도트 화면에 매끄러운 그라디언트를 얹으면 그 부분만
-      // 해상도가 달라 보인다. 계단진 빛이 오히려 어울린다.
-      for (let i = 32; i > 0; i--) {
-        const t = i / 32;
-        // 밝기는 낮게. 이 빛은 어둠을 걷어내는 것이 아니라 발밑을 알려 주는 정도여야
-        // 한다 — 세게 주면 구운 배경의 등불 웅덩이가 통째로 묻힌다.
-        g.fillStyle(0xffe2b0, 0.016 * (1 - t) ** 1.8);
-        g.fillCircle(R, R, R * t);
-      }
-      g.generateTexture('player-light', R * 2, R * 2);
-      g.destroy();
-    }
-
-    this.playerLight = this.add
-      .image(this.player.x, this.player.y, 'player-light')
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(4);
-  }
-
   /**
    * 길바닥 배출구에서 오르는 김.
    *
@@ -729,9 +696,6 @@ export class StageScene extends Phaser.Scene {
       applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
     }
     this.playerVisual.update();
-
-    // 등불은 인물을 그대로 따라간다 (물리 바디가 아니라 표시용이라 매 프레임 위치만 맞춘다).
-    this.playerLight?.setPosition(this.player.x, this.player.y);
 
     // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운
     // 다른 대사 위에 그대로 이어붙는다 (setBusy 가 입력칸을 blur 시켜 typing 이 풀리기 때문).
