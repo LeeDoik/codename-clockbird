@@ -1,9 +1,11 @@
 /**
  * 감옥 퍼즐 — 창살 잠금장치를 푸는 미니게임.
  *
- * 구출은 한 동료당 한 번뿐이라 반복 압박이 없다. 그래서 반사신경이 아니라 잠깐
- * 생각하게 만드는 쪽으로 짰다. 대신 판당 최대 4번(감옥에 갇힐 수 있는 인원수)까지
- * 나오므로 유형을 셋 두고 매번 다르게 출제한다.
+ * 두 자리에서 쓴다: 갇힌 **동료를 빼낼 때**(밖에서)와 플레이어 **자신이 갇혔을 때**
+ * (안에서, 2026-08-05). 구출은 한 동료당 한 번뿐이라 반복 압박이 없다. 그래서
+ * 반사신경이 아니라 잠깐 생각하게 만드는 쪽으로 짰다. 대신 판당 최대 4번(감옥에 갇힐
+ * 수 있는 인원수)까지, 자기 탈출까지 세면 그보다 더 나오므로 유형을 셋 두고 매번
+ * 다르게 출제한다.
  *
  * LLM 을 쓰지 않는다 — 생성 지연(2~4초)이 붙으면 "잠깐 생각하는 맛"이 대기로 바뀌고,
  * API 장애가 구출 자체를 막아 버린다. 감옥 앞 소프트락은 가장 피하고 싶은 사고다.
@@ -211,13 +213,18 @@ const TIME_LIMIT_MS = 30_000;
 /**
  * 감옥 퍼즐 한 판을 실행한다.
  *
+ * 같은 잠금장치를 양쪽에서 연다. `from: 'inside'` 는 **플레이어 자신이 갇혔을 때**로,
+ * 붙잡혀 창살 안에 있는 경우다 (StageScene#toJail). 규칙과 유형은 그대로 두고 제목만
+ * 바꾼다 — 퍼즐이 다른 물건인 척할 이유가 없고, 어느 쪽에서 여는지는 플레이어가 이미 안다.
+ *
  * @param {import('../ui/MinigamePanel.js').MinigamePanel} panel
+ * @param {{from?: 'outside'|'inside'}} [opts]
  * @returns {Promise<boolean>} 성공 여부
  */
-export function runLockPuzzle(panel) {
+export function runLockPuzzle(panel, { from = 'outside' } = {}) {
   const puzzle = pick(TYPES)();
   return panel.run({
-    title: `창살 잠금장치 — ${puzzle.title}`,
+    title: `${from === 'inside' ? '감옥 탈출' : '창살 잠금장치'} — ${puzzle.title}`,
     subtitle: puzzle.subtitle,
     hint: puzzle.hint,
     timeLimitMs: TIME_LIMIT_MS,

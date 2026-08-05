@@ -1,0 +1,36 @@
+{
+  "group_id": "cf038584-97de-4c6b-8752-6784895bda92",
+  "states": [
+    {
+      "character": {
+        "id": "d297ffa1-aca1-4700-bb74-da7116e5ab6a",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a 41-year-old steam engine mechanic man, big head short limbs chibi proportions (head is 40% of total height), short greying hair and a thick grey beard, a grease-smudged tanned face, broad shoulders, a cream shirt with rolled sleeves under faded blue-grey denim overalls, a rust-orange neckerchief around the neck, a brown leather tool belt with a large steel wrench, thick brown work gloves, brown work boots, steampunk mechanic outfit, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 228,
+          "height": 228
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T15:38:14.416090+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-04T06:05:23.447285"
+}

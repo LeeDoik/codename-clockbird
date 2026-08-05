@@ -1,0 +1,36 @@
+{
+  "group_id": "dbd3a55a-d21f-454c-ba33-c35988d27d22",
+  "states": [
+    {
+      "character": {
+        "id": "34adceef-720d-4c1b-a795-408f1c316e32",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a 29-year-old smuggler woman, big head short limbs chibi proportions (head is 40% of total height), dark auburn bob hair, pale skin, sharp mischievous eyes with a confident smirk, a deep red hooded traveler's cloak over the shoulders with the hood up, a fitted black leather coat and dark corset beneath, a wide brown belt covered in small pouches at the waist, a long dark skirt over dark trousers, dark brown boots, steampunk smuggler outfit, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 192,
+          "height": 192
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T15:42:54.639997+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-04T06:05:04.568118"
+}

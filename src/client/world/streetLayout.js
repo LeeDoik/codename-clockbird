@@ -30,6 +30,23 @@ export const PATROL_ROUTES = {
   reinforce: [[41, 16], [64, 16]], // 증원 — 광장 동편, 경계 2 이상에서만 (24칸)
 };
 
+/**
+ * 순찰 개체 이름 — 머리 위 이름표에 그대로 찍힌다.
+ *
+ * 경로와 같은 파일에 두는 이유는 이름이 곧 **그 축의 이름**이기 때문이다. 로봇은
+ * 사람처럼 자리를 옮겨 다니지 않고 배정된 경로 하나를 평생 돈다 — 경로를 지우면
+ * 이름도 같이 사라져야 하고, 경로를 하나 더 그으면 번호도 하나 더 필요하다.
+ * 번호는 스폰 순서가 아니라 이 표의 순서다 (#spawnPatrols 는 avenue 부터 세운다).
+ *
+ * 용어는 스토리보드 수정안 p.17 의 확정 표기 "경비 로봇"을 따른다.
+ */
+export const PATROL_NAMES = {
+  crossing: '경비 로봇 RB-01',
+  avenue: '경비 로봇 RB-02',
+  wharf: '경비 로봇 RB-03',
+  reinforce: '경비 로봇 RB-04',
+};
+
 /** 증원이 붙는 경계 레벨 (스토리보드: 레벨 2 = 증원) */
 export const REINFORCE_AT = 2;
 
@@ -64,3 +81,45 @@ export const routeToPixels = (route, tileSize) =>
     x: col * tileSize + tileSize / 2,
     y: row * tileSize + tileSize / 2,
   }));
+
+/**
+ * 붙잡힌 플레이어가 갇혀 서는 칸 — 창살 안, 붙잡힌 동료들(StageScene#jailSlot) 한 줄 뒤.
+ *
+ * 감옥 안은 **걸을 수 있는 칸이 아니다** (walkmask 상 통째로 막힌 구역이라 갇힌 동료들도
+ * 그림만 서 있다). 그래서 갇혀 있는 동안 씬은 플레이어의 물리 바디를 끈다 — 안 끄면
+ * 정적 충돌 바디와 겹친 채로 매 프레임 밀려나 창살 밖으로 튀어나간다.
+ *
+ * @param {{x: number, y: number, w: number, h: number}} cage 맵 json 의 감옥 사각형(타일)
+ */
+export const jailCell = (cage) => ({ col: cage.x + Math.floor(cage.w / 2), row: cage.y + 2 });
+
+/**
+ * 창살 밖 첫 걸음 — 감옥 칸에서 가장 가까운 **걸을 수 있는 칸**.
+ *
+ * 좌표를 못박지 않는 이유는 감옥 안이 걷는 칸이 아니라서다. 문 앞이 어디인지는 배경
+ * 그림에 칠한 walkmask 가 정하고, 그림을 다시 칠하면 그 자리도 같이 옮겨간다 — 여기에
+ * 숫자로 적어 두면 그때부터 조용히 벽 속으로 내보내게 된다.
+ *
+ * 같은 거리면 **좌우로 덜 벗어난 쪽**을 고른다. 지금 그림에서는 감옥 앞 인도(북쪽)가
+ * 그렇게 잡혀, 나오는 자리가 창살 정면이 된다.
+ *
+ * @param {{col: number, row: number}} cell 갇혀 있던 칸 (jailCell)
+ * @param {(col: number, row: number) => boolean} isBlocked 충돌이 보는 벽 (los.makeBlockedLookup)
+ * @param {{col: number, row: number}} fallback 둘레에 걷는 칸이 하나도 없을 때 내보낼 자리
+ */
+export function jailExit(cell, isBlocked, fallback) {
+  for (let ring = 1; ring <= 16; ring++) {
+    let best = null;
+    for (let dr = -ring; dr <= ring; dr++) {
+      for (let dc = -ring; dc <= ring; dc++) {
+        if (Math.max(Math.abs(dr), Math.abs(dc)) !== ring) continue;
+        if (isBlocked(cell.col + dc, cell.row + dr)) continue;
+        if (!best || Math.abs(dc) < Math.abs(best.dc)) best = { dc, dr };
+      }
+    }
+    if (best) return { col: cell.col + best.dc, row: cell.row + best.dr };
+  }
+  // 감옥 둘레 16칸 안에 걷는 칸이 하나도 없다 — 마스크가 통째로 잘못 칠해진 경우다.
+  // 갇힌 채로 판이 멈추는 것보다는 낫다 (scripts/check-jail.js 가 먼저 잡아 준다).
+  return fallback;
+}

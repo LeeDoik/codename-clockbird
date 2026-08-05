@@ -20,8 +20,6 @@ const TEMPLATES = [
   'mansion-stance',
   'mansion-ally',
   'mansion-civ',
-  'checkpoint-question',
-  'checkpoint-judge',
   'escape-question',
   'escape-system-judge',
   'escape-robot-judge',

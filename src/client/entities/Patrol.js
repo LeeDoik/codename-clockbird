@@ -2,6 +2,15 @@ import Phaser from 'phaser';
 import mapData from '../assets/map.json';
 import streetProps from '../assets/street-props.json';
 import { hasLineOfSight, makeBlockedLookup, LOS_STEP } from '../world/los.js';
+import { NAME_LABEL_DEPTH, WORLD_ZOOM, worldLabel } from '../world/worldParts.js';
+import { nameLabelStyle } from '../ui/theme.js';
+import { facingName } from './facing.js';
+import {
+  ROBOT_ANIM,
+  ROBOT_CONTENT_HEIGHT,
+  ROBOT_FRAME_SIZE,
+  ROBOT_ORIGIN_Y,
+} from './robotSprite.js';
 import {
   MAX_LEVEL,
   PATROL_ROUTES as ROUTE_TILES,
@@ -24,6 +33,20 @@ const ARRIVE_EPS = 5;
 
 const TILE = mapData.tileSize;
 /**
+ * 이름표를 정수리 위로 올리는 거리 — 발이 좌표에 놓이므로 인물 높이만큼 올린다.
+ * 거리의 사람들(StageScene 의 ALLY_SPRITE_LABEL_DY)과 같은 규칙이라 로봇 이름과
+ * 사람 이름이 한 줄로 나란히 뜬다.
+ */
+const LABEL_DY = -((mapData.charHeight ?? 32) + 8);
+/**
+ * 이름표 — 규격(크기·테두리)은 사람과 똑같고 **색만** 다르다.
+ *
+ * 시야 원(0xc25b4a)의 붉은색을 금색 이름표와 같은 밝기로 올린 값이다. 원본 그대로
+ * 쓰면 옆에 선 사람 이름보다 어두워 로봇 쪽만 묻힌다 — 정작 먼저 읽어야 하는 쪽이다.
+ * 테마 토큰 아님(여기서만 쓴다).
+ */
+const LABEL_STYLE = nameLabelStyle(mapData.cameraZoom ?? WORLD_ZOOM, '#e8846a');
+/**
  * 시야가 보는 벽은 **충돌이 보는 벽과 같아야 한다**.
  * 거리도 이제 walkmask(street-props.json 의 walk)가 충돌의 원본이라 시야도 같은 것을
  * 넘긴다. 예전엔 여기만 layout 의 solid 를 봤는데, 마스크를 새로 칠하는 순간 로봇이
@@ -36,7 +59,7 @@ export const PATROL_ROUTES = Object.fromEntries(
   Object.entries(ROUTE_TILES).map(([key, route]) => [key, routeToPixels(route, TILE)]),
 );
 
-export { REINFORCE_AT } from '../world/streetLayout.js';
+export { PATROL_NAMES, REINFORCE_AT } from '../world/streetLayout.js';
 
 const clampLevel = (alertLevel) => Math.min(alertLevel, MAX_LEVEL);
 
@@ -44,8 +67,9 @@ export class Patrol {
   /**
    * @param {Phaser.Scene} scene
    * @param {{x: number, y: number}[]} waypoints
+   * @param {string} name  머리 위에 띄울 이름 (streetLayout.PATROL_NAMES)
    */
-  constructor(scene, waypoints) {
+  constructor(scene, waypoints, name = '경비 로봇') {
     this.scene = scene;
     this.waypoints = waypoints;
     this.index = 0;
@@ -55,16 +79,33 @@ export class Patrol {
     this.graceUntil = 0;
     /** 마지막으로 바라본 방향 (라디안). 멈춰 있어도 시야는 유지된다. */
     this.facing = 0;
+    /** 지금 재생 중인 애니메이션 키 — 같은 키를 다시 play() 하면 걸음이 첫 프레임으로 되감긴다. */
+    this.anim = null;
 
     const start = waypoints[0];
-    // chars.png 는 한 프레임이 32px 이라 무배율로 두면 이 맵의 사람들(charHeight)보다
-    // 절반 크기로 선다 — 새 광장 그림에서 로봇만 인형처럼 작았다.
+    // 그림은 플레이어와 같은 규칙이다: **발**이 순찰 좌표에 놓이고, 화면에 보일 높이는
+    // 맵이 정한 charHeight 다. 예전에는 chars.png 32px 프레임을 통째로 확대해 세웠는데,
+    // 그때는 방향도 걸음도 없어서 로봇이 옆으로 미끄러지듯 다녔다.
+    //
+    // ⚠ **재생을 먼저, 크기를 나중에.** setDisplaySize 는 지금 붙어 있는 프레임 크기로
+    // 배율을 역산해 두고 그 배율을 계속 쓴다. 두 시트가 같은 220칸이라 지금은 어느
+    // 순서든 맞지만, 나중에 프레임 크기가 다른 시트를 물리면 그때부터 조용히 틀어진다
+    // (플레이어에서 겪은 함정이라 같은 순서를 지킨다).
+    const scale = (mapData.charHeight ?? 32) / ROBOT_CONTENT_HEIGHT;
     this.sprite = scene.add
-      .sprite(start.x, start.y, 'chars', 7)
-      .setScale((mapData.charHeight ?? 32) / 32);
+      .sprite(start.x, start.y, ROBOT_ANIM.texture, 0)
+      .setOrigin(0.5, ROBOT_ORIGIN_Y);
+    this.#play(ROBOT_ANIM.idleDown);
+    this.sprite.setDisplaySize(ROBOT_FRAME_SIZE * scale, ROBOT_FRAME_SIZE * scale);
     // 시야 콘은 반투명이라 위에 겹쳐 그려도 아래가 보인다. 오히려 "지금 내가 빛
     // 안에 있다"가 즉시 읽혀서 스텔스 게임에서는 이 편이 낫다.
     this.cone = scene.add.graphics();
+
+    // 이름표. 로봇은 걸어 다니므로 매 프레임 따라붙어야 한다(#syncLabel).
+    // 시야 원 위로 올려 둔다 — 원 안에 들어가는 순간이 이름을 가장 읽고 싶은 순간이다.
+    this.label = worldLabel(scene, start.x, start.y + LABEL_DY, name, LABEL_STYLE).setDepth(
+      NAME_LABEL_DEPTH,
+    );
   }
 
   /** 현재 경계 레벨에서의 이동 속도 (px/s) */
@@ -102,10 +143,21 @@ export class Patrol {
    */
   update(delta, alertLevel, target) {
     if (!this.halted) this.#move(delta, alertLevel);
+    // 검문 중에는 걸음을 멈추되 **보던 쪽 그대로** 선다 — 시야 판정도 그 방향을 계속
+    // 쓰므로, 그림만 정면으로 돌아서면 화면과 판정이 어긋나 보인다.
+    else this.#play(ROBOT_ANIM[`idle${facingName(this.facing)}`]);
     this.#drawCone(alertLevel);
+    this.#syncLabel();
 
     if (!target || this.halted || this.scene.time.now < this.graceUntil) return false;
     return this.sees(target, alertLevel);
+  }
+
+  /** 같은 애니메이션을 다시 걸지 않는다 — 매 프레임 play() 하면 걸음이 첫 장에서 멈춘다. */
+  #play(key) {
+    if (this.anim === key) return;
+    this.anim = key;
+    this.sprite.play(key);
   }
 
   #move(delta, alertLevel) {
@@ -125,6 +177,12 @@ export class Patrol {
     const move = Math.min(step, dist);
     this.sprite.x += Math.cos(this.facing) * move;
     this.sprite.y += Math.sin(this.facing) * move;
+    this.#play(ROBOT_ANIM[`walk${facingName(this.facing)}`]);
+  }
+
+  /** 이름표를 정수리 위에 다시 놓는다. 걸음은 스프라이트 좌표를 직접 옮기므로 매 프레임 필요하다. */
+  #syncLabel() {
+    this.label.setPosition(this.sprite.x, this.sprite.y + LABEL_DY);
   }
 
   #drawCone(alertLevel) {
@@ -153,5 +211,6 @@ export class Patrol {
   destroy() {
     this.sprite.destroy();
     this.cone.destroy();
+    this.label.destroy();
   }
 }

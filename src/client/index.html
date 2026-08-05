@@ -473,6 +473,159 @@
       #minigame-verdict { margin-top: 10px; font-weight: 700; min-height: 1.4em; }
       #minigame-verdict.ok { color: var(--patina); }
       #minigame-verdict.fail { color: var(--wax); }
+      /* 기본 배치에서는 묶음이 없는 것과 같다 — 제목·부제가 카드에 직접 붙는다. */
+      #minigame-head { display: contents; }
+      #minigame-clock { display: none; }
+
+      /* ──────────────────────────────────────────────────────────────
+         stage 배치 — 검문 조우처럼 "한 장면"으로 보여야 하는 미니게임용.
+         좁은 카드 대신 화면을 크게 쓰고, 제목·시계·경고를 액자에 나눠 앉힌다
+         (기획 목업 2026-08-04). 기본 배치는 위 그대로라 다른 미니게임은
+         이 블록의 영향을 받지 않는다.
+         ────────────────────────────────────────────────────────────── */
+      #minigame-card.stage {
+        width: calc(1180 * var(--s));
+        max-width: 94%;
+        padding: calc(18 * var(--s));
+        display: grid;
+        grid-template-columns: 1fr calc(300 * var(--s));
+        grid-template-areas: 'head clock' 'stage stage' 'warn warn';
+        gap: calc(14 * var(--s));
+        text-align: left;
+      }
+      /* ── 무대 액자 (public/ui/stage-frame.png, 283×203 · PixelLab) ──────
+         제목·시계·경고 띠 셋이 같은 그림 하나를 쓴다. 셋의 크기가 제각각인데도
+         되는 이유가 9분할이다 — 모서리 브래킷 36px 은 원본 크기로 박히고 네 변만
+         늘어난다. 변은 `stretch` 가 아니라 `round` 다. 늘이면 리벳 한 줄이 열 배로
+         늘어나 그냥 줄이 된다 (#dialogue::before 에서 이미 겪었다).
+
+         border-width 를 slice(36) 보다 작게(24) 잡는 것은 의도한 것이다. 같게 두면
+         1920 화면에서 액자가 손가락만큼 두꺼워져 글자 자리를 잡아먹는다. 작게 잡으면
+         모서리 그림이 그만큼 축소되는데, 픽셀이 뭉개지지 않는 것은 `pixelated` 덕이다.
+
+         ⚠ 안쪽 배경을 지우지 말 것. slice 에 `fill` 이 없어 **가운데는 안 그려진다** —
+           지우면 액자 속으로 무대가 그대로 비쳐 글자가 안 읽힌다. */
+      #minigame-card.stage #minigame-head,
+      #minigame-card.stage #minigame-timer,
+      #minigame-card.stage #minigame-hint {
+        border: calc(24 * var(--s)) solid transparent;
+        border-image: url('/ui/stage-frame.png') 36 / calc(24 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      /* 제목 액자 — 좌상단. */
+      #minigame-card.stage #minigame-head {
+        display: block;
+        grid-area: head;
+        /* 액자가 이미 24px 을 먹으므로 안쪽 여백은 줄인다 — 예전 22px 을 그대로 두면
+           제목이 칸 한가운데로 밀려 부제와 함께 아래로 흘러내린다. */
+        padding: calc(6 * var(--s)) calc(10 * var(--s));
+        background: linear-gradient(180deg, #241a12, #14100b);
+        background-clip: padding-box; /* 액자 밑으로 배경이 삐져나오지 않게 */
+      }
+      #minigame-card.stage #minigame-title {
+        font-size: calc(30 * var(--s));
+        color: var(--wax);
+        text-shadow: 0 0 calc(10 * var(--s)) rgba(160, 51, 37, 0.5);
+      }
+      #minigame-card.stage #minigame-subtitle {
+        margin-top: calc(4 * var(--s));
+        font-size: calc(16 * var(--s));
+        opacity: 0.75;
+      }
+      /* 시계 — 남은 시간을 숫자로 읽는다. 게이지 막대는 그 아래 얇은 띠로 남는다. */
+      #minigame-card.stage #minigame-timer {
+        grid-area: clock;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: calc(14 * var(--s));
+        height: auto;
+        margin: 0;
+        padding: calc(4 * var(--s)) calc(10 * var(--s));
+        background: linear-gradient(180deg, #241a12, #14100b);
+        background-clip: padding-box;
+        overflow: visible;
+        /* ⚠ 남은 시간 막대(absolute)가 붙을 기준이다. 없으면 그 막대가 화면 전체를
+           덮는 #minigame 에 붙어, 화면 맨 아래를 가로지르는 노란 줄이 된다. */
+        position: relative;
+      }
+      /* 시계 문자판 (public/ui/clock-face.png, 52×52 · PixelLab).
+         장식이라 시간을 가리키지 않는다 — 바늘은 그림에 박혀 있고 안 움직인다.
+         진짜 남은 시간은 옆의 붉은 숫자와 아래 노란 띠가 말한다. */
+      #minigame-card.stage #minigame-timer::before {
+        content: '';
+        width: calc(38 * var(--s));
+        height: calc(38 * var(--s));
+        margin-right: auto;
+        background: url('/ui/clock-face.png') center / contain no-repeat;
+        image-rendering: pixelated;
+      }
+      #minigame-card.stage #minigame-timer-fill {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: calc(3 * var(--s));
+      }
+      #minigame-card.stage #minigame-clock {
+        display: block;
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(38 * var(--s));
+        letter-spacing: 0.04em;
+        color: #d8402c;
+        text-shadow: 0 0 calc(12 * var(--s)) rgba(216, 64, 44, 0.55);
+        font-variant-numeric: tabular-nums;
+      }
+      #minigame-card.stage #minigame-content {
+        grid-area: stage;
+        margin: 0;
+        min-height: calc(420 * var(--s));
+        position: relative;
+      }
+      /* 경고 띠 — 화면 아래를 가로지르는 붉은 주의문.
+         액자는 위 세 칸 공용 규칙이 그린다. 여기서는 안쪽만 정한다.
+
+         ⚠ 삼각형(public/ui/warn-triangle.png, 53×51)은 배경으로 왼쪽에 앉힌다.
+           `<img>` 를 넣지 않는 이유: 이 칸의 내용은 grenadeThrow.js 가
+           `textContent` 로 갈아 끼우므로(setHint) 자식 요소는 매번 지워진다. */
+      #minigame-card.stage #minigame-hint {
+        grid-area: warn;
+        margin: 0;
+        opacity: 1;
+        font-size: calc(17 * var(--s));
+        color: #c9b79a;
+        text-align: center;
+        padding: calc(6 * var(--s)) calc(48 * var(--s));
+        background:
+          url('/ui/warn-triangle.png') calc(16 * var(--s)) center / auto calc(26 * var(--s)) no-repeat,
+          linear-gradient(180deg, #241a12, #14100b);
+        background-clip: padding-box;
+      }
+      /* 판정 문구는 무대 한가운데를 덮는다 — 같은 grid 칸에 겹쳐 앉힌다.
+         ⚠ position 이 있어야 한다. 무대(#minigame-content)가 relative 라, 판정이
+         static 이면 겹치는 순간 무대 **아래로** 깔려 안 보인다. */
+      #minigame-card.stage #minigame-verdict {
+        grid-area: stage;
+        align-self: center;
+        justify-self: center;
+        position: relative;
+        z-index: 2;
+        margin: 0;
+        font-family: var(--font-head);
+        font-size: calc(72 * var(--s));
+        letter-spacing: 0.1em;
+        text-shadow: 0 calc(4 * var(--s)) calc(20 * var(--s)) rgba(0, 0, 0, 0.9);
+        /* 판정은 무대 한가운데 — 그 자리에 SPACE 버튼이 있어서 글자와 겹친다.
+           어두운 판을 깔아 글자만 읽히게 한다. */
+        padding: calc(6 * var(--s)) calc(44 * var(--s));
+        background: rgba(10, 9, 7, 0.95);
+        border-radius: calc(4 * var(--s));
+      }
+      /* 판이 도는 동안에는 판정이 빈 문자열이다 — 빈 검은 판이 무대 한가운데
+         떠 있지 않도록 그때는 통째로 접는다 (min-height 때문에 높이가 남는다). */
+      #minigame-card.stage #minigame-verdict:empty { display: none; }
 
       /* 문서 열람 — 대화창이 아니라 "종이를 읽는" 연출 (스펙 §2 document) */
       #docpanel {
@@ -536,23 +689,52 @@
          연출 길이 360ms 는 짧게 잡은 값이다 — 수첩은 판을 멈추는 창이 아니라 걸어
          다니며 [C] 로 수시로 여닫는 물건이라(StageScene 의 토글), 길면 연출이 아니라
          방해가 된다. 닫기는 연출 없이 즉시 사라진다. */
+      /* 종이 (public/ui/clue-paper.png, 253×183 · PixelLab).
+
+         예전에는 셋을 겹쳐 종이를 흉내 냈다 — 크림색 그라디언트 + `clip-path` 로
+         오려낸 찢긴 가장자리 + 난류 얼룩. 셋을 합쳐도 **결이 없었다.** 그라디언트는
+         매끈하고 clip-path 는 자로 그은 듯 곧은 선이라, 종이라기보다 색칠한 판이었다.
+         무엇보다 찢긴 선과 얼룩이 서로 모르는 사이라 가장자리에서 무늬가 뚝 끊겼다.
+
+         이제 그림 한 장이 종이·찢김·얼룩을 한꺼번에 낸다. 셋이 같은 붓에서 나왔으니
+         어긋날 수가 없다. `clip-path` 는 뗐다 — 찢긴 가장자리가 그림에 있다.
+
+         ⚠ 구김(::before)은 그대로 남긴다. 저것은 무늬가 아니라 **연출**이다 —
+           열 때 360ms 에 걸쳐 옅어지며 골이 벌어진다(clue-flatten). 그림에 구우면
+           움직이지 못한다. 그림은 종이를, CSS 는 펴지는 동작을 맡는다.
+
+         `100% 100%` 로 늘이는 것은 괜찮다. 종이는 무늬가 불규칙해서 조금 눌려도
+         티가 안 난다 — 액자의 리벳이나 톱니와 다른 점이 이것이다. */
       #cluebook-card {
         position: relative;
         width: calc(760 * var(--s));
         height: calc(560 * var(--s));
-        padding: calc(30 * var(--s)) calc(52 * var(--s));
+        /* ⚠ 여백을 넉넉히 잡는 이유는 미관이 아니다. 종이의 **찢긴 가장자리가 안쪽으로
+           깊게 파고든다** — 예전 52px 여백으로는 왼쪽 글자가 톱니 자국에 물려 잘렸다.
+           clip-path 시절엔 가장자리가 1% 안쪽의 곧은 선이라 이 문제가 없었다.
+           그림으로 바꾸면서 따라온 값이므로 그림을 다시 구우면 다시 재야 한다. */
+        padding: calc(42 * var(--s)) calc(84 * var(--s));
         color: var(--ink);
-        background: linear-gradient(158deg, #f2e8ce 0%, var(--paper) 46%, #d5c69f 100%);
-        /* 가위로 자른 종이 결 — 가장자리를 1% 안쪽으로 미세하게 어긋낸다.
-           clip-path 는 box-shadow 까지 잘라내므로 그림자는 filter 로 준다. */
-        clip-path: polygon(
-          0.5% 1.2%, 22% 0.2%, 47% 1.4%, 71% 0.3%, 99.5% 1%,
-          99.6% 26%, 98.8% 52%, 99.7% 78%, 99.2% 98.9%,
-          74% 99.6%, 49% 98.6%, 25% 99.8%, 0.6% 99%,
-          1.2% 74%, 0.3% 49%, 1% 24%
-        );
+        background: url('/ui/clue-paper.png') center / 100% 100% no-repeat;
+        image-rendering: pixelated;
         filter: drop-shadow(0 calc(14 * var(--s)) calc(30 * var(--s)) rgba(0, 0, 0, 0.65));
         animation: clue-uncrumple 360ms cubic-bezier(0.32, 1.34, 0.6, 1) both;
+      }
+      /* 놋쇠 집게 (public/ui/clue-clip.png, 55×68) — 쪽지 위쪽에 물려 있다.
+         종이 한 장만 떠 있으면 어디서 왔는지 모를 물건이 된다. 집게가 있으면
+         "어딘가에 끼워 두고 다니던 쪽지"가 된다. 살짝 기울여야 붙여 놓은 티가 난다. */
+      #cluebook-card::after {
+        content: '';
+        position: absolute;
+        top: calc(-18 * var(--s));
+        left: calc(96 * var(--s));
+        width: calc(52 * var(--s));
+        height: calc(64 * var(--s));
+        background: url('/ui/clue-clip.png') center / contain no-repeat;
+        image-rendering: pixelated;
+        transform: rotate(-6deg);
+        filter: drop-shadow(0 calc(3 * var(--s)) calc(5 * var(--s)) rgba(0, 0, 0, 0.5));
+        pointer-events: none;
       }
       /* 구김 음영 — 뭉쳤을 때 진하고, 펴지면서 옅어지되 완전히 사라지지는 않는다.
          한 번 구긴 종이는 펴도 자국이 남는다. background-size 가 같이 커지는 것이
@@ -616,9 +798,12 @@
       }
       #cluebook-hint {
         position: absolute;
-        left: 0;
-        right: 0;
-        bottom: calc(20 * var(--s));
+        /* 좌우 0 · 아래 20 이면 안내가 찢긴 아래 가장자리에 걸려 반쯤 잘린다.
+           아래 가장자리의 톱니가 가장 깊게 파고드는 곳이 종이 높이의 15% 쯤이라
+           그보다 위로 올린다 (560 × 0.15 ≈ 84). */
+        left: calc(84 * var(--s));
+        right: calc(84 * var(--s));
+        bottom: calc(88 * var(--s));
         font-size: calc(20 * var(--s));
         color: rgba(26, 23, 18, 0.5);
         text-align: center;
@@ -680,6 +865,275 @@
       .mg-zone { position: absolute; top: 0; bottom: 0; background: rgba(94, 139, 126, 0.32); }
       .mg-cursor { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--brass); }
 
+      /* ──────────────────────────────────────────────────────────────
+         자석 수류탄 투척 — 1단계 자기력 충전(연타) → 2단계 투척(타이밍).
+         두 단계가 같은 무대를 쓰고 .charging / .throwing 으로 갈아 낀다.
+         ────────────────────────────────────────────────────────────── */
+      .gr-stage {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: calc(20 * var(--s));
+        /* 포격 맞은 거리 (public/ui/stage-bg.png, 320×184 · PixelLab).
+
+           ⚠ `cover` 도 `100% 100%` 도 아닌 **`auto 100%` + `repeat-x`** 다.
+             무대는 1144×420 쯤(비 2.7:1)인데 그림은 1.7:1 이다. `cover` 로 채우면
+             아래 모래주머니가 잘려 인물이 설 바닥이 사라지고, `100% 100%` 로 늘이면
+             건물이 옆으로 퍼져 벽돌이 타원이 된다. 그림이 애초에 **건물 벽면 한 줄**
+             이라 옆으로 되풀이하면 거리가 길어질 뿐 아무것도 안 망가진다.
+
+           어두운 층을 위에 겹치는 것은 인물과 UI 를 띄우기 위해서다 — 배경이 그대로
+           밝으면 그 앞의 소년과 로봇이 배경에 파묻힌다. */
+        background:
+          radial-gradient(ellipse at 50% 120%, rgba(201, 162, 39, 0.10), transparent 60%),
+          linear-gradient(180deg, rgba(18, 14, 10, 0.55), rgba(18, 14, 10, 0.78)),
+          url('/ui/stage-bg.png') center bottom / auto 100% repeat-x,
+          linear-gradient(180deg, #1c1611 0%, #120e0a 100%);
+        image-rendering: pixelated;
+        border: 1px solid var(--brass-lo);
+        border-radius: calc(4 * var(--s));
+        overflow: hidden;
+      }
+      /* 좌우 인물 그림. 파일이 없으면 onerror 가 숨긴다 — 초상과 같은 규약이다. */
+      .gr-art {
+        max-height: calc(280 * var(--s));
+        max-width: 100%;
+        object-fit: contain;
+        align-self: end;
+      }
+      .gr-art-left,
+      .gr-art-charge { grid-column: 1; justify-self: start; }
+      .gr-art-right { grid-column: 3; justify-self: end; }
+      /* 충전 단계의 손은 클로즈업이라 더 크게, 그리고 바닥이 아니라 가운데에 앉는다
+         — 잘린 팔목이 무대 바닥에 서 있으면 사람이 땅에 묻힌 것처럼 보인다. */
+      .gr-art-charge { max-height: calc(340 * var(--s)); align-self: center; }
+
+      /* 가운데 조작부 — 단계에 따라 안이 바뀐다.
+         ⚠ 칸을 못 박아 둔다. 좌우 그림은 파일이 없으면 스스로 사라지는데, 자동 배치에
+         맡기면 그때 조작부가 빈 첫 칸으로 밀려 화면 왼쪽에 치우쳐 선다. */
+      .gr-controls {
+        grid-column: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: calc(16 * var(--s));
+      }
+      /* 놋쇠 톱니 메달 (public/ui/space-medallion.png, 146×146 · PixelLab).
+         연타로 두들기는 자리라 크게 잡는다. 글자(SPACE)는 그림 가운데의 어두운
+         원반 위에 CSS 로 얹힌다 — 그림에 구워 넣으면 키 이름을 못 바꾼다. */
+      .gr-space {
+        width: calc(132 * var(--s));
+        height: calc(132 * var(--s));
+        border: 0;
+        border-radius: 50%;
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(26 * var(--s));
+        letter-spacing: 0.08em;
+        color: var(--brass-hi);
+        text-shadow: 0 calc(2 * var(--s)) calc(4 * var(--s)) rgba(0, 0, 0, 0.9);
+        background: url('/ui/space-medallion.png') center / contain no-repeat;
+        image-rendering: pixelated;
+        filter: drop-shadow(0 calc(4 * var(--s)) calc(10 * var(--s)) rgba(0, 0, 0, 0.7));
+        cursor: pointer;
+        transition: transform 60ms ease, filter 60ms ease;
+      }
+      /* 눌린 순간 — 연타가 손에 잡히게 즉시 반응해야 한다.
+         box-shadow 로는 이제 티가 안 난다(판이 아니라 그림이라 안쪽 그늘이 안 먹는다).
+         대신 살짝 줄이면서 호박빛을 얹어 "두들겨졌다"를 낸다. */
+      .gr-space.hit {
+        transform: scale(0.93);
+        filter: drop-shadow(0 0 calc(12 * var(--s)) rgba(232, 193, 90, 0.75)) brightness(1.25);
+      }
+      /* 투척 단계에서는 사각 판으로 낮아진다 — 두들기는 것이 아니라 한 번 누르는 자리다.
+         (public/ui/space-plate.png, 148×47) 이쪽은 slice 에 `fill` 이 붙는다: 메달은
+         가운데가 뚫려도 되지만 판은 판이 곧 배경이라 빼면 글자가 무대 위에 뜬다. */
+      .throwing .gr-space {
+        width: calc(180 * var(--s));
+        height: calc(64 * var(--s));
+        border-radius: 0;
+        border: calc(14 * var(--s)) solid transparent;
+        border-image: url('/ui/space-plate.png') 14 fill / calc(14 * var(--s)) / 0 round;
+        background: none;
+      }
+
+      /* 세로 게이지 (public/ui/gauge-frame.png, 52×242 · PixelLab).
+         충전 단계. 칸이 아래에서부터 찬다.
+         위아래 쇠 캡 16px 은 원본 크기로 박히고 좌우 레일 7px 만 늘어난다. */
+      .gr-gauge {
+        position: absolute;
+        /* 56 인 이유: 좌우로 뻗는 번개(::before/::after)가 게이지 바깥 26px 에 앉는데,
+           28 로 두면 오른쪽 번개가 무대 끝(overflow:hidden)에 잘려 한쪽만 친다. */
+        right: calc(56 * var(--s));
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column-reverse;
+        gap: calc(4 * var(--s));
+        padding: calc(4 * var(--s));
+        border: calc(16 * var(--s)) solid transparent;
+        border-image: url('/ui/gauge-frame.png') 16 7 / calc(16 * var(--s)) calc(10 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        background: #0f0d0a;
+        background-clip: padding-box;
+      }
+      .gr-cell {
+        width: calc(38 * var(--s));
+        height: calc(30 * var(--s));
+        background: #1c1712;
+        border: 1px solid #33281a;
+      }
+      /* 찬 칸 (public/ui/gauge-cell.png, 60×43). `fill` 을 붙인다 — 칸은 판이 곧
+         그림이라 빼면 가운데가 뚫려 검은 바탕이 비친다. */
+      .gr-cell.on {
+        border: calc(6 * var(--s)) solid transparent;
+        border-image: url('/ui/gauge-cell.png') 8 fill / calc(6 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        background: none;
+      }
+
+      /* 번개 (public/ui/lightning.png, 76×240) — 게이지 좌우에 감기는 자기력.
+         충전 단계에만 돈다. 그림 한 장을 좌우에 놓고 오른쪽만 뒤집어 쓴다 —
+         두 장을 따로 구우면 굵기가 미묘하게 달라 한쪽만 굵어 보인다.
+
+         ⚠ `pointer-events: none` 없으면 게이지 옆의 빈칸이 클릭을 먹어, 연타하다
+           살짝 빗나간 손가락이 아무 일도 안 하게 된다. */
+      .gr-gauge::before,
+      .gr-gauge::after {
+        content: '';
+        position: absolute;
+        top: calc(-14 * var(--s));
+        bottom: calc(-14 * var(--s));
+        width: calc(34 * var(--s));
+        background: url('/ui/lightning.png') center / 100% 100% no-repeat;
+        image-rendering: pixelated;
+        pointer-events: none;
+        opacity: 0;
+      }
+      .gr-gauge::before { left: calc(-26 * var(--s)); }
+      .gr-gauge::after { right: calc(-26 * var(--s)); transform: scaleX(-1); }
+      /* 깜빡임의 박자를 좌우 다르게 준다 — 같으면 두 줄이 한 몸처럼 켜졌다 꺼져
+         전기가 아니라 조명 스위치로 보인다. */
+      .charging .gr-gauge::before { animation: gr-arc 260ms steps(1, end) infinite; }
+      .charging .gr-gauge::after { animation: gr-arc 190ms steps(1, end) infinite; }
+      @keyframes gr-arc {
+        0%, 45% { opacity: 0.85; }
+        46%, 100% { opacity: 0; }
+      }
+
+      /* 가로 타이밍 바 (public/ui/track-frame.png, 300×39 · PixelLab).
+         투척 단계. 양끝이 빨강, 가운데가 초록.
+
+         ⚠ **안쪽 빨강/초록은 그림이 아니라 CSS 다.** 초록 구간의 위치와 폭이 판마다
+           무작위이고(grenadeThrow.js 의 zoneStart·zoneW) 경계 수위가 오르면 좁아진다.
+           그림에 구우면 그 난이도 곡선이 통째로 죽는다. 그래서 액자만 9분할로 얹고
+           속은 비워 둔다 — slice 에 `fill` 이 없는 이유가 이것이다.
+
+         ⚠ 액자가 border 라서 .gr-zone·.gr-needle 의 기준(padding box)이 채널 안쪽으로
+           옮겨진다. 이게 맞다 — 손잡이가 청동 캡 위로 올라가면 안 된다. JS 가 비교하는
+           pos 도 같은 상자 기준이라 판정과 그림이 어긋나지 않는다. */
+      .gr-track {
+        position: absolute;
+        left: calc(40 * var(--s));
+        right: calc(40 * var(--s));
+        top: calc(24 * var(--s));
+        /* 예전 38px 에 액자를 씌웠더니 **액자가 실오라기로 보였다.** 9분할은 원본
+           테두리(위아래 9px)를 그대로 박는데, 그 9px 이 38px 짜리 막대에서는 화면상
+           4px 도 안 된다. 액자를 보이게 하려면 막대가 그만큼 두꺼워져야 한다 —
+           52 = 위아래 테두리 13씩 + 빨강/초록 채널 26. */
+        height: calc(52 * var(--s));
+        background: linear-gradient(180deg, #8e2b1a, #6d1f14);
+        background-clip: padding-box;
+        border-style: solid;
+        border-color: transparent;
+        border-width: calc(13 * var(--s)) calc(26 * var(--s));
+        border-image: url('/ui/track-frame.png') 9 17 / calc(13 * var(--s)) calc(26 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+      }
+      .gr-zone {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: linear-gradient(180deg, #57c04a, #2f7a2a);
+      }
+      /* 손잡이 (public/ui/needle.png, 26×100 · PixelLab) — 트랙 위를 왕복하는 놋쇠 추.
+         위아래로 삐져나와 눈에 걸린다.
+
+         ⚠ 그림 비율(26:100)을 지켜야 톱니와 팔각추가 안 눌린다. 그래서 높이는
+           트랙 밖으로 벌린 만큼 정해지고, 폭은 그 높이에서 비율로 따라온다.
+           margin-left 는 그 폭의 절반이다 — 안 그러면 손잡이의 **왼쪽 끝**이
+           판정 위치를 가리켜 눈에 보이는 것보다 반 칸 일찍 맞는다. */
+      .gr-needle {
+        position: absolute;
+        /* `contain` 은 **높이에 갇힌다** — 그림이 26:100 이라 상자가 세로로 짧으면
+           폭도 같이 줄어 실오라기가 된다. 그래서 폭을 키우는 방법은 상자를 세로로
+           벌리는 것이다 (26 + 위아래 26씩 = 78 → 그려지는 폭 ≈ 20). */
+        top: calc(-26 * var(--s));
+        bottom: calc(-26 * var(--s));
+        width: calc(22 * var(--s));
+        margin-left: calc(-11 * var(--s));
+        background: url('/ui/needle.png') center / contain no-repeat;
+        image-rendering: pixelated;
+        filter: drop-shadow(0 0 calc(8 * var(--s)) rgba(232, 193, 90, 0.55));
+      }
+      /* 단계별로 안 쓰는 조각은 숨긴다 — 무대는 그대로 두고 내용만 바뀐다. */
+      .charging .gr-track,
+      .throwing .gr-gauge { display: none; }
+      /* 왼쪽 그림도 단계를 탄다: 충전은 수류탄 쥔 손 클로즈업, 투척은 던지는 소년.
+         ⚠ 충전 단계에서는 **로봇도 숨긴다.** 게이지가 오른쪽 끝에 앉는데 로봇도 거기
+           서 있어서 게이지 칸이 로봇 몸통 위에 겹쳐 뜬다. 충전은 아직 겨누기 전이라
+           상대가 보일 이유도 없다 — 목업의 충전 화면에도 로봇은 없다. */
+      .charging .gr-art-left,
+      .charging .gr-art-right,
+      .throwing .gr-art-charge { display: none; }
+      /* 던진 뒤 — 조작부와 트랙을 걷어낸다. 결과를 보는 800ms 동안 누를 수 없는
+         버튼이 남아 있으면 아직 판이 도는 것처럼 보인다. */
+      .settled .gr-controls,
+      .settled .gr-track { display: none; }
+
+      /* 판정 연출 — 던진 뒤 한 번만 뜬다 (grenadeThrow.js 가 붙인다).
+         목업에는 없던 자리다. 12초를 두들긴 끝이 "성공"/"실패" 글자 두 자라
+         손맛이 거기서 끊겨서, 판정 뒤 800ms 를 그림으로 채운다.
+
+         명중은 로봇이 선 오른쪽에서, 빗나감은 발밑 가운데에서 난다 — 어디서 터졌나가
+         곧 무엇이 일어났나다. 글로 안 읽어도 알아야 한다. */
+      .gr-burst {
+        position: absolute;
+        pointer-events: none;
+        image-rendering: pixelated;
+        z-index: 1;
+      }
+      .gr-burst.hit {
+        right: calc(60 * var(--s));
+        top: 50%;
+        width: calc(300 * var(--s));
+        height: calc(300 * var(--s));
+        transform: translateY(-50%);
+        background: url('/ui/hit-burst.png') center / contain no-repeat;
+        animation: gr-burst 420ms cubic-bezier(0.2, 1.3, 0.5, 1) both;
+      }
+      .gr-burst.miss {
+        left: 50%;
+        bottom: calc(24 * var(--s));
+        width: calc(200 * var(--s));
+        height: calc(200 * var(--s));
+        margin-left: calc(-100 * var(--s));
+        background: url('/ui/fizzle.png') center bottom / contain no-repeat;
+        animation: gr-dud 420ms ease-out both;
+      }
+      /* 터지는 것은 커지며 나타나고, 불발은 힘없이 가라앉는다. 같은 곡선을 쓰면
+         둘 다 "무슨 일이 일어났다"로만 읽혀 성패가 몸으로 안 갈린다. */
+      @keyframes gr-burst {
+        0% { transform: translateY(-50%) scale(0.2); opacity: 0; }
+        100% { transform: translateY(-50%) scale(1); opacity: 1; }
+      }
+      @keyframes gr-dud {
+        0% { transform: translateY(calc(-14 * var(--s))); opacity: 0; }
+        100% { transform: translateY(0); opacity: 0.92; }
+      }
+
       /* 결과 화면 — 씬 전환이 아니라 정지된 월드 위에 덮는 오버레이. */
       #result {
         position: absolute;
@@ -712,6 +1166,136 @@
       #result-restart { margin-top: 22px; padding: 10px 26px; font-size: 1rem; }
       #result-restart:disabled { opacity: 0.35; cursor: default; }
       #result-wait { margin-top: 14px; opacity: 0.55; font-size: 0.85rem; min-height: 1.2em; }
+
+      /* ── 씬 전환 로딩 (ui/TransitionScreen.js 와 짝) ─────────────
+         튜토리얼 → 거리처럼 씬 사이에 서버 대기가 낄 수 있는 전환을 덮는다.
+         씬(Phaser)이 아니라 DOM 인 이유: 이 판의 소임은 **씬이 바뀌는 사이**를 덮는
+         것이라, 씬에 그리면 scene.start 와 함께 죽어 정확히 덮어야 할 프레임을 못 덮는다.
+         배경이 불투명한 것도 같은 이유다 — 뒤에서 새 씬이 지어지는 중간 프레임을
+         보여 주지 않는다. */
+      #transition {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: calc(28 * var(--s));
+        background:
+          var(--noise),
+          radial-gradient(ellipse at 50% 40%, #17110b 0%, #0b0906 75%);
+        opacity: 0;
+        pointer-events: none;
+        overflow: hidden; /* 돌아가는 톱니와 흐르는 테이프가 화면 밖으로 새지 않게 */
+        transition: opacity 400ms linear;
+      }
+      #transition.visible { opacity: 1; pointer-events: auto; }
+
+      /* 뒤에서 도는 큰 톱니 (public/ui/cog-large.png, 224×223 · PixelLab).
+         화면 오른쪽 아래에 반쯤 걸치게 두고 아주 느리게 돌린다 — 로딩이 "기다림"이
+         아니라 "기계가 돌고 있는 중"으로 보이게 하는 층이다.
+         ⚠ opacity 를 더 올리지 말 것. 이건 배경이고 주인공은 회중시계다. */
+      #transition::before {
+        content: '';
+        position: absolute;
+        right: calc(-120 * var(--s));
+        bottom: calc(-140 * var(--s));
+        width: calc(520 * var(--s));
+        height: calc(520 * var(--s));
+        background: url('/ui/cog-large.png') center / contain no-repeat;
+        image-rendering: pixelated;
+        /* ⚠ opacity 만으로는 안 죽는다. 톱니의 살이 호박색이라 흐리게 깔아도 그 부분만
+           또렷하게 떠서 눈이 그리로 간다. 밝기와 채도를 같이 눌러야 배경이 된다. */
+        opacity: 0.2;
+        filter: brightness(0.45) saturate(0.5);
+        animation: tr-cog 24s linear infinite;
+      }
+      @keyframes tr-cog { to { transform: rotate(360deg); } }
+
+      /* 흐르는 천공 테이프 (public/ui/tape-strip.png, 320×56).
+         장식이 아니라 **부제를 그림으로 옮긴 것**이다 — 이 화면이 떠 있는 동안
+         뜨는 말이 "동료들의 암호를 수신하고 있다"다. 테이프가 지나가야 수신이다.
+
+         좌우 끝이 이어지도록 구운 그림이라 `repeat-x` 로 깔고 배경 위치만 민다.
+         한 장 너비(320)만큼 밀면 원위치라 이음매 없이 무한히 흐른다. */
+      #transition::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: calc(72 * var(--s));
+        height: calc(40 * var(--s));
+        background: url('/ui/tape-strip.png') 0 center / auto calc(40 * var(--s)) repeat-x;
+        image-rendering: pixelated;
+        /* 종이가 크림색이라 0.5 로는 화면을 가로지르는 흰 띠가 된다 — 배경이 아니라
+           주인공이 되어 버린다. 시계보다 뒤에 있어야 하므로 더 눌러 둔다. */
+        opacity: 0.26;
+        animation: tr-tape 2.6s linear infinite;
+      }
+      @keyframes tr-tape { to { background-position-x: calc(-320 * var(--s)); } }
+
+      /* 회중시계 (public/ui/watch-face.png, 170×221 · PixelLab).
+         태엽새의 시계 모티프. 두 바늘이 다른 속도로 돈다 — "멈춘 게 아니라 돌아가는
+         중"을 그림 하나로 말하는 자리다.
+
+         ⚠ 바늘은 CSS 로 남는다. 돌아야 하니 그림에 구울 수 없다.
+         ⚠ 축이 그림 한가운데가 아니다. 위쪽에 용두와 고리가 얹혀 있어 문자판이
+           아래로 밀려 있다 — 실측 좌 50.3% · 상 56.1%. 50% 로 두면 바늘이 문자판
+           위쪽에 박혀 돌아간다.
+
+           재는 법: 문자판을 가로지르는 **가장 긴 어두운 구간**을 찾는다. 그 줄이
+           원의 중심 높이고 구간의 한가운데가 중심 가로 위치다. 어두운 픽셀의
+           무게중심으로 재면 안 된다 — 테두리 그늘과 용두 그림자가 아래로 끌어당겨
+           3.5% 어긋난 값이 나왔다(59.6% vs 실제 56.1%). 시계를 다시 구우면 다시 재라. */
+      #transition-clock {
+        position: relative;
+        /* 170:221 — 그림 비율 그대로다. 어긋나면 `contain` 이 여백을 만들어
+           바늘 축(백분율)이 그림의 축과 어긋난다. */
+        width: calc(216 * var(--s));
+        height: calc(281 * var(--s));
+        background: url('/ui/watch-face.png') center / contain no-repeat;
+        image-rendering: pixelated;
+        filter: drop-shadow(0 calc(6 * var(--s)) calc(16 * var(--s)) rgba(0, 0, 0, 0.8));
+      }
+      #transition-clock::before,
+      #transition-clock::after {
+        content: '';
+        position: absolute;
+        left: 50.3%;
+        top: 56.1%;
+        width: calc(3 * var(--s));
+        transform-origin: 50% 100%;
+        background: var(--brass);
+        border-radius: calc(1.5 * var(--s));
+      }
+      /* 분침(길고 밝다)은 1.8초에 한 바퀴 — 로딩 스피너의 박자. 시침은 그 1/6.
+         ⚠ translate 로 축을 잡고 rotate 가 그 뒤에 온다. 순서가 바뀌면 바늘이
+           제자리에서 도는 대신 축을 중심으로 원을 그리며 날아다닌다. */
+      #transition-clock::before {
+        height: calc(74 * var(--s));
+        background: var(--brass-hi);
+        animation: tr-spin 1.8s linear infinite;
+      }
+      #transition-clock::after {
+        height: calc(48 * var(--s));
+        animation: tr-spin 10.8s linear infinite;
+      }
+      @keyframes tr-spin {
+        from { transform: translate(-50%, -100%) rotate(0deg); }
+        to { transform: translate(-50%, -100%) rotate(360deg); }
+      }
+      #transition-title {
+        font-family: var(--font-head);
+        font-size: calc(34 * var(--s));
+        letter-spacing: 0.14em;
+        color: var(--paper);
+      }
+      /* 말줄임 세 점이 차례로 깜빡인다 — 시계와 함께 "진행 중"을 만드는 두 번째 움직임 */
+      #transition-title .tr-dot { animation: tr-dot 1.4s infinite; }
+      #transition-title .tr-dot:nth-child(2) { animation-delay: 0.35s; }
+      #transition-title .tr-dot:nth-child(3) { animation-delay: 0.7s; }
+      @keyframes tr-dot { 0%, 100% { opacity: 0.15; } 45% { opacity: 1; } }
+      #transition-sub { font-size: calc(20 * var(--s)); color: var(--paper-dim); letter-spacing: 0.06em; }
     </style>
   </head>
   <body>
@@ -764,9 +1348,16 @@
       </div>
       <div id="minigame">
         <div id="minigame-card" class="sp-panel">
-          <div id="minigame-title"></div>
-          <div id="minigame-subtitle"></div>
-          <div id="minigame-timer"><div id="minigame-timer-fill"></div></div>
+          <!-- head 는 기본 배치에서 display:contents 라 없는 것과 같다.
+               stage 배치(수류탄 투척)에서만 제목·부제를 한 액자에 묶는다. -->
+          <div id="minigame-head">
+            <div id="minigame-title"></div>
+            <div id="minigame-subtitle"></div>
+          </div>
+          <div id="minigame-timer">
+            <div id="minigame-timer-fill"></div>
+            <span id="minigame-clock"></span>
+          </div>
           <div id="minigame-content"></div>
           <div id="minigame-hint"></div>
           <div id="minigame-verdict"></div>
@@ -788,6 +1379,12 @@
           <button id="result-restart" class="sp-btn">다시 잠입한다</button>
           <div id="result-wait"></div>
         </div>
+      </div>
+      <!-- 씬 전환 로딩 — 맨 끝(= 맨 위)이라 위의 모든 창을 덮는다 (ui/TransitionScreen.js) -->
+      <div id="transition">
+        <div id="transition-clock"></div>
+        <div id="transition-title"></div>
+        <div id="transition-sub"></div>
       </div>
     </div>
     <script type="module" src="./main.js"></script>

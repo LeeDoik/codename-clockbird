@@ -1,0 +1,36 @@
+{
+  "group_id": "c91b62bb-6b5d-450f-88ac-6bcbb55f8537",
+  "states": [
+    {
+      "character": {
+        "id": "59a10fc3-624a-44e9-a38e-194752b018e2",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a 22-year-old tavern waitress girl, big head short limbs chibi proportions (head is 40% of total height), wavy blonde shoulder-length hair loosely tied back, fair skin, a faint restrained smile, a cream white puff-sleeve blouse, a brown leather corset-style bodice laced at the front, a long cream apron skirt over a rust-red underskirt, dark fingerless gloves, brown ankle boots, steampunk tavern outfit, no headdress, not holding a tray, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 188,
+          "height": 188
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T15:31:38.733689+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-04T06:03:40.128691"
+}

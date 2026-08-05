@@ -16,9 +16,17 @@ import {
 import escapeData from '../assets/escape.json';
 import escapeProps from '../assets/escape-props.json';
 import { Sentry } from '../entities/Sentry.js';
+import {
+  EVA_ANIM,
+  EVA_CONTENT_HEIGHT,
+  EVA_FRAME_SIZE,
+  EVA_ORIGIN_Y,
+  EVA_WALK_SPEED,
+} from '../entities/evaSprite.js';
+import { facingName } from '../entities/facing.js';
 import { makeBlockedLookup } from '../world/los.js';
 // 좌표·상수의 단일 출처. 씬은 여기서만 읽는다 — 씬 안에 좌표를 다시 적지 않는다.
-import { CHECKPOINTS, CHILD, SENTRY_ROUTES, TILE, at } from '../world/escapeLayout.js';
+import { EVA, RESPAWN_GRACE_MS, SENTRY_HOMES, SPAWN, TILE, at } from '../world/escapeLayout.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
@@ -30,7 +38,9 @@ import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
  * 경비는 구형 순찰 로봇이고, 걸리면 변명할 기회가 없다 (이미 문서를 쥐고 있다).
  *
  * 길은 물웅덩이 넷을 도는 순환 통로다. 바깥 띠와 가운데 십자 복도가 전부라 잃을 수
- * 없고, 어려운 것은 길이 아니라 **언제 지나가느냐**다 — 로봇 셋이 그 십자를 왕복한다.
+ * 없고, 어려운 것은 길이 아니라 **언제 지나가느냐**다 — 로봇 셋이 맵 전역을 돈다.
+ * 예전에는 그 십자를 하나씩 맡아 왕복했는데, 주기가 일정해 지나갈 틈이 아예 안 났다
+ * (escapeLayout.SENTRY_HOMES).
  */
 
 /**
@@ -59,8 +69,17 @@ const GAUGE_FALL = 40;
  * 이게 없으면 콘 경계에서 게이지가 깜빡이며 오르내려 플레이어가 규칙 자체를 못 읽는다.
  */
 const GAUGE_GRACE_MS = 1000;
-/** 리스폰 직후 감지하지 않는 시간 (ms) */
-const RESPAWN_GRACE_MS = 1500;
+
+/**
+ * 에바가 ㄴ 자로 다가올 때 **먼저 내려오는 거리** (월드 px, #evaApproach).
+ *
+ * 플레이어가 에바보다 아래에 있으면 그 행까지 내려오므로 이 값은 하한이다 — 플레이어가
+ * 에바와 거의 같은 행에 서 있어도 꺾임이 보이도록 최소한 이만큼은 내려온다.
+ *
+ * 상한은 발동 구역이 정한다: 에바는 2행(y 80)에 서고 구역은 5행(y 176)까지라, 여기에
+ * 96px 보다 큰 값을 넣으면 꺾이는 자리가 구역 밖으로 나가 걷는 칸이라는 보장이 깨진다.
+ */
+const EVA_DESCENT = TILE * 1.5;
 
 export class EscapeScene extends Phaser.Scene {
   constructor() {
@@ -69,6 +88,8 @@ export class EscapeScene extends Phaser.Scene {
 
   init() {
     this.ended = false;
+    /** 도입 연출 중 — update 를 통째로 멈춘다 (#playIntro) */
+    this.intro = false;
     this.gauge = 0;
     /** 콘 밖으로 나온 뒤 하강이 시작되는 시각 */
     this.fallAt = 0;
@@ -76,8 +97,6 @@ export class EscapeScene extends Phaser.Scene {
     this.graceUntil = 0;
     /** 지금까지 발각된 횟수 — 페널티는 없고 밸런싱·영상용으로만 센다 */
     this.retries = 0;
-    /** 마지막으로 통과한 체크포인트 번호 */
-    this.checkpoint = 0;
     /** 리스폰 연출 중 — update 를 통째로 멈춘다 */
     this.respawning = false;
   }
@@ -100,8 +119,17 @@ export class EscapeScene extends Phaser.Scene {
 
     // 시야가 보는 벽은 충돌이 보는 벽과 같아야 한다 — 수로는 물이 시야를 막는다.
     this.isBlocked = makeBlockedLookup(escapeData, escapeProps);
-    this.sentries = SENTRY_ROUTES.map(
-      (route) => new Sentry(this, { route, tileSize: TILE, isBlocked: this.isBlocked }),
+    // 로봇 셋은 정해진 길이 없다 — 맵 전역을 무작위로 돈다 (Sentry 머리말).
+    // cols·rows 는 길찾기가 격자를 훑는 범위다.
+    this.sentries = SENTRY_HOMES.map(
+      (home) =>
+        new Sentry(this, {
+          home,
+          tileSize: TILE,
+          cols: escapeData.cols,
+          rows: escapeData.rows,
+          isBlocked: this.isBlocked,
+        }),
     );
 
     // 월드를 다 깐 직후·UI 를 만들기 전에 부른다 (worldParts.setupCameras 의 호출 시점 규약).
@@ -118,18 +146,61 @@ export class EscapeScene extends Phaser.Scene {
 
     this.panel = new MinigamePanel();
     this.dialogue = new DialogueBox();
+    // 에바는 **처음에는 없다**. 북쪽 복도에 발을 들이는 순간 나타난다 (기획 도면).
+    // 미리 세워 두면 맵 저쪽 끝에 서 있는 것이 보여서, 올라가는 내내 "저기 뭔가 있다"가
+    // 되어 버린다 — 도면이 말하는 '등장'은 그 반대다.
+    //
     // Object.values(at(...)) 는 at() 이 { x, y } 순서로 리턴하는 데 암묵적으로 기대던 것 —
     // 그 리터럴 순서가 바뀌면(예: { y, x }) 에러 없이 좌표가 뒤바뀐다. 명시적으로 뽑는다.
-    const childPos = at(CHILD.col, CHILD.row);
-    this.child = this.add.sprite(childPos.x, childPos.y, 'chars', 5).setScale(PLAYER_HEIGHT / 32);
-    this.asWorld?.(this.child);
+    const evaPos = at(EVA.col, EVA.row);
+    const evaScale = PLAYER_HEIGHT / EVA_CONTENT_HEIGHT;
+    // ⚠ **재생을 먼저, 크기를 나중에** (Patrol 과 같은 함정 — 그쪽 주석 참고).
+    this.eva = this.add.sprite(evaPos.x, evaPos.y, EVA_ANIM.texture, 0).setOrigin(0.5, EVA_ORIGIN_Y);
+    this.eva.play(EVA_ANIM.idleDown);
+    this.eva.setDisplaySize(EVA_FRAME_SIZE * evaScale, EVA_FRAME_SIZE * evaScale).setVisible(false);
+    this.asWorld?.(this.eva);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
+
+    this.#playIntro();
+  }
+
+  /**
+   * 도입 — 저택에서 경보를 등지고 수로로 뛰어내린 직후다 (기획 목업 2026-08-05).
+   *
+   * 화면을 한 톤 죽인 채(Dim) 규칙을 한 번 말하고 시작한다: 여기는 말이 통하는 곳이
+   * 아니고, 걸리면 심문이 아니라 끝이다. 완전한 검정이 아니라 수로가 비쳐 보여야
+   * "이제 이 길을 걷는다"가 대사와 함께 읽힌다.
+   *
+   * 대사가 걷히면 리스폰과 같은 무적 유예를 주고 놓아 준다 — 읽는 동안에도 로봇은
+   * 돌고 있어서, 유예가 없으면 첫 걸음을 떼기 전에 잡힐 수 있다.
+   */
+  async #playIntro() {
+    this.intro = true;
+    // 저택의 페이드 아웃을 받아 어둠에서 밝아 온다 (씬 전환 규약 — Mansion create 와 동일).
+    this.cameras.main.fadeIn(700, 0, 0, 0);
+    this.uiCam?.fadeIn(700, 0, 0, 0);
+
+    const dim = this.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.55);
+    this.asUi(dim);
+
+    // 두 문장을 한 번에 넣으면 대화창이 페이지를 나눠 둘째 문장이 ▼ 뒤에 숨는다 —
+    // 도입 중에는 update 가 멈춰 있어 [Space] 로 넘길 수도 없다. 한 박자씩 보여 준다.
+    this.dialogue.show('나', '전투 로봇이 쫙 깔렸네. 잡히면 바로 죽음이야.');
+    this.dialogue.setHint('');
+    await this.#beat(2400);
+    this.dialogue.show('나', '최대한 몸을 숨기면서, 출구까지 이동하자.');
+    await this.#beat(2600);
+    this.dialogue.hide();
+
+    this.tweens.add({ targets: dim, alpha: 0, duration: 500, onComplete: () => dim.destroy() });
+    this.graceUntil = this.time.now + RESPAWN_GRACE_MS;
+    this.intro = false;
   }
 
   update(time, delta) {
-    if (this.ended || this.respawning) {
+    if (this.ended || this.respawning || this.intro) {
       this.player.body.setVelocity(0, 0);
       for (const s of this.sentries) s.update(delta, null);
       this.playerVisual.update();
@@ -139,21 +210,14 @@ export class EscapeScene extends Phaser.Scene {
     applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
     this.playerVisual.update();
 
-    // 앞선 체크포인트에 몸이 닿으면 거기까지 통과한 것으로 친다. 뒤로 돌아가도
-    // 번호는 내려가지 않는다 — 되돌아갔다고 벌을 주면 살펴보는 행동이 위험해진다.
-    for (let i = CHECKPOINTS.length - 1; i > this.checkpoint; i--) {
-      const p = at(CHECKPOINTS[i].col, CHECKPOINTS[i].row);
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y) < TILE * 2) {
-        this.checkpoint = i;
-        console.log(`[escape] 체크포인트 ${i}`);
-        break;
-      }
-    }
-
-    // 심문실 도달 — 한 번만 발동한다.
+    // 배수구 앞 통로에 발을 들이면 에바가 나타나고 심문이 시작된다 — 한 번만 발동한다.
+    // 가로·세로를 **둘 다** 본다: 행만 보면 좌우 세로 복도가 그대로 이 띠로 이어져
+    // 있어서 복도 맨 위 모서리에 닿는 순간 걸린다 (escapeLayout.EVA 주석 참고).
     if (!this.ended) {
-      const c = at(CHILD.col, CHILD.row);
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, c.x, c.y) < TILE * 2) {
+      const col = Math.floor(this.player.x / TILE);
+      const row = Math.floor(this.player.y / TILE);
+      const z = EVA.zone;
+      if (col >= z.col0 && col <= z.col1 && row >= z.row0 && row <= z.row1) {
         this.#startInterrogation();
       }
     }
@@ -207,9 +271,10 @@ export class EscapeScene extends Phaser.Scene {
   }
 
   #respawn() {
-    const cp = CHECKPOINTS[this.checkpoint];
-    const p = at(cp.col, cp.row);
+    // 언제나 시작 지점이다 — 구간별 체크포인트는 없앴다(escapeLayout.SPAWN 주석 참고).
+    const p = at(SPAWN.col, SPAWN.row);
     this.player.setPosition(p.x, p.y);
+    this.eva.setVisible(false);
     this.gauge = 0;
     this.fallAt = 0;
     // 순찰 위상을 되돌리지 않으면 리스폰하자마자 코앞에 로봇이 있는 판이 반복된다.
@@ -220,11 +285,78 @@ export class EscapeScene extends Phaser.Scene {
     this.cameras.main.fadeIn(300, 0, 0, 0);
   }
 
+  /**
+   * 목적지까지 한 구간 걷는다 — 진행 방향에 맞는 걸음 그림으로.
+   * 거리가 0에 가까우면 아무것도 하지 않는다 (제자리 트윈은 그림만 바꾸고 끝난다).
+   */
+  #evaWalk(x, y) {
+    const dist = Phaser.Math.Distance.Between(this.eva.x, this.eva.y, x, y);
+    if (dist < 1) return Promise.resolve();
+    this.eva.play(EVA_ANIM[`walk${facingName(Math.atan2(y - this.eva.y, x - this.eva.x))}`]);
+    return new Promise((done) => {
+      this.tweens.add({
+        targets: this.eva,
+        x,
+        y,
+        duration: (dist / EVA_WALK_SPEED) * 1000,
+        ease: 'Linear',
+        onComplete: done,
+      });
+    });
+  }
+
   /** 심문 개시 — 여기서부터 탈출 규칙은 멈추고 서버와 왕복한다. */
+  /**
+   * 에바가 배수구 앞에서 나타나 **플레이어 앞까지 걸어온다**.
+   *
+   * ⚠ 곧장 대각선으로 오지 않는다. **먼저 아래로 내려온 뒤 옆으로 돌아 ㄴ 자로** 온다
+   * (2026-08-05 기획). 배수구에서 플레이어까지 직선으로 미끄러져 오면 걸어오는 것이
+   * 아니라 끌려오는 것처럼 보인다 — 이 그림은 방향 넷짜리 걸음이라 대각선으로 움직이면
+   * 몸이 향한 쪽과 실제 진행 방향이 내내 어긋난다. 축을 하나씩 쓰면 걸음과 방향이 맞다.
+   *
+   * 마지막 구간이 가로라서, 다가오는 내내 옆모습이었다가 멈추면서 플레이어를 본다.
+   *
+   * 길찾기를 하지 않는 것은 그대로다 — 발동 구역(21~31칸 × 1~5행) 55칸이 전부 걷는
+   * 칸이고, 아래 두 구간은 **꺾이는 점까지 포함해 전부 그 안**이다. 세로 구간은 에바의
+   * 열(26)을 따라 내려오고 가로 구간은 플레이어의 행(1~5행 안)을 따라가며, 꺾이는 행도
+   * 아래 EVA_DESCENT 가 구역 안에 들도록 잡혀 있다.
+   */
+  async #evaApproach() {
+    const from = at(EVA.col, EVA.row);
+    const { x: px, y: py } = this.player;
+
+    // 플레이어를 밟고 서지 않게 한 칸 앞에서 멈춘다. 이미 그보다 가까우면 안 걷는다 —
+    // 뒷걸음질로 거리를 벌리면 "다가온다"가 아니라 물러서는 것으로 보인다.
+    const gap = TILE * 1.2;
+    // 플레이어가 에바와 같은 열에 서 있으면 ㄴ 자가 성립하지 않는다 (가로 구간이 없다).
+    // 그때는 세로 한 구간으로 내려와 플레이어 앞에 선다 — 가운데 통로로 곧장 올라온 경우다.
+    const sameColumn = Math.abs(px - from.x) <= gap;
+    const cornerY = sameColumn
+      ? Math.max(from.y, py - gap)
+      : Math.max(py, from.y + EVA_DESCENT);
+    const stopX = sameColumn ? from.x : px - Math.sign(px - from.x) * gap;
+
+    this.eva.setPosition(from.x, from.y).setVisible(true);
+
+    await this.#evaWalk(from.x, cornerY); // ㄴ 의 세로획 — 배수구에서 내려온다
+    if (!sameColumn) {
+      // 꺾이는 자리에서 한 박자 선다. 걸음 그림이 아래를 보다가 곧바로 옆을 보면
+      // 미끄러지듯 방향만 바뀌는데, 짧게 멈췄다 돌면 "돌아섰다"로 읽힌다.
+      this.eva.play(EVA_ANIM.idleDown);
+      await this.#beat(200);
+      await this.#evaWalk(stopX, cornerY); // ㄴ 의 가로획 — 옆에서 다가온다
+    }
+
+    // 도착하면 걸음을 멈추고 플레이어를 본 채로 선다.
+    const dir = facingName(Math.atan2(py - this.eva.y, px - this.eva.x));
+    this.eva.play(EVA_ANIM[`idle${dir}`]);
+  }
+
   async #startInterrogation() {
     if (this.ended) return;
     this.ended = true; // update() 의 탈출 로직을 멈춘다
     this.player.body.setVelocity(0, 0);
+    await this.#evaApproach(); // 여기서 처음 나타나 걸어온다
 
     const post = async (path, body = {}) => {
       const res = await fetch(`/api/escape${path}`, {
@@ -285,14 +417,16 @@ export class EscapeScene extends Phaser.Scene {
    * 작은 상태줄이 아니라 DialogueBox 로 세운다 (StageScene#toMansion 과 같은 방식:
    * 대사를 띄우고 시간을 두었다 다음 줄로 넘긴다, 입력 대기가 아니다).
    *
-   * 정체를 밝히기 전에는 '아이', 밝힌 뒤에는 '꼬마' — 아직 이름이 없는 인물이다.
-   * portrait: 'child' 는 아직 파일이 없어 안 뜨지만(DialogueBox 가 조용히 no-portrait
+   * 정체를 밝히기 **전에는 '아이'** 다 — 플레이어가 보고 있는 것은 여덟 살쯤 된
+   * 아이지 안드로이드가 아니다. 밝힌 뒤에야 이름이 선다: **'에바'**.
+   * 이름을 처음부터 띄우면 반전이 대사보다 먼저 새어 나간다.
+   * portrait: 'eva' 는 아직 파일이 없어 안 뜨지만(DialogueBox 가 조용히 no-portrait
    * 로 떨어진다), 아트가 들어오면 이 한 줄로 붙는다.
    */
   async #showChildIntro(child) {
-    this.dialogue.show('아이', child.greet, { portrait: 'child' });
+    this.dialogue.show('아이', child.greet, { portrait: 'eva' });
     await this.#beat(2600);
-    this.dialogue.show('꼬마', child.reveal, { portrait: 'child' });
+    this.dialogue.show('에바', child.reveal, { portrait: 'eva' });
     await this.#beat(4200);
     this.dialogue.hide();
   }
@@ -303,10 +437,6 @@ export class EscapeScene extends Phaser.Scene {
   }
 }
 
-// 값 자체는 escapeLayout.js 가 유일한 출처다 — 여기서는 그 값을 다시 내보낼 뿐,
-// 좌표를 이 파일에 적지 않는다.
-//
-// 옛 `SEGMENTS`(= CORRIDORS) 재수출은 지웠다. 걷는 길이 사각형 목록에서 그림
-// (escape-props.json 의 walk)으로 넘어가면서 CORRIDORS 자체가 없어졌고, 이 이름을
-// 읽는 곳도 없었다.
-export { CHECKPOINTS };
+// 옛 `SEGMENTS`(= CORRIDORS)·`CHECKPOINTS` 재수출은 지웠다. 걷는 길이 사각형 목록에서
+// 그림(escape-props.json 의 walk)으로 넘어가면서 CORRIDORS 가 없어졌고, 체크포인트는
+// 2026-08-04 레벨 개편에서 없어졌다 — 둘 다 읽는 곳이 없었다.

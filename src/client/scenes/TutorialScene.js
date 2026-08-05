@@ -9,6 +9,7 @@ import {
   setupCameras,
   worldLabel,
   DEFAULT_CHAR_HEIGHT,
+  WORLD_ZOOM,
 } from '../world/worldParts.js';
 import {
   PLAYER_ANIM,
@@ -24,7 +25,8 @@ import {
 } from '../entities/npcSprite.js';
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
-import { CSS, FONTS } from '../ui/theme.js';
+import { nameLabelStyle } from '../ui/theme.js';
+import { TransitionScreen } from '../ui/TransitionScreen.js';
 import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
 
@@ -63,24 +65,13 @@ function spawnNpc(scene, id, x, y) {
 
 
 /**
- * 인물 이름표.
+ * 인물 이름표 — 여기서 정한 규격을 거리·저택도 그대로 쓴다(ui/theme.nameLabelStyle).
  *
- * worldLabel 의 fontSize 는 **월드 기준**이라 화면에 보이는 크기는 맵의 줌이 함께
- * 정한다. 거리(줌 2)에서 11px 은 화면 22px 이지만, 본부는 줌이 1 이라 같은 11px 이
- * 화면에서도 11px — 절반이었다. 게다가 본부는 인물이 160px 로 가장 크다.
- * 그래서 여기만 24px 로 잡는다 (화면 24px = 거리보다 조금 크다).
+ * 숫자를 그 파일로 옮긴 것은 크기가 **화면 기준**이어야 하기 때문이다. 본부는 줌이
+ * 1 이라 24px 이 화면에서도 24px 이지만, 거리는 줌 2 라 같은 24 를 적으면 화면 48px 로
+ * 부푼다. 줌만 넘기면 어느 맵에서나 같은 크기로 나온다.
  */
-const LABEL_STYLE = {
-  fontFamily: FONTS.body,
-  fontSize: '24px',
-  // 예전의 흐린 종이색(paperDim)은 돌바닥 무늬 위에서 회색으로 묻혀 안 읽혔다.
-  // `[E] 대화` 말풍선과 **같은 금색**을 쓴다 — 머리 위에 뜨는 글자는 한 가지 색으로
-  // 묶여야 "이건 인물에 딸린 안내"라고 한눈에 읽힌다.
-  color: CSS.brassHi,
-  // 금색이라도 황동 배관이나 불빛 위에서는 배경과 붙는다. 어두운 테두리가 그걸 끊는다.
-  stroke: '#0a0906',
-  strokeThickness: 3,
-};
+const LABEL_STYLE = nameLabelStyle(hqData.cameraZoom ?? WORLD_ZOOM);
 
 export class TutorialScene extends Phaser.Scene {
   constructor() {
@@ -132,6 +123,7 @@ export class TutorialScene extends Phaser.Scene {
     this.hud = new Hud();
     this.hud.status('강철 심장 본부 — 훈련');
     this.hud.keys('[E] 대화    [F] 접선 코드');
+    this.transition = new TransitionScreen();
 
     this.#start();
   }
@@ -471,31 +463,56 @@ export class TutorialScene extends Phaser.Scene {
     this.time.delayedCall(2600, () => this.#goStage());
   }
 
-  /** 스테이지 1 로. Boot 가 쏘아 둔 fetch 는 튜토리얼이 도는 동안 이미 끝나 있다. */
+  /**
+   * 스테이지 1 로 — 페이드 아웃 → 로딩 화면 → (준비되면) 거리.
+   *
+   * Boot 가 쏘아 둔 fetch 는 튜토리얼이 도는 동안 대개 이미 끝나 있지만, 그래도 로딩
+   * 화면(TransitionScreen)을 반드시 거친다: 끝나 있으면 한 박자짜리 전환 연출이 되고,
+   * 아직이면(첫 판의 연상 단어 생성, 실측 11~20초) 그 대기가 "멈춤"이 아니라 "이동
+   * 중"으로 읽히는 것이 이 화면의 존재 이유다. 예전에는 본부 화면이 굳은 채 구석의
+   * 문구 한 줄이 전부라 게임이 죽은 것처럼 보였다.
+   *
+   * 걷는 것은 도착한 씬(StageScene)의 몫이다 — TransitionScreen 머리말 참고.
+   */
   #goStage() {
-    const waiting = this.add
-      .text(this.scale.width / 2, this.scale.height / 2, '거리로 나가는 중…', {
-        fontFamily: FONTS.body,
-        fontSize: '28px',
-        color: CSS.paperDim,
-      })
-      .setOrigin(0.5)
-      .setDepth(51);
-    this.asUi(waiting);
+    // 대화창·HUD 는 DOM 이라 카메라 페이드가 안 걸린다 — 같이 접는다.
+    this.dialogue.hide();
+    this.hud.fadeOut(600);
+    this.cameras.main.fadeOut(600, 0, 0, 0);
+    this.uiCam?.fadeOut(600, 0, 0, 0);
 
-    // Boot 가 얹어둔 프로미스는 {state} 또는 {error} 로만 resolve 한다 (절대 reject 안 함).
-    Promise.resolve(this.registry.get('startPromise')).then((res) => {
+    this.cameras.main.once('camerafadeoutcomplete', async () => {
+      this.transition.show('거리로 이동 중', '동료들의 암호를 수신하고 있다');
+
+      // Boot 가 얹어둔 프로미스는 {state} 또는 {error} 로만 resolve 한다 (절대 reject 안 함).
+      // 한 박자(900ms)는 로딩 화면의 최소 체류 시간이다 — 준비가 이미 끝나 있으면
+      // 이 판이 한 프레임 번쩍하고 사라져 연출이 아니라 고장으로 보인다.
+      const [res] = await Promise.all([
+        Promise.resolve(this.registry.get('startPromise')),
+        this.#beat(900),
+      ]);
+
       if (!res || res.error) {
-        waiting.destroy();
+        // 본부로 되돌아와 오류를 읽게 한다 — 로딩 화면 위에 올리면 재시도(Space 재시작)
+        // 같은 본부의 손잡이가 전부 로딩 판 아래 깔린다.
+        this.transition.hide();
+        this.hud.fadeIn(400);
+        this.cameras.main.fadeIn(400, 0, 0, 0);
+        this.uiCam?.fadeIn(400, 0, 0, 0);
         this.dialogue.show(
           '오류',
           `스테이지 시작 실패\n${res?.error ?? '알 수 없는 오류'}\n\n.env 에 ANTHROPIC_API_KEY 를 넣었는지 확인하세요.`,
         );
         return;
       }
-      this.dialogue.hide();
+      // 로딩 화면은 켠 채로 넘긴다 — StageScene 이 다 지어진 뒤 스스로 걷는다.
       this.scene.start('Stage', { state: res.state });
     });
+  }
+
+  /** 연출용 사이 — delayedCall 을 await 할 수 있게 감싼다 (StageScene#beat 과 같은 모양). */
+  #beat(ms) {
+    return new Promise((resolve) => this.time.delayedCall(ms, resolve));
   }
 
   /**

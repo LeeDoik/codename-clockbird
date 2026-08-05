@@ -160,6 +160,19 @@ export function setupCameras(scene, mapData, player, zoom = mapData.cameraZoom ?
  * 기본 배율로 굽는다 — 거리 씬은 이름표를 먼저 만들고 카메라를 나중에 세운다
  * (setupCameras 의 호출 시점 규약 때문이고, 거리의 줌은 그 기본값과 같다).
  */
+/**
+ * 이름표를 얹을 깊이.
+ *
+ * 기본 깊이(0)로 두면 나중에 태어난 월드 오브젝트가 전부 이름표를 덮는다 — 거리에서는
+ * 등불(4)·수증기(6)·순찰 로봇과 시야 원이 그렇다. 이름은 인물이 지금 무엇에 가려져
+ * 있든 읽혀야 하는 정보라 그 위로 올린다. 화면에 고정된 것(HUD·말풍선)은 UI 카메라
+ * 소속이라 이 숫자와 경쟁하지 않는다.
+ *
+ * worldLabel 이 자동으로 걸지는 않는다 — 씬마다 무엇을 덮어도 되는지가 달라서,
+ * 올릴 이름표를 씬이 직접 고르게 둔다.
+ */
+export const NAME_LABEL_DEPTH = 8;
+
 export function worldLabel(scene, x, y, text, style) {
   const world = parseFloat(style.fontSize) || 11;
   const px = Math.max(1, Math.round(world * (scene.worldZoom ?? WORLD_ZOOM)));

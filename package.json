@@ -15,13 +15,13 @@
     "start": "cross-env NODE_ENV=production node src/server/index.js",
     "poc": "node scripts/poc-wordgen.js",
     "poc:talk": "node scripts/poc-dialogue.js",
-    "poc:checkpoint": "node scripts/poc-checkpoint.js",
     "exp:diff": "node scripts/exp-dup-rate.js",
     "smoke": "node scripts/smoke-talk-sse.js",
     "smoke:tutorial": "node scripts/smoke-tutorial.js",
     "smoke:mansion": "node scripts/smoke-mansion.js",
     "smoke:escape": "node scripts/smoke-escape.js",
-    "check:escape": "node scripts/check-escape-spawn.js && node scripts/check-los.js && node scripts/check-escape-session.js"
+    "check:escape": "node scripts/check-escape-spawn.js && node scripts/check-los.js && node scripts/check-escape-session.js",
+    "check:jail": "node scripts/check-jail.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",

@@ -1,0 +1,36 @@
+{
+  "group_id": "3dfb5910-4afa-4452-a175-501eaa57cc91",
+  "states": [
+    {
+      "character": {
+        "id": "026353da-656f-4a83-abb7-76ffc28684c2",
+        "name": "Idle",
+        "prompt": "top-down JRPG chibi sprite of a 38-year-old baker woman, big head short limbs chibi proportions (head is 40% of total height), brown hair wrapped in a cream kerchief, a warm round face with a flour smudge on the cheek and a dimpled smile, a plump motherly build, a cream blouse with rolled sleeves over a faded blue-grey dress, a large flour-dusted white apron, a rust-red cloth tucked at the waist, brown leather ankle boots, steampunk town baker outfit, no oven, no background props, muted earth-tone palette, dark outline, soft cel shading, transparent background, no drop shadow",
+        "size": {
+          "width": 196,
+          "height": 196
+        },
+        "template_id": "mannequin",
+        "directions": 8,
+        "view": "high top-down",
+        "created_at": "2026-08-03T15:51:41.366899+00:00"
+      },
+      "folder": "Idle",
+      "frames": {
+        "rotations": {
+          "south": "Idle/rotations/south.png",
+          "south-east": "Idle/rotations/south-east.png",
+          "east": "Idle/rotations/east.png",
+          "north-east": "Idle/rotations/north-east.png",
+          "north": "Idle/rotations/north.png",
+          "north-west": "Idle/rotations/north-west.png",
+          "west": "Idle/rotations/west.png",
+          "south-west": "Idle/rotations/south-west.png"
+        },
+        "animations": {}
+      }
+    }
+  ],
+  "export_version": "3.1",
+  "export_date": "2026-08-04T06:04:35.780813"
+}

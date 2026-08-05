@@ -24,10 +24,11 @@ OUT_DIR = ROOT / "design" / "맵" / "_png"
 # 맵 교체 계획(docs/맵교체_계획.md §2)에서 배경으로 굽기로 한 그림들.
 SOURCES = [
     "1스테이지_거리/steampunk_city_map_1.webp",
-    "1스테이지_거리/clean_town_square_base.webp",       # 걷는 길 시드용(완성본과 diff)
+    "1스테이지_거리/steampunk_city_map_walkable.jpg",   # 걷는 길 시드용(기획자가 노랑으로 칠한 길)
     "2스테이지_저택/760826519_2096983204559217_5552567175664447904_n.webp",
     "2스테이지_저택/mansion_floorplan_collision_map.webp",  # 걷는 길 시드용(기계가 읽는 충돌도)
     "3스테이지_지하 수로/empty_sewer_map.webp",
+    "3스테이지_지하 수로/sewer_wall.png",   # 걷는 길 시드용(빨강=벽, 나머지는 다 길)
     "튜토리얼_본부/empty_stone_hideout.webp",           # 걷는 길 시드용(완성본과 diff)
 ]
 

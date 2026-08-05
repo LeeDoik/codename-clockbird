@@ -1,7 +1,7 @@
 {
   "format": "clockbird-tilemap",
   "version": 1,
-  "_comment": "거리(스테이지 1) — 배경은 AI 배틀맵 steampunk_city_map_1 이고 street-bg.png 는 scripts/import-map-art.js 가 굽는다(워터마크 제거 + 32의 배수). 충돌은 street-props.json 의 walk 가 유일한 출처라 아래 layout 은 바깥 테두리만 solid 인 껍데기다 — walkmask 가 blocked 를 뽑을 때와 시야 판정 폴백에만 쓴다. 좌표를 고칠 때는 docs/맵교체_계획.md 를 보라.",
+  "_comment": "거리(스테이지 1) — 배경은 AI 배틀맵 steampunk_city_map_1 이고 street-bg.png 는 scripts/import-map-art.js 가 굽는다(워터마크 제거 + 32의 배수). 충돌은 street-props.json 의 walk 가 유일한 출처라 아래 layout 은 바깥 테두리만 solid 인 껍데기다 — walkmask 가 blocked 를 뽑을 때와 시야 판정 폴백에만 쓴다. 좌표를 고칠 때는 docs/맵교체_계획.md 를 보라. ⚠ 2026-08-04: spawns.allies·spawns.citizens 아홉 자리를 기획 배치도(design/맵/1스테이지_거리/NPC위치.png)에서 옮겨 왔다 — 배치도를 배경과 맞춰 놓고(1.058배) 인물 발끝이 놓인 칸을 읽은 값이다. citizens 는 다섯에서 넷으로 줄었고 id·이름이 붙었다(설정서의 1스테이지 시민). ⚠ 순찰 경로(world/streetLayout.js)는 아직 옛 판이라 동료 넷이 감지 반경 안에 있다 — 경비 로봇을 다시 놓을 때 함께 푼다.",
   "tileSize": 32,
   "charHeight": 64,
   "cameraZoom": 2,
@@ -2548,28 +2548,28 @@
     "allies": [
       {
         "id": "watchmaker",
-        "col": 36,
-        "row": 28
+        "col": 39,
+        "row": 16
       },
       {
         "id": "maid",
-        "col": 19,
-        "row": 25
+        "col": 20,
+        "row": 16
       },
       {
         "id": "engineer",
-        "col": 60,
-        "row": 6
+        "col": 51,
+        "row": 8
       },
       {
         "id": "smuggler",
-        "col": 64,
-        "row": 30
+        "col": 35,
+        "row": 5
       },
       {
         "id": "musician",
-        "col": 3,
-        "row": 30
+        "col": 57,
+        "row": 26
       }
     ],
     "broker": {
@@ -2578,24 +2578,28 @@
     },
     "citizens": [
       {
-        "col": 3,
-        "row": 10
+        "id": "florist",
+        "name": "아이리스",
+        "col": 10,
+        "row": 9
       },
       {
-        "col": 65,
-        "row": 10
+        "id": "porter",
+        "name": "벤",
+        "col": 47,
+        "row": 17
       },
       {
-        "col": 14,
-        "row": 29
+        "id": "baker",
+        "name": "미사",
+        "col": 9,
+        "row": 25
       },
       {
-        "col": 55,
-        "row": 29
-      },
-      {
-        "col": 22,
-        "row": 3
+        "id": "newsboy",
+        "name": "노아",
+        "col": 34,
+        "row": 23
       }
     ],
     "jail": {

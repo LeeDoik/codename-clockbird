@@ -45,6 +45,10 @@ const MASK_DIR = 'design/walkmask';
 /**
  * 걷는 길 **초안**을 그림에서 뽑는 규칙 (`seed`). 맵마다 그림이 달라 규칙도 다르다.
  *
+ * - `highlight` — 사람이 배경 위에 **형광펜으로 칠해 준 길**을 읽는다. 이게 있으면
+ *   아래 바닥 추론(floor/props)은 아예 안 돈다 — 추론할 것이 없다, 답이 그려져 있다.
+ *   `src` 는 배경과 같은 자르기·방향을 거친 판이어야 하고(import-map-art 의 seedSrc),
+ *   `score`·`min`·`colors` 는 아래 highlightWalk 주석 참고.
  * - `base` — 바닥/벽을 가를 때 볼 그림. **소품이 없는 판**이 있으면 그쪽이 훨씬 잘 갈린다
  *   (거리: clean_town_square_base). 없으면 배경 자체를 본다. 배경과 칸 수가 같아야 한다.
  * - `floor` — "여기는 바닥인가". 두 가지 방식이 있다:
@@ -70,10 +74,14 @@ const MASK_DIR = 'design/walkmask';
  */
 const SEED = {
   street: {
-    base: 'design/맵/_png/clean_town_square_base.png',
-    floor: { blur: 60, ratio: 0.97, min: 0.55 },
-    props: { diff: 52, max: 0.65, ignoreSmoke: true },
-    openIsolated: 6,
+    // 기획자가 배경 위에 노랑으로 칠해 준 길이 이제 원본이다.
+    // 여기 있던 옛 규칙(소품 없는 판과의 diff 로 바닥을 추론)은 걷어냈다 — 그 추론은
+    // 걸을 수 있는 자리를 전부 열어(1530칸) 광장이 통째로 벌판이 됐다. 기획 의도는
+    // "이 길로만 다녀라" 였고, 그건 그림에서 뽑아낼 수 있는 것이 아니다.
+    highlight: { src: 'design/walkmask/src/street-highlight.png', score: 55, min: 0.4 },
+    // 붓이 가게 앞 처마를 스쳐 반쯤 칠해진 칸(45% 남짓). 건물 안이라 위아래가 다 막혀
+    // 아무 데도 안 이어지는 세 칸짜리 섬이 된다 — 길이 아니라 붓 자국이다.
+    blockRects: [[54, 13, 3, 1]],
   },
   mansion: {
     // 기획자가 받아 온 mansion_floorplan_collision_map — 흰 바닥 / 어두운 나무·돌 벽.
@@ -88,9 +96,32 @@ const SEED = {
     blockRects: [],
   },
   escape: {
-    // 수로는 소품 없는 판이 따로 없다 — 배경 자체를 본다.
-    floor: { minLum: 45, maxGreenBias: 8, min: 0.55 },
-    openIsolated: 6,
+    // 기획자가 **벽만** 빨강으로 칠해 준 판이 원본이다 (2026-08-04 두 번째 판).
+    // 수로는 물웅덩이 넷이 벽의 전부고 나머지는 다 돌바닥이라, 길을 칠하는 것보다
+    // 벽을 칠하는 쪽이 훨씬 적게 칠하고 경계도 분명해진다.
+    //
+    // 첫 판은 노랑(길)+빨강(벽)이었는데 에어브러시라 경계가 번져 애매한 칸이 많았다.
+    // 이번 판은 단색 채우기라 실측 분포가 0(54%)과 220 이상(44%)뿐이고 사이가 텅 비어
+    // 있다 — score 는 그 사이 어디에 두어도 결과가 같다.
+    //
+    // 남은 애매함은 색이 아니라 **칸 나누기**다. 칠한 경계가 칸 한가운데를 지나면 그 칸이
+    // 반쯤 벽이 된다. 그런 칸은 열어 두는 쪽으로 기울인다 (min 을 절반보다 높게) —
+    // 반 칸을 닫으면 통로가 통째로 끊기지만, 열어 두면 벽에 반 칸 붙어 서는 것뿐이다.
+    // 실제로 min 0.5 에서는 가운데 아래 세로 통로가 25행(빨강 58~65%)에서 끊겨 막다른
+    // 골목이 됐다. 0.6~0.7 은 결과가 같은 안정 구간이고(칸 1082~1096, 덩어리 1개),
+    // 0.8 을 넘기면 웅덩이 속이 열리기 시작해 덩어리가 셋으로 갈린다.
+    highlight: {
+      src: 'design/walkmask/src/escape-wall.png',
+      score: 120,
+      min: 0.65,
+      colors: 'red',
+      keepLayoutSolid: true,
+    },
+    // 가운데 아래 아치의 **덮개**. 그림에서 둥근 돌 뚜껑이라 올라설 수 없는데, 칠한 판에는
+    // 웅덩이만 빨강이라 덮개가 통째로 열려 있었다 — 게임에서 로봇이 그 위에 올라서고
+    // 시야도 그대로 넘어갔다(기획자 스크린샷, 2026-08-04). 색으로는 안 갈리는 자리라
+    // 사각형으로 적는다. 이걸 막으면 아래쪽 기둥(27~36행)은 남쪽 복도에서만 닿는다.
+    blockRects: [[23, 25, 7, 2]],
   },
 };
 
@@ -188,6 +219,115 @@ function boxBlur(lum, w, h, radius) {
   return src;
 }
 
+/** 손으로 적은 사각형을 막는다 (SEED.blockRects 주석 참고). 어느 방식으로 뽑았든 마지막에 온다. */
+function blockRects(grid, map, rule) {
+  for (const [c0, r0, rw, rh] of rule.blockRects ?? []) {
+    for (let r = r0; r < r0 + rh; r++) {
+      for (let c = c0; c < c0 + rw; c++) {
+        if (r >= 0 && r < map.rows && c >= 0 && c < map.cols) grid[r][c] = 0;
+      }
+    }
+  }
+}
+
+/**
+ * 배경 위에 형광펜으로 칠해 준 길을 읽는다 (SEED.highlight).
+ *
+ * 칠한 색을 절대값으로 찾지 않고 **같은 자리의 원본 픽셀과 비교**한다. 그림에는 이미
+ * 누런 것이 잔뜩 있다 — 놋쇠 파이프, 램프 불빛, 모래빛 돌담. 절대 노랑으로 찾으면 그것들이
+ * 다 걸린다. 반면 "원본보다 노래졌는가"는 칠한 자리에서만 참이다.
+ *
+ * 한 칸은 그 안의 `min` 이상이 칠해졌으면 걷는 칸이다. 붓이 칸 경계에 맞춰 그어질 리
+ * 없으니 절반보다 낮게 잡는다 — 길 가장자리 칸을 살리는 쪽이 길이 한 칸씩 좁아지는
+ * 것보다 낫다(좁아지면 못 지나가는 길목이 생긴다).
+ *
+ * ── `colors` — 칠한 색이 몇 가지인가 ──
+ *
+ * `'yellow'` (거리): 노랑만 칠했고 **안 칠한 곳은 전부 막힌 것**이다.
+ *   노랑기 = (R+G)/2 − B. 실측 분포가 0 근처(59%)와 75 이상(31%)으로 뚜렷이 갈리고
+ *   그 사이가 비어 있어 `score` 55 는 골짜기 한가운데다 — 임계값이 흔들려도 안 바뀐다.
+ *
+ * `'yellow+red'`: 노랑=걷기 · 빨강=벽으로 **두 색을 다 칠했다**.
+ *   여기서는 (R+G)/2 − B 를 쓸 수 없다 — 순수 빨강도 이 값이 127 이라 벽이 길로 읽힌다.
+ *   대신 노랑기 = min(R,G) − B (R·G 가 **둘 다** 높아야 한다) 와 빨강기 = R − max(G,B) 를
+ *   나란히 재서 **더 많이 밀린 쪽**으로 픽셀을 나누고, 칸은 노랑이 빨강보다 많을 때만 연다.
+ *   안 칠한 픽셀은 어느 쪽 표도 아니라 그 칸은 막힌 채로 남는다.
+ *
+ * `'red'` (수로): **벽만 칠했다**. 위와 정반대다 — 칠한 곳이 막히고 **안 칠한 곳이 열린다**.
+ *   길이 넓어 칠할 것이 벽뿐일 때 이쪽이 훨씬 적게 칠하고 끝난다.
+ *   ⚠ 안 칠한 곳이 열린다는 규칙은 **그림 안쪽에서만** 맞다. 맵 바깥 테두리는 아무도 칠하지
+ *   않지만 세상의 끝이라 열리면 안 된다 — 그래서 `keepLayoutSolid` 로 맵 json 의
+ *   layout 껍데기(테두리만 solid)를 그대로 덮어씌운다.
+ *
+ * 거리를 `'yellow+red'` 로 옮기지 않은 것은 결과가 7칸 달라지기 때문이다 — 이미 눈으로
+ * 확인하고 넣은 판을 이유 없이 흔들 이유가 없다.
+ *
+ * @returns {Uint8Array[]} rows[r][c] === 1 이면 걸을 수 있다
+ */
+function highlightWalk(rule, map, bg) {
+  const { score = 55, min = 0.4, colors = 'yellow' } = rule.highlight;
+  const paint = decodePng(fs.readFileSync(rule.highlight.src));
+  if (paint.w !== bg.w || paint.h !== bg.h) {
+    throw new Error(
+      `칠한 그림(${paint.w}×${paint.h})과 배경(${bg.w}×${bg.h})의 크기가 다르다 — ` +
+        '같은 자르기·방향을 거친 판을 써야 칸이 맞는다 (import-map-art 의 seedSrc)',
+    );
+  }
+  const twoColor = colors === 'yellow+red';
+  const blockOnly = colors === 'red';
+  const yellowness = twoColor
+    ? (d, p) => Math.min(d[p], d[p + 1]) - d[p + 2]
+    : (d, p) => (d[p] + d[p + 1]) / 2 - d[p + 2];
+  const redness = (d, p) => d[p] - Math.max(d[p + 1], d[p + 2]);
+
+  const cw = bg.w / map.cols;
+  const chh = bg.h / map.rows;
+  const grid = Array.from({ length: map.rows }, () => new Uint8Array(map.cols));
+  for (let r = 0; r < map.rows; r++) {
+    for (let c = 0; c < map.cols; c++) {
+      let walk = 0;
+      let block = 0;
+      let n = 0;
+      const y1 = Math.round((r + 1) * chh);
+      const x1 = Math.round((c + 1) * cw);
+      for (let y = Math.round(r * chh); y < y1; y++) {
+        for (let x = Math.round(c * cw); x < x1; x++) {
+          const p = (y * bg.w + x) * 4;
+          n++;
+          if (blockOnly) {
+            if (redness(paint.data, p) - redness(bg.data, p) > score) block++;
+            continue;
+          }
+          const dy = yellowness(paint.data, p) - yellowness(bg.data, p);
+          if (!twoColor) {
+            if (dy > score) walk++;
+            continue;
+          }
+          const dr = redness(paint.data, p) - redness(bg.data, p);
+          if (Math.max(dy, dr) < score) continue; // 안 칠한 픽셀 — 어느 쪽 표도 아니다
+          if (dy > dr) walk++;
+          else block++;
+        }
+      }
+      // 벽만 칠한 판은 반대로 읽는다 — 칠한 만큼 막고, 나머지는 연다.
+      grid[r][c] = blockOnly ? (block / n > min ? 0 : 1) : walk > block && walk / n > min ? 1 : 0;
+    }
+  }
+
+  // 맵 바깥 테두리 — 아무도 칠하지 않지만 세상의 끝이다.
+  if (rule.highlight.keepLayoutSolid) {
+    for (let r = 0; r < map.rows; r++) {
+      for (let c = 0; c < map.cols; c++) {
+        const t = map.layout[r][c];
+        if (t < 0 || map.tiles[t]?.solid) grid[r][c] = 0;
+      }
+    }
+  }
+
+  blockRects(grid, map, rule);
+  return grid;
+}
+
 /**
  * 그림에서 걷는 길 초안을 뽑는다. 자세한 근거는 SEED 주석에 있다.
  * @returns {Uint8Array[]} rows[r][c] === 1 이면 걸을 수 있다
@@ -197,6 +337,7 @@ function seedWalk(name, map, bg) {
   if (!rule) {
     throw new Error(`${name} 에는 seed 규칙이 없다 — scripts/walkmask.js 의 SEED 에 적어라`);
   }
+  if (rule.highlight) return highlightWalk(rule, map, bg);
   const base = rule.base ? decodePng(fs.readFileSync(rule.base)) : bg;
   if (base.w !== bg.w || base.h !== bg.h) {
     throw new Error(
@@ -295,14 +436,7 @@ function seedWalk(name, map, bg) {
     }
   }
 
-  // 도면에 없는 큰 가구 (SEED.blockRects 주석 참고).
-  for (const [c0, r0, rw, rh] of rule.blockRects ?? []) {
-    for (let r = r0; r < r0 + rh; r++) {
-      for (let c = c0; c < c0 + rw; c++) {
-        if (r >= 0 && r < map.rows && c >= 0 && c < map.cols) grid[r][c] = 0;
-      }
-    }
-  }
+  blockRects(grid, map, rule);
   return grid;
 }
 

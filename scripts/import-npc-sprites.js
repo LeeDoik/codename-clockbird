@@ -64,6 +64,19 @@ const CHARACTERS = [
   { src: 'pixellab2', dir: '올리버', face: 'south', id: 'clerk', label: '올리버 → 사무원' },
   { src: 'pixellab2', dir: '빅터', face: 'south', id: 'guard', label: '빅터 → 경비대장' },
   { src: 'pixellab2', dir: '헤나', face: 'south', id: 'coach', label: '헤나 → 마부' },
+  // ── 거리 (스테이지 1) — 동료 넷은 personas.json, 시민 넷은 map.json 의 spawns.citizens ──
+  // 에이던(watchmaker)만 여기 없다: 그는 예전 256px 아이들 시트를 그대로 쓴다.
+  // 기획 배치도에 그려진 것도 그 그림이라(대조 확인) 갈아끼울 이유가 없었고,
+  // 새 내보내기에도 그만 빠져 있다.
+  { src: 'pixellab3', dir: '엘라', face: 'south', id: 'maid', label: '엘라 → 사교 클럽 여급' },
+  { src: 'pixellab3', dir: '가레스', face: 'south', id: 'engineer', label: '가레스 → 기관 정비공' },
+  { src: 'pixellab3', dir: '실비아', face: 'south', id: 'smuggler', label: '실비아 → 밀수업자' },
+  { src: 'pixellab3', dir: '루카스', face: 'south', id: 'musician', label: '루카스 → 의사' },
+  // 아이리스만 남동향이다 — 기획 배치도에서 꽃 가판을 등지고 광장 쪽으로 비스듬히 서 있다.
+  { src: 'pixellab3', dir: '아이리스', face: 'south-east', id: 'florist', label: '아이리스 → 꽃집(남동)' },
+  { src: 'pixellab3', dir: '벤', face: 'south', id: 'porter', label: '벤 → 짐꾼' },
+  { src: 'pixellab3', dir: '미사', face: 'south', id: 'baker', label: '미사 → 제빵사' },
+  { src: 'pixellab3', dir: '노아', face: 'south', id: 'newsboy', label: '노아 → 신문팔이' },
 ];
 
 /** 알파가 이보다 진해야 인물로 친다 — 가장자리 반투명 픽셀에 경계상자가 끌려가지 않게. */

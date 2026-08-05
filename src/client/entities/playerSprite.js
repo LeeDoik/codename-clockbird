@@ -6,7 +6,7 @@
  * 적혀 있어서, 시트를 갈아끼울 때마다 다섯 군데를 고쳐야 했다 — 한 곳만 빠뜨리면
  * 그 씬에서만 인물이 땅에 안 붙거나 크기가 어긋나고, 그 씬에 들어가 봐야 안다.
  *
- * 아래 세 숫자는 **scripts/import-player-sprite.js 가 찍어 주는 값**이다.
+ * 아래 세 숫자는 **scripts/import-actor-sprites.js player 가 찍어 주는 값**이다.
  * 시트를 다시 구우면 그 출력을 그대로 옮겨 적으면 된다.
  */
 
@@ -45,7 +45,7 @@ export const PLAYER_ANIM = {
 
 /**
  * 시트 안 프레임 배치 — BootScene 이 애니메이션을 등록할 때 쓴다.
- * import-player-sprite.js 가 이 순서로 굽는다 (아래·위·왼·오).
+  * import-actor-sprites.js 가 이 순서로 굽는다 (아래·위·왼·오).
  */
 export const PLAYER_IDLE_FRAMES = { Down: 0, Up: 1, Left: 2, Right: 3 };
 export const PLAYER_WALK_RANGES = {

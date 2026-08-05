@@ -38,6 +38,7 @@ router.post('/start', async (req, res, next) => {
       npcs: data.npcs,
       rewards: data.rewards,
       objects: data.objects,
+      keyHolder: data.keyHolder,
     });
     const session = getMansionSession(sessionId);
 

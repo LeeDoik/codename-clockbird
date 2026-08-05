@@ -1,5 +1,5 @@
 /**
- * 본부·저택 NPC 정지 스프라이트의 규격 — **단일 출처**.
+ * 본부·저택·거리 NPC 정지 스프라이트의 규격 — **단일 출처**.
  *
  * 아래 숫자는 **scripts/import-npc-sprites.js 가 찍어 주는 값**이다.
  * 그림을 다시 구우면 그 출력을 그대로 옮겨 적으면 된다.
@@ -8,6 +8,10 @@
  * 튜토리얼과 엔딩 두 씬에 나오고, 실측값이 양쪽에 흩어져 있으면 그림을 갈아끼울 때
  * 한 씬만 고치고 다른 씬은 어긋난 채로 남는다.
  *
+ * ⚠ 프레임과 땅 높이는 **표에 있는 전원의 공통값**이다. 인물을 하나 더하면 스크립트가
+ * 프레임을 다시 잡을 수 있고(가장 큰 원본에 맞춘다), 그러면 세 스테이지의 그림이 전부
+ * 다시 구워진다. 2026-08-04 에 거리 여덟이 들어오면서 204→228 로 늘었다.
+ *
  * ── 왜 애니메이션 키가 없는가 ──
  *
  * 이 인물들은 **남향 정지 그림 한 장**이다. 게임 안에서 움직이지 않으니 걷기가
@@ -15,11 +19,11 @@
  * 그래서 텍스처 키만 있고 anims 는 등록하지 않는다 — 씬은 play() 를 부르지 않는다.
  */
 
-/** 시트의 정사각 프레임 한 변 (px). 세 인물이 공통으로 쓴다. */
-export const NPC_FRAME_SIZE = 204;
+/** 시트의 정사각 프레임 한 변 (px). 표의 인물 전원이 공통으로 쓴다. */
+export const NPC_FRAME_SIZE = 228;
 
 /** 발이 닿는 높이 (프레임 높이 기준 0~1). 스폰 좌표에 이 지점이 놓인다. */
-export const NPC_ORIGIN_Y = 152 / NPC_FRAME_SIZE;
+export const NPC_ORIGIN_Y = 170 / NPC_FRAME_SIZE;
 
 /**
  * 프레임 안 인물의 실제 높이 (px, 정수리~발). 화면 크기 계산의 분모다.
@@ -48,6 +52,15 @@ export const NPC_CONTENT_HEIGHT = {
   clerk: 93,
   guard: 91,
   coach: 97,
+  // 거리 (스테이지 1). 에이던(watchmaker)은 예전 아이들 시트라 여기 없다.
+  maid: 92,
+  engineer: 111,
+  smuggler: 94,
+  musician: 98,
+  florist: 105,
+  porter: 95,
+  baker: 95,
+  newsboy: 93,
 };
 
 /**
@@ -58,8 +71,8 @@ export const NPC_CONTENT_HEIGHT = {
  * 4배로 그려진 적이 있다. 화면으로는 "좀 크네" 정도라 놓치기 쉽다.
  * 여기 인물들은 애니메이션이 아예 없으니 이 키가 유일한 이름이다.
  *
- * 본부 4인과 저택 10인이 모두 여기 있다. 거리(스테이지 1) 동료들은 아직 예전 12프레임
- * 아이들 시트를 쓰므로 이 표에 없다 — 그쪽을 갈아끼울 때 여기에 더하면 된다.
+ * 본부 4인 · 저택 10인 · 거리 8인이 여기 있다. 거리에서 에이던(watchmaker)만 빠져 있다 —
+ * 그만 예전 12프레임 아이들 시트를 쓴다 (StageScene.ALLY_ANIM).
  */
 export const NPC_TEXTURE = {
   // 본부 (튜토리얼·엔딩)
@@ -78,4 +91,13 @@ export const NPC_TEXTURE = {
   clerk: 'clerkSouth',
   guard: 'guardSouth',
   coach: 'coachSouth',
+  // 거리 (스테이지 1). 아이리스(florist)만 남동향이지만 키 이름은 같은 규칙을 따른다.
+  maid: 'maidSouth',
+  engineer: 'engineerSouth',
+  smuggler: 'smugglerSouth',
+  musician: 'musicianSouth',
+  florist: 'floristSouth',
+  porter: 'porterSouth',
+  baker: 'bakerSouth',
+  newsboy: 'newsboySouth',
 };

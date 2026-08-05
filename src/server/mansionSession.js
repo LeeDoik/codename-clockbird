@@ -22,18 +22,25 @@ export const FAVOR_MAX = 3;
 /** 의심도 상한 — 민간인이면 밀고(게임오버), 동료면 대화 중단 */
 export const SUSPICION_MAX = 3;
 
-export function createMansionSession({ escort, npcs, rewards, objects = [] }) {
+export function createMansionSession({ escort, npcs, rewards, objects = [], keyHolder }) {
   const id = randomUUID();
 
   /**
-   * 열쇠를 쥔 동료를 매 판 새로 뽑는다.
+   * 열쇠를 쥔 동료. **mansion.json 의 `keyHolder` 가 정한다** (2026-08-04 고정).
    *
-   * 고정해 두면 그 방에 먼저 들어간 판은 세 마디로 끝나고 — 나머지 동료도 조사 오브젝트도
-   * 아무 의미가 없어진다. 무작위면 "누가 쥐었나"를 좁히는 일이 생겨서, 운 좋게 첫 상대가
-   * 보유자여도(최소 3회) 아니어도(힌트 → 보유자, 6회) 바닥과 천장이 같이 생긴다.
+   * 그전에는 매 판 동료 셋 중 하나를 무작위로 뽑았다. 무작위 쪽이 "누가 쥐었나"를 좁히는
+   * 일을 만들어 주긴 하는데 — 첫 상대가 보유자면 세 마디로 끝나고 아니면 힌트를 거쳐
+   * 여섯 마디라 판마다 길이가 두 배로 흔들렸다. 고정하면 길이가 일정해지는 대신
+   * **다른 두 동료와 조사 오브젝트가 힌트 경로로만 의미를 갖는다** — 세드릭부터 만난
+   * 플레이어는 그것들을 건너뛴다. 그 대가를 알고 고른 것이다.
    */
   const allies = npcs.filter((n) => n.kind === 'ally');
-  const keyHolder = allies[Math.floor(Math.random() * allies.length)]?.id ?? null;
+  if (!allies.some((n) => n.id === keyHolder)) {
+    // 조용히 넘어가면 아무도 열쇠를 못 줘서 클리어가 불가능한 판이 된다.
+    throw new Error(
+      `mansion.json 의 keyHolder(${keyHolder})가 동료가 아니다 — 동료: ${allies.map((n) => n.id).join(', ')}`,
+    );
+  }
 
   sessions.set(id, {
     id,

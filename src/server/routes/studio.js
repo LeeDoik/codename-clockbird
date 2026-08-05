@@ -41,8 +41,6 @@ const RECOMMENDED_VARS = {
   'mansion-ally': ['mood'],
   'mansion-civ': ['mood'],
   'mansion-dialogue': ['backstory', 'personality'],
-  'checkpoint-question': ['alertLevel', 'arrestedCount'],
-  'checkpoint-judge': ['alertLevel', 'arrestedCount', 'strictness'],
   'escape-question': ['asked', 'questionMax', 'historyBlock', 'backstory', 'personality'],
   'escape-system-judge': ['identityWord'],
   // escape-robot-judge 에 identityWord 는 **없어야 한다** — 로봇이 신분 단어를 알면

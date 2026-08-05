@@ -10,7 +10,7 @@
  * layout 은 바깥 테두리만 solid 인 껍데기다 (worldParts.buildColliders 가 walk 를 우선).
  */
 import { writeFile } from 'node:fs/promises';
-import { CAMERA_ZOOM, CHAR_HEIGHT, CHECKPOINTS, COLS, ROWS, TILE } from '../src/client/world/escapeLayout.js';
+import { CAMERA_ZOOM, CHAR_HEIGHT, COLS, ROWS, SPAWN, TILE } from '../src/client/world/escapeLayout.js';
 
 // 바깥 테두리만 solid 인 껍데기 — 충돌은 escape-props.json 의 walk 가 정한다
 // (다른 세 맵과 같다). layout 은 walkmask 가 blocked 를 뽑을 때와 시야 폴백에만 쓴다.
@@ -35,9 +35,9 @@ const map = {
     { name: '벽', solid: true },
   ],
   layout,
-  // 첫 체크포인트에서 시작한다 — 하드코딩하면 escapeLayout.js 의 CHECKPOINTS[0] 을
-  // 옮겼을 때 여기만 안 따라가도 아무도 모른다 (Patrol.js<->check-spawn-safety 전례).
-  spawns: { player: CHECKPOINTS[0] },
+  // 하드코딩하면 escapeLayout.js 의 SPAWN 을 옮겼을 때 여기만 안 따라가도 아무도
+  // 모른다 (Patrol.js<->check-spawn-safety 전례).
+  spawns: { player: SPAWN },
 };
 
 const out = new URL('../src/client/assets/escape.json', import.meta.url);

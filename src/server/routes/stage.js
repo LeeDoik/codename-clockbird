@@ -15,8 +15,9 @@ import {
   setGameOver,
   raiseAlert,
   inCheckpoint,
+  jailPlayer,
+  freePlayer,
 } from '../session.js';
-import { generateInterrogation, judgeCheckpointAnswer } from '../ai/checkpoint.js';
 
 const router = express.Router();
 
@@ -134,10 +135,6 @@ router.post('/rescue', (req, res) => {
  * — 통과하자마자 같은 자리에서 다시 잡히면 빠져나갈 방법이 없다.
  */
 const CHECKPOINT_COOLDOWN_MS = 10_000;
-/** 열어 둔 채 잊힌 검문은 파기한다 (탭을 놔두고 자리를 뜬 경우). */
-const CHECKPOINT_STALE_MS = 120_000;
-/** 자유 입력 답변 길이 상한 — 프롬프트를 통째로 밀어 넣는 시도를 입구에서 자른다. */
-const MAX_ANSWER_LEN = 120;
 
 /** 검문 라우트 공통 전처리: 세션 조회 + 종료 여부 확인. */
 function checkpointSession(req, res) {
@@ -171,6 +168,9 @@ router.post('/checkpoint/start', (req, res) => {
     setGameOver(session, 'spotted');
     return res.json({ outcome: 'spotted', state: toClientView(session) });
   }
+  // 창살 안에 있는 사람을 다시 검문할 수는 없다. 클라이언트도 갇힌 동안 순찰을 세우지만,
+  // 늦게 도착한 요청 하나로 감옥 안에서 검문이 열리는 일이 없게 서버도 막는다.
+  if (session.jailed) return res.status(409).json({ error: '감옥에 갇혀 있습니다.' });
   if (session.checkpointCooldownUntil > Date.now()) {
     return res.status(409).json({ error: '방금 검문을 통과했습니다.' });
   }
@@ -182,93 +182,61 @@ router.post('/checkpoint/start', (req, res) => {
 
 /**
  * POST /api/stage/checkpoint/qte  { sessionId, result: 'pass'|'fail' }
- * 타이밍 게임 결과 보고. 통과면 대가 없이 끝나고, 실패면 LLM 심문이 열린다.
+ *
+ * 자석 수류탄 투척 결과 보고 — **검문은 여기서 끝난다**.
+ *   - 명중(pass): 로봇이 굳고 빠져나간다. 경계는 오르지 않고 쿨다운만 걸린다.
+ *   - 빗나감(fail): 붙잡혀 임시 감옥에 갇힌다 — **게임오버가 아니다** (/jail/escape 로 이어진다).
+ *
+ * ⚠ 2026-08-05 에 그 사이에 있던 **LLM 심문 단계를 걷어냈다** (기획 판단). 실패하면
+ * 로봇이 질문을 던지고 /checkpoint/answer 가 답을 심사한 뒤, 거기서도 걸려야 비로소
+ * 수류탄을 쓰는 3단 구조였다. 그때는 적발이 경계 +1 로 끝났지만 — 발각은 반복되는
+ * 사건이라 한 번 걸렸다고 판이 끝나면 반복 플레이가 성립하지 않는다는 이유였다.
+ *
+ * ⚠ 같은 날 늦게, **빗나감이 게임오버이던 것을 감옥행으로 바꿨다** (기획 확정). 그
+ * 사이에는 소모품이 완충이었다 — 조우마다 수류탄이 한 개씩 나가고 다 쓰면 다음 발각이
+ * 즉사(스토리보드 p16 "게임오버 = 자석 수류탄 소진"). 지금은 수류탄이 없어도 죽지 않고
+ * 감옥에 갇힐 뿐이라, 수류탄은 **감옥에 안 가는 수단**이지 목숨이 아니다.
+ * 판을 끝내는 것은 경계 3 에서의 발각(/checkpoint/start 의 spotted)뿐이다.
+ *
+ * 라우트 이름은 qte 그대로 둔다 — 클라이언트·세션·쿨다운이 같은 이름을 물고 있고,
+ * 바꿔 봐야 "검문 중 한 판"이라는 뜻은 같다.
  */
-router.post('/checkpoint/qte', async (req, res, next) => {
-  try {
-    const session = checkpointSession(req, res);
-    if (!session) return;
-    if (session.checkpoint?.stage !== 'qte') {
-      return res.status(409).json({ error: '진행 중인 검문이 없습니다.' });
-    }
-
-    if (req.body?.result === 'pass') {
-      session.checkpoint = null;
-      session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
-      return res.json({ outcome: 'pass', state: toClientView(session) });
-    }
-
-    const interrogation = await generateInterrogation({
-      alertLevel: session.alertLevel,
-      arrestedCount: arrestedCount(session),
-    });
-    session.checkpoint = {
-      stage: 'question',
-      startedAt: Date.now(),
-      question: interrogation.question,
-      choices: interrogation.choices,
-    };
-
-    res.json({
-      outcome: 'question',
-      question: interrogation.question,
-      choices: interrogation.choices,
-      state: toClientView(session),
-    });
-  } catch (err) {
-    next(err);
+router.post('/checkpoint/qte', (req, res) => {
+  const session = checkpointSession(req, res);
+  if (!session) return;
+  if (session.checkpoint?.stage !== 'qte') {
+    return res.status(409).json({ error: '진행 중인 검문이 없습니다.' });
   }
+
+  const passed = req.body?.result === 'pass';
+  session.checkpoint = null;
+  session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
+  if (!passed) jailPlayer(session);
+
+  console.log(`[checkpoint] 세션 ${session.id.slice(0, 8)} — 수류탄 ${passed ? '명중' : '빗나감 → 수감'}`);
+  res.json({ outcome: passed ? 'pass' : 'jailed', state: toClientView(session) });
 });
 
 /**
- * POST /api/stage/checkpoint/answer  { sessionId, answer, source }
- * 심문 답변 심사. 적발되어도 게임오버가 아니라 경계 +1 후 풀려난다 — 발각은 반복되는
- * 사건이라, 한 번 걸렸다고 판이 끝나면 반복 플레이 자체가 성립하지 않는다.
+ * POST /api/stage/jail/escape  { sessionId }
+ * 감옥 탈출 — 창살 잠금장치를 풀었다.
+ *
+ * **성공만 보고한다.** 탈출 퍼즐은 실패해도 대가가 없고(경계도 오르지 않는다) 몇 번이든
+ * 다시 딸 수 있어서, 실패는 서버가 알 필요가 없는 사건이다. 알릴 것이 없는 왕복을 만들면
+ * 그 왕복이 실패했을 때 창살이 도로 잠기는 사고만 생긴다.
+ *
+ * 나오는 순간 재검문 쿨다운을 다시 건다 — 갇혀 있는 동안 처음 걸어 둔 쿨다운은 이미
+ * 지났고, 창살 앞에 로봇이 서 있으면 나오자마자 도로 잡혀 감옥이 무한 반복된다.
+ * (클라이언트도 같은 길이로 순찰 유예를 준다 — CHECKPOINT_COOLDOWN_MS 는 같은 값이다.)
  */
-router.post('/checkpoint/answer', async (req, res, next) => {
-  try {
-    const session = checkpointSession(req, res);
-    if (!session) return;
+router.post('/jail/escape', (req, res) => {
+  const session = checkpointSession(req, res);
+  if (!session) return;
+  if (!freePlayer(session)) return res.status(409).json({ error: '갇혀 있지 않습니다.' });
 
-    const cp = session.checkpoint;
-    if (cp?.stage !== 'question') return res.status(409).json({ error: '진행 중인 심문이 없습니다.' });
-    if (Date.now() - cp.startedAt > CHECKPOINT_STALE_MS) {
-      session.checkpoint = null;
-      return res.status(409).json({ error: '검문이 만료되었습니다.' });
-    }
-
-    const raw = typeof req.body?.answer === 'string' ? req.body.answer.trim() : '';
-    if (!raw) return res.status(400).json({ error: '빈 답변입니다.' });
-    const answer = raw.slice(0, MAX_ANSWER_LEN);
-    // 선택지에서 골랐다고 주장하지만 실제 선택지에 없으면 자유 입력으로 강등한다
-    // — 심사 프롬프트가 "제시된 선택지"라는 이유로 관대해지는 걸 막는다.
-    const source = req.body?.source === 'choice' && cp.choices.includes(answer) ? 'choice' : 'free';
-
-    const verdict = await judgeCheckpointAnswer({
-      question: cp.question,
-      answer,
-      answerSource: source,
-      alertLevel: session.alertLevel,
-      arrestedCount: arrestedCount(session),
-    });
-
-    session.checkpoint = null;
-    session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
-
-    if (verdict.verdict === 'caught') raiseAlert(session);
-
-    console.log(
-      `[checkpoint] 세션 ${session.id.slice(0, 8)} — ${source} "${answer}" → ${verdict.verdict} (${verdict.reason})`,
-    );
-
-    res.json({
-      outcome: verdict.verdict,
-      npcReply: verdict.npcReply,
-      state: toClientView(session),
-    });
-  } catch (err) {
-    next(err);
-  }
+  session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
+  console.log(`[jail] 세션 ${session.id.slice(0, 8)} — 창살 잠금장치 해제, 거리 복귀`);
+  res.json({ state: toClientView(session) });
 });
 
 /**

@@ -51,6 +51,12 @@ const MAPS = {
       // 아래 테두리(돌담 + 검은 띠)는 가로로 반복되는 무늬라 왼쪽에서 떠 와도 이음매가 없다.
       dx: 420,
     },
+    // 걷는 길 초안(walkmask seed)이 볼 그림 — 기획자가 이 배경 위에 노랑으로 직접 칠한 길.
+    // 자를 것이 없는 맵이지만 같은 reframe 을 태운다: 나중에 crop 이 생겨도 자동으로 따라간다.
+    seedSrc: {
+      src: `${PNG_DIR}/steampunk_city_map_walkable.png`,
+      out: 'design/walkmask/src/street-highlight.png',
+    },
   },
   mansion: {
     src: `${PNG_DIR}/760826519_2096983204559217_5552567175664447904_n.png`,
@@ -77,6 +83,11 @@ const MAPS = {
       // 아래 벽돌벽이 계속되는 왼쪽에서 떠 온다. 320 도 깨끗하지만 380 쪽이 이음매가
       // 덜 보였다 (네 가지를 나란히 놓고 고름).
       dx: 380,
+    },
+    // 걷는 길 초안이 볼 그림 — 기획자가 **벽만** 빨강으로 칠한 판.
+    seedSrc: {
+      src: `${PNG_DIR}/sewer_wall.png`,
+      out: 'design/walkmask/src/escape-wall.png',
     },
   },
 };

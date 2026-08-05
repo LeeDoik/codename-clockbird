@@ -17,10 +17,12 @@ export class MinigamePanel {
     instance = this;
 
     this.root = document.getElementById('minigame');
+    this.cardEl = document.getElementById('minigame-card');
     this.titleEl = document.getElementById('minigame-title');
     this.subtitleEl = document.getElementById('minigame-subtitle');
     this.timerEl = document.getElementById('minigame-timer');
     this.timerFill = document.getElementById('minigame-timer-fill');
+    this.clockEl = document.getElementById('minigame-clock');
     this.contentEl = document.getElementById('minigame-content');
     this.hintEl = document.getElementById('minigame-hint');
     this.verdictEl = document.getElementById('minigame-verdict');
@@ -94,11 +96,14 @@ export class MinigamePanel {
    * @param {number} [opts.timeLimitMs]  0/생략이면 제한 시간 없음
    * @param {boolean} [opts.showVerdict]  false 면 성공/실패 연출 없이 finish 값을 그대로 돌려준다
    *        (심문처럼 판정이 아직 안 난, 값만 받아 오는 단계에 쓴다)
-   * @param {(ctx: {content: HTMLElement, finish: (ok: boolean) => void, setHint: (s: string) => void}) => (void | (() => void))} opts.render
+   * @param {'card'|'stage'} [opts.layout]  'stage' 는 화면을 크게 쓰는 장면형 배치다
+   *        (index.html 의 #minigame-card.stage). 제목·시계·경고가 액자에 나뉘어 앉고
+   *        남은 시간이 숫자로 뜬다 — 검문 조우처럼 한 장면으로 보여야 하는 판에 쓴다.
+   * @param {(ctx: {content: HTMLElement, finish: (ok: boolean) => void, setHint: (s: string) => void, setSubtitle: (s: string) => void}) => (void | (() => void))} opts.render
    *        본문을 그린다. 정리 함수를 반환하면 판이 끝날 때 호출된다.
    * @returns {Promise<boolean>} 성공 여부
    */
-  run({ title, subtitle = '', hint = '', timeLimitMs = 0, showVerdict = true, render }) {
+  run({ title, subtitle = '', hint = '', timeLimitMs = 0, showVerdict = true, layout = 'card', render }) {
     // 앞선 판이 아직 살아 있으면 접고 시작한다. 두 판이 겹치면 옛 판의 타이머가 새 판의
     // DOM 을 건드려 멀쩡히 풀고 있는데 실패로 끝나는 사고가 난다.
     this.abort?.();
@@ -109,6 +114,7 @@ export class MinigamePanel {
     this.verdictEl.textContent = '';
     this.verdictEl.className = '';
     this.contentEl.replaceChildren();
+    this.cardEl.classList.toggle('stage', layout === 'stage');
     this.root.classList.add('visible');
 
     return new Promise((resolve) => {
@@ -142,6 +148,7 @@ export class MinigamePanel {
       };
 
       const setHint = (s) => { this.hintEl.textContent = s; };
+      const setSubtitle = (s) => { this.subtitleEl.textContent = s; };
 
       if (timeLimitMs > 0) {
         this.timerEl.classList.add('visible');
@@ -158,6 +165,12 @@ export class MinigamePanel {
           last = now;
           const left = Math.max(0, 1 - elapsed / timeLimitMs);
           this.timerFill.style.width = `${left * 100}%`;
+          // 초:1/100초. stage 배치에서만 보이지만 계산은 늘 한다 — 배치에 따라
+          // 갈리는 분기를 매 프레임 도는 자리에 두지 않는다.
+          const ms = Math.max(0, timeLimitMs - elapsed);
+          this.clockEl.textContent =
+            `${String(Math.floor(ms / 1000)).padStart(2, '0')}:` +
+            `${String(Math.floor((ms % 1000) / 10)).padStart(2, '0')}`;
           if (left <= 0) finish(false);
           else rafId = requestAnimationFrame(tick);
         };
@@ -166,7 +179,7 @@ export class MinigamePanel {
         this.timerEl.classList.remove('visible');
       }
 
-      cleanup = render({ content: this.contentEl, finish, setHint }) ?? null;
+      cleanup = render({ content: this.contentEl, finish, setHint, setSubtitle }) ?? null;
 
       // 판이 끝나기 전에 씬이 갈아엎히면(재시작) 타이머가 유령으로 남는다.
       this.abort = () => {
@@ -185,6 +198,8 @@ export class MinigamePanel {
     this.root.classList.remove('visible');
     this.contentEl.replaceChildren();
     this.timerEl.classList.remove('visible');
+    // 배치는 판마다 정해진다 — 남겨 두면 다음 미니게임이 남의 배치를 물려받는다.
+    this.cardEl.classList.remove('stage');
     this.abort = null;
   }
 }

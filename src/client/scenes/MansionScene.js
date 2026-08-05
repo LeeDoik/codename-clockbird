@@ -96,7 +96,33 @@ const ALWAYS_LIT = new Set(['lobby']);
  * 연구실 문서 받침대 — 스테이지 목표. 잠긴 연구실(rooms.lab) 안쪽이다.
  * 2026-08-04 격자가 58→59칸이 되면서 다른 좌표와 함께 한 칸 옮겼다(47→48).
  */
-const DOCUMENT = { name: '신형 로봇 기록', col: 49, row: 17 };
+/**
+ * 연구실 문서 — 스테이지 2 의 목표물이자 스테이지 3 의 예고편.
+ *
+ * 제목·본문은 기획 목업(2026-08-05)의 것을 그대로 옮겼다. EVA Mark-1 이 "인간이
+ * 되도록 설계"됐다는 이 기록이, 수로 끝에서 만나는 아이(에바)의 반전을 미리 심는다.
+ * 마지막의 "……."는 오탈자가 아니다 — 다 읽기 전에 경보가 끊는다 (#readDocument).
+ */
+const DOCUMENT = {
+  name: '연구 기록 제7시리즈 — 대상: EVA Mark-1',
+  col: 49,
+  row: 17,
+  body: [
+    '외형은 인간과 완전히 동일하다.\n아니, 더 정확히 말하자면 — 인간이 되도록 설계되었다.',
+    '표피 아래 흐르는 것은 혈액이 아니라 정제된 윤활유이나, 촉감과 체온, 미세한 표정의 떨림까지 인간의 그것과 구별할 수 없는 수준에 도달했다.',
+    '기존 전투 로봇들이 힘과 내구성만을 좇아 인간을 흉내조차 내지 않았던 것과 달리, 본 개체는 그 반대의 길을 걷는다. 인간처럼 보이고, 인간처럼 움직이고, 인간처럼 학습한다.',
+    "그러면서도 신체 능력은 기존 전투 로봇의 평균치를 상회한다. 관절 구동 속도, 반응 시간, 하중 지지력 — 모든 수치가 '인간형'이라는 제약을 두었음에도 그 이상을 기록했다.",
+    '이는 인간의 형태가 결코 비효율의 증거가 아니며, 오히려 가장 정교하게 다듬어진 설계도였음을 반증한다.',
+    '다만 한 가지 변수가 남아있다.',
+    '…….',
+  ].join('\n\n'),
+};
+
+/**
+ * 문서를 읽도록 허락되는 시간 (ms) — 지나면 저절로 덮이고 경보가 울린다 (기획 목업).
+ * 본문을 거의 다 읽을 만큼은 주되, 마지막 줄에서 끊기는 느낌이 남게 잡았다.
+ */
+const DOC_ALARM_MS = 12_000;
 /**
  * 어둠 덮개의 가장자리가 풀어지는 거리(칸).
  *
@@ -736,17 +762,19 @@ export class MansionScene extends Phaser.Scene {
     }
   }
 
-  /** [E] — 연구실 문서. 입장만으로는 클리어가 아니다 (수정안 p.20). */
+  /**
+   * [E] — 연구실 문서. 입장만으로는 클리어가 아니다 (수정안 p.20).
+   *
+   * 읽기 시작한 순간 결말은 정해진다: 일정 시간이 지나면 문서가 저절로 덮이고 경보가
+   * 울린다 (기획 목업 2026-08-05). 먼저 덮어도(Space/Esc/클릭) 그 순간 울린다 —
+   * 어느 쪽이든 경보는 피할 수 없다. 조기 종료를 그냥 보내 주면 cleared 세션의
+   * reading 가드에 걸려 문서를 다시 펼 수도, 판을 진행할 수도 없는 구멍이 생긴다.
+   */
   async #readDocument() {
     if (this.reading || this.state.cleared) return;
     this.reading = true;
     this.dialogue.hide();
-    this.docPanel.open({
-      title: DOCUMENT.name,
-      body:
-        '받침대 위에 도면과 기록이 펼쳐져 있다.\n\n' +
-        '"…신형은 명령 없이도 판단한다. 통제는 더 이상 유효하지 않다."',
-    });
+    this.docPanel.open({ title: DOCUMENT.name, body: DOCUMENT.body });
 
     try {
       const res = await fetch('/api/mansion/document', {
@@ -759,23 +787,80 @@ export class MansionScene extends Phaser.Scene {
       this.#syncState(data.state);
     } catch (err) {
       this.reading = false;
+      // open() 이 onClose 를 비워 두었으므로 이 close 는 경보를 부르지 않는다.
       this.docPanel.close();
       this.dialogue.reply('오류', err.message);
       return;
     }
 
-    this.#endGame('document');
+    // 서버가 클리어를 기록한 뒤에야 경보를 건다 — 왕복이 실패했는데 연출만 나가면
+    // 화면은 스테이지 3 인데 세션은 진행 전인 채로 갈라진다.
+    if (!this.docPanel.isOpen) {
+      // 응답을 기다리는 사이에 이미 덮었다 — 바로 울린다.
+      this.#alarm();
+      return;
+    }
+    this.docPanel.onClose = () => this.#alarm();
+    // close() 가 onClose 를 부르므로 타이머는 덮기만 한다. 경보가 이미 울린 뒤에
+    // 도는 판(조기 종료)에서는 패널이 닫혀 있어 close() 가 그대로 무시된다.
+    this.time.delayedCall(DOC_ALARM_MS, () => this.docPanel.close());
   }
 
+  /**
+   * 경보 — 문서가 덮이는 순간 저택이 깨어난다 (기획 목업 2026-08-05).
+   *
+   * 결과 화면을 띄우지 않는다 — 판이 끝나는 자리가 아니라 이야기가 스테이지 3
+   * (지하 수로 탈출)으로 이어지는 자리다 (StageScene#toMansion 과 같은 원칙).
+   * 예전에는 여기서 '문서 확보' 결과 화면을 덮고 저택을 재시작하게 했다.
+   */
+  async #alarm() {
+    if (this.ended) return;
+    this.ended = true; // update() 를 멈춘다 — 이후는 연출 시간이다
+    this.player.body.setVelocity(0, 0);
+    // 어느 경로로 왔든 문서는 이미 덮여 있지만(close 가 부른다), 안전하게 한 번 더 —
+    // onClose 를 먼저 비워 close() → #alarm 재진입 고리를 끊는다.
+    this.docPanel.onClose = null;
+    this.docPanel.close();
+
+    // 소리가 먼저 온다 — 무슨 일이 벌어졌는지는 아직 모른다.
+    this.cameras.main.shake(320, 0.004);
+    this.dialogue.show('연구실', '(밖에서 소란스러운 소리가 들린다.)');
+    this.dialogue.setHint('');
+    await this.#beat(2000);
+
+    // 경보 방송 — 저택의 로봇들이 깨어난다.
+    this.cameras.main.flash(240, 194, 37, 26);
+    this.dialogue.show('경보', '"침입자 정보 발견, 경계 태세 강화."');
+    await this.#beat(2600);
+
+    this.dialogue.show('나', '이런, 일단 이 기록들을 챙겨서 탈출하자.');
+    await this.#beat(2600);
+
+    // 탈출 대사 출력 후 페이드 아웃 (목업 3) — 받는 쪽 연출은 EscapeScene#playIntro.
+    this.dialogue.hide();
+    this.cameras.main.fadeOut(900, 0, 0, 0);
+    this.uiCam?.fadeOut(900, 0, 0, 0);
+    this.hud.fadeOut(900); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Escape'));
+  }
+
+  /** 연출용 사이 — delayedCall 을 await 할 수 있게 감싼다 (StageScene#beat 과 같은 모양). */
+  #beat(ms) {
+    return new Promise((resolve) => this.time.delayedCall(ms, resolve));
+  }
+
+  /**
+   * 판을 패배로 끝낸다 — 지금 여기로 오는 길은 밀고('reported')뿐이다.
+   * 문서 열람은 2026-08-05 부터 결과 화면 대신 스테이지 3 으로 이어진다 (#alarm).
+   */
   #endGame(outcome) {
     if (this.ended) return;
     this.ended = true;
     this.player.body.setVelocity(0, 0);
 
+    // 마지막 대사가 닫힌 뒤 한 호흡 두고 결과를 덮는다 — 즉시 덮으면 무슨 일이
+    // 있었는지 되짚을 틈이 없다.
     this.time.delayedCall(2000, () => {
-      // 문서를 읽는 2초의 여운은 그대로 두고, 결과 화면이 뜨는 순간 종이를 접는다
-      // — #docpanel 은 z-index 를 가져 결과 화면(#result)을 덮기 때문이다.
-      this.docPanel?.close();
       this.result.show({
         outcome,
         codeWord: null,

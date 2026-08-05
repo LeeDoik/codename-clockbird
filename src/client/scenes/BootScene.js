@@ -22,10 +22,21 @@ import cleanerSouthUrl from '../assets/npc/cleaner-south.png';
 import clerkSouthUrl from '../assets/npc/clerk-south.png';
 import guardSouthUrl from '../assets/npc/guard-south.png';
 import coachSouthUrl from '../assets/npc/coach-south.png';
+import maidSouthUrl from '../assets/npc/maid-south.png';
+import engineerSouthUrl from '../assets/npc/engineer-south.png';
+import smugglerSouthUrl from '../assets/npc/smuggler-south.png';
+import musicianSouthUrl from '../assets/npc/musician-south.png';
+import floristSouthUrl from '../assets/npc/florist-south.png';
+import porterSouthUrl from '../assets/npc/porter-south.png';
+import bakerSouthUrl from '../assets/npc/baker-south.png';
+import newsboySouthUrl from '../assets/npc/newsboy-south.png';
 import watchmakerIdleUrl from '../assets/npc/watchmaker-idle.png';
-import maidIdleUrl from '../assets/npc/maid-idle.png';
-import engineerIdleUrl from '../assets/npc/engineer-idle.png';
-import musicianIdleUrl from '../assets/npc/musician-idle.png';
+import robotIdleUrl from '../assets/npc/robot-idle.png';
+import robotWalkUrl from '../assets/npc/robot-walk.png';
+import sentryIdleUrl from '../assets/npc/sentry-idle.png';
+import sentryWalkUrl from '../assets/npc/sentry-walk.png';
+import evaIdleUrl from '../assets/npc/eva-idle.png';
+import evaWalkUrl from '../assets/npc/eva-walk.png';
 import playerIdleUrl from '../assets/player/player-idle.png';
 import playerWalkUrl from '../assets/player/player-walk.png';
 import {
@@ -35,6 +46,24 @@ import {
   PLAYER_WALK_RANGES,
 } from '../entities/playerSprite.js';
 import { NPC_TEXTURE } from '../entities/npcSprite.js';
+import {
+  ROBOT_ANIM,
+  ROBOT_FRAME_SIZE,
+  ROBOT_IDLE_FRAMES,
+  ROBOT_WALK_RANGES,
+} from '../entities/robotSprite.js';
+import {
+  SENTRY_ANIM,
+  SENTRY_FRAME_SIZE,
+  SENTRY_IDLE_FRAMES,
+  SENTRY_WALK_RANGES,
+} from '../entities/sentrySprite.js';
+import {
+  EVA_ANIM,
+  EVA_FRAME_SIZE,
+  EVA_IDLE_FRAMES,
+  EVA_WALK_RANGES,
+} from '../entities/evaSprite.js';
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 
@@ -63,7 +92,9 @@ export class BootScene extends Phaser.Scene {
     this.load.image('mansion-bg', mansionBgUrl);
     this.load.image('escape-bg', escapeBgUrl);
     this.load.image('mansion-door-open', mansionDoorUrl);
-    // 캐릭터 8프레임: 0 플레이어 / 1 시계공 / 2 하녀 / 3 기관사 / 4 밀수꾼 / 5 악사 / 6 시민 / 7 순찰 로봇
+    // 캐릭터 8프레임 — 이제 둘만 남았다. 0 은 **보이지 않는 충돌 바디**(worldParts.createPlayer
+    // 가 그 위에 진짜 그림을 얹는다), 5 는 탈출의 아이다.
+    // 나머지(거리 인물·순찰 로봇·감시 로봇)는 전부 전용 아트로 갈아 끼웠다 (2026-08-04).
     this.load.spritesheet('chars', charsUrl, { frameWidth: 32, frameHeight: 32 });
     // 본부 NPC 4인 — PixelLab 남향 정지 그림. 200×200 한 장씩이라 spritesheet 가
     // 아니라 image 로 싣는다. 이 인물들은 제자리에 서 있기만 해서 프레임이 하나면
@@ -83,15 +114,21 @@ export class BootScene extends Phaser.Scene {
     this.load.image(NPC_TEXTURE.clerk, clerkSouthUrl);
     this.load.image(NPC_TEXTURE.guard, guardSouthUrl);
     this.load.image(NPC_TEXTURE.coach, coachSouthUrl);
-    // 거리(스테이지 1) 동료 아이들 모션 — 같은 256×256 12프레임이지만 시트 배치가
-    // 6×2 인 것과 12×1 인 것이 섞여 있다. 프레임 크기만 맞으면 인덱스는 같으므로
-    // 로더는 구분하지 않는다. 밀수꾼(smuggler)·접선책은 전용 아트가 아직 없어
-    // chars.png 프레임을 그대로 쓴다 (design/characters/portrait-map.md 참조).
+    // 거리(스테이지 1) 8인 — 동료 넷과 시민 넷. 저택과 같은 규격의 정지 그림이다
+    // (2026-08-04, 기획 배치도). 밀수꾼(smuggler)까지 전용 아트가 생겨서 거리에서
+    // chars.png 로 서는 인물은 이제 없다.
+    this.load.image(NPC_TEXTURE.maid, maidSouthUrl);
+    this.load.image(NPC_TEXTURE.engineer, engineerSouthUrl);
+    this.load.image(NPC_TEXTURE.smuggler, smugglerSouthUrl);
+    this.load.image(NPC_TEXTURE.musician, musicianSouthUrl);
+    this.load.image(NPC_TEXTURE.florist, floristSouthUrl);
+    this.load.image(NPC_TEXTURE.porter, porterSouthUrl);
+    this.load.image(NPC_TEXTURE.baker, bakerSouthUrl);
+    this.load.image(NPC_TEXTURE.newsboy, newsboySouthUrl);
+    // 에이던(watchmaker)만 예전 256×256 12프레임 아이들 시트를 그대로 쓴다 — 기획
+    // 배치도에 그려진 것도 이 그림이라(대조 확인) 갈아끼울 이유가 없었다.
     this.load.spritesheet('watchmakerIdle', watchmakerIdleUrl, { frameWidth: 256, frameHeight: 256 });
-    this.load.spritesheet('maidIdle', maidIdleUrl, { frameWidth: 256, frameHeight: 256 });
-    this.load.spritesheet('engineerIdle', engineerIdleUrl, { frameWidth: 256, frameHeight: 256 });
-    this.load.spritesheet('musicianIdle', musicianIdleUrl, { frameWidth: 256, frameHeight: 256 });
-    // 플레이어 — PixelLab 로 뽑은 시트를 scripts/import-player-sprite.js 가 구운 것.
+    // 플레이어 — PixelLab 로 뽑은 시트를 scripts/import-actor-sprites.js 가 구운 것.
     // 128×128 프레임. 대기 4장(아래·위·왼·오) · 걷기 32장(방향마다 8장).
     // 배치는 entities/playerSprite.js 가 단일 출처다.
     //
@@ -106,18 +143,42 @@ export class BootScene extends Phaser.Scene {
       frameWidth: PLAYER_FRAME_SIZE,
       frameHeight: PLAYER_FRAME_SIZE,
     });
+    // 거리(스테이지 1) 순찰 로봇 — 플레이어와 같은 구조다. 걷기 시트만 8×4 격자라
+    // 세로로도 여러 줄인데, frameWidth/Height 만 주면 Phaser 가 알아서 센다.
+    this.load.spritesheet(ROBOT_ANIM.texture, robotIdleUrl, {
+      frameWidth: ROBOT_FRAME_SIZE,
+      frameHeight: ROBOT_FRAME_SIZE,
+    });
+    this.load.spritesheet(ROBOT_ANIM.walkSheet, robotWalkUrl, {
+      frameWidth: ROBOT_FRAME_SIZE,
+      frameHeight: ROBOT_FRAME_SIZE,
+    });
+    // 탈출(스테이지 3) 감시 로봇 — 같은 구조의 다른 인물이다. 거리 쪽은 놋쇠 증기
+    // 자동인형이고 이쪽은 검은 장갑에 붉은 센서를 단 전투형이라 시트가 따로 있다.
+    this.load.spritesheet(SENTRY_ANIM.texture, sentryIdleUrl, {
+      frameWidth: SENTRY_FRAME_SIZE,
+      frameHeight: SENTRY_FRAME_SIZE,
+    });
+    this.load.spritesheet(SENTRY_ANIM.walkSheet, sentryWalkUrl, {
+      frameWidth: SENTRY_FRAME_SIZE,
+      frameHeight: SENTRY_FRAME_SIZE,
+    });
+    // 에바(스테이지 3 심문 상대) — 로봇들과 같은 구조다. 플레이어 앞까지 걸어오므로
+    // 방향별 걷기가 필요하다. 규격은 entities/evaSprite.js 가 단일 출처다.
+    this.load.spritesheet(EVA_ANIM.texture, evaIdleUrl, {
+      frameWidth: EVA_FRAME_SIZE,
+      frameHeight: EVA_FRAME_SIZE,
+    });
+    this.load.spritesheet(EVA_ANIM.walkSheet, evaWalkUrl, {
+      frameWidth: EVA_FRAME_SIZE,
+      frameHeight: EVA_FRAME_SIZE,
+    });
   }
 
   create() {
-    // 12프레임 아이들 시트 공통 등록 — 시트마다 프레임 수·크기는 같고 키만 다르다.
-    // 본부 4인은 여기 없다: 정지 그림 한 장이라 애니메이션이 없다. 남은 것은
-    // 거리(스테이지 1) 동료들이다.
-    for (const key of [
-      'watchmakerIdle',
-      'maidIdle',
-      'engineerIdle',
-      'musicianIdle',
-    ]) {
+    // 12프레임 아이들 시트 등록 — 이제 거리의 에이던 하나뿐이다.
+    // 나머지 인물은 정지 그림 한 장이거나 아래의 방향별 시트를 쓴다.
+    for (const key of ['watchmakerIdle']) {
       if (this.anims.exists(key)) continue;
       this.anims.create({
         key,
@@ -155,6 +216,33 @@ export class BootScene extends Phaser.Scene {
         frameRate: Math.round(count / CYCLE_SECONDS),
         repeat: -1,
       });
+    }
+
+    // 로봇 둘 — 위와 같은 규칙이다. 다만 걸음이 사람보다 느긋해야 기계처럼 보여서
+    // 한 바퀴를 조금 길게 잡았다. Patrol 은 경계 레벨에 따라 이동 속도가 오르는데,
+    // 재생 속도는 그대로 둔다 — 빨라진 걸음이 그림보다 앞서는 편이 오히려 급해 보인다.
+    const ROBOT_CYCLE_SECONDS = 0.8;
+    for (const [anim, idleFrames, walkRanges] of [
+      [ROBOT_ANIM, ROBOT_IDLE_FRAMES, ROBOT_WALK_RANGES],   // 거리 — 놋쇠 증기 자동인형
+      [SENTRY_ANIM, SENTRY_IDLE_FRAMES, SENTRY_WALK_RANGES], // 탈출 — 검은 장갑 전투형
+      [EVA_ANIM, EVA_IDLE_FRAMES, EVA_WALK_RANGES],          // 탈출 — 에바(심문 상대)
+    ]) {
+      for (const [dir, frame] of Object.entries(idleFrames)) {
+        const key = anim[`idle${dir}`];
+        if (this.anims.exists(key)) continue;
+        this.anims.create({ key, frames: [{ key: anim.texture, frame }], frameRate: 1, repeat: -1 });
+      }
+      for (const [dir, [start, end]] of Object.entries(walkRanges)) {
+        const key = anim[`walk${dir}`];
+        if (this.anims.exists(key)) continue;
+        const count = end - start + 1;
+        this.anims.create({
+          key,
+          frames: this.anims.generateFrameNumbers(anim.walkSheet, { start, end }),
+          frameRate: Math.round(count / ROBOT_CYCLE_SECONDS),
+          repeat: -1,
+        });
+      }
     }
 
     const params = new URLSearchParams(window.location.search);

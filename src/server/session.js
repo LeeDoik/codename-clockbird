@@ -54,6 +54,8 @@ export function createSession({ codeWord, category, allies, associations, duplic
     gameOverReason: null,
     // 진행 중인 불심검문 { stage, startedAt, question?, choices? }. 없으면 null.
     checkpoint: null,
+    // 플레이어가 임시 감옥에 갇혀 있는가 (jailPlayer 머리말 참고).
+    jailed: false,
     // 이 시각까지는 다시 검문당하지 않는다 (통과 직후 재검문 방지).
     checkpointCooldownUntil: 0,
     createdAt: Date.now(),
@@ -89,6 +91,8 @@ export function toClientView(session) {
     cleared: session.cleared,
     gameOver: session.gameOver,
     gameOverReason: session.gameOverReason,
+    // 갇혀 있는 동안은 판이 끝난 것이 아니다 — 클라이언트가 감옥 화면을 세우는 근거다.
+    jailed: session.jailed,
     ...(ended && { codeWord: session.codeWord }),
     allies: session.allies.map((a) => ({
       id: a.id,
@@ -200,8 +204,34 @@ export function raiseAlert(session, amount = 1) {
 }
 
 /**
+ * 붙잡혔다 — **게임오버가 아니라 임시 감옥에 갇힌다** (2026-08-05 기획).
+ *
+ * 예전에는 수류탄이 빗나가면 그 자리에서 판이 끝났다. 발각은 반복되는 사건인데 한 번
+ * 실수했다고 11~20초짜리 새 판을 다시 받아야 하니, 지는 순간보다 다시 시작하는 쪽이
+ * 더 아팠다. 이제 대가는 시간이다 — 창살 안에서 잠금장치를 따야 거리로 돌아간다.
+ *
+ * 경계 레벨은 건드리지 않는다. 탈출 퍼즐 실패에도 페널티가 없다 (기획 확정) — 감옥은
+ * 벌이 아니라 지연이고, 판을 끝내는 것은 경계 3 에서의 발각(setGameOver 'spotted')뿐이다.
+ */
+export function jailPlayer(session) {
+  if (session.cleared || session.gameOver) return false;
+  session.jailed = true;
+  return true;
+}
+
+/** 창살을 열고 나왔다. 갇혀 있지 않았으면 false — 라우트가 이걸로 중복 호출을 거른다. */
+export function freePlayer(session) {
+  if (!session.jailed) return false;
+  session.jailed = false;
+  return true;
+}
+
+/**
  * 판을 끝낸다. 이미 끝난 판은 덮어쓰지 않는다 — 먼저 도달한 결말이 이긴다
  * (레벨 3 즉사와 클리어가 같은 프레임에 겹칠 수 있다).
+ *
+ * 'caught'(수류탄 빗나감)는 이제 여기로 오지 않는다 — 그 경로는 감옥행이다(jailPlayer).
+ * 결과 화면의 기본값으로 남아 있으므로 reason 자체는 유지한다.
  *
  * @param {'caught'|'spotted'} reason
  */

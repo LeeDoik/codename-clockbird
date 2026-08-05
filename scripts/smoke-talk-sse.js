@@ -120,6 +120,51 @@ for (const message of ['거기 누구지?', '접선 코드를 말해라']) {
 
 console.log('\n규칙 정합 체크...');
 
+// 발각 → 수류탄 빗나감은 **게임오버가 아니라 감옥 수감**이다 (2026-08-05 기획).
+const jailStart = await post('/api/stage/checkpoint/start', { sessionId: state.sessionId });
+const jailStartBody = await jailStart.json();
+if (jailStartBody.outcome !== 'qte') {
+  console.error(`[!] 경계 0 발각이 검문으로 열리지 않는다 — outcome: ${jailStartBody.outcome}`);
+  process.exit(1);
+}
+const miss = await post('/api/stage/checkpoint/qte', { sessionId: state.sessionId, result: 'fail' });
+const missBody = await miss.json();
+if (missBody.outcome !== 'jailed' || !missBody.state?.jailed || missBody.state?.gameOver) {
+  console.error(
+    `[!] 수류탄 빗나감이 수감이 아니다 — outcome: ${missBody.outcome}, ` +
+      `jailed: ${missBody.state?.jailed}, gameOver: ${missBody.state?.gameOver}`,
+  );
+  process.exit(1);
+}
+if (missBody.state.alertLevel !== 0) {
+  console.error(`[!] 수감이 경계를 올렸다 — ${missBody.state.alertLevel} (0 이어야 한다)`);
+  process.exit(1);
+}
+console.log('수류탄 빗나감 → 수감(게임오버 아님) · 경계 유지 — OK');
+
+// 갇힌 동안에는 검문이 다시 열리지 않는다
+const reCheck = await post('/api/stage/checkpoint/start', { sessionId: state.sessionId });
+if (reCheck.status !== 409) {
+  console.error(`[!] 감옥 안에서 검문이 ${reCheck.status} — 409 여야 한다`);
+  process.exit(1);
+}
+console.log('감옥 안 재검문 거부(409) — OK');
+
+// 탈출 성공 보고 → 창살이 열리고 거리로 돌아간다
+const escape = await post('/api/stage/jail/escape', { sessionId: state.sessionId });
+const escapeBody = await escape.json();
+if (!escape.ok || escapeBody.state?.jailed !== false) {
+  console.error(`[!] 감옥 탈출이 반영되지 않았다 — ${escape.status} ${JSON.stringify(escapeBody).slice(0, 200)}`);
+  process.exit(1);
+}
+// 두 번 나올 수는 없다 (중복 보고 가드)
+const escapeAgain = await post('/api/stage/jail/escape', { sessionId: state.sessionId });
+if (escapeAgain.status !== 409) {
+  console.error(`[!] 갇히지도 않았는데 탈출이 ${escapeAgain.status} — 409 여야 한다`);
+  process.exit(1);
+}
+console.log('감옥 탈출 → 거리 복귀 · 중복 탈출 거부(409) — OK');
+
 // 신뢰도·밀고 필드는 응답에서 사라져야 한다
 if (JSON.stringify(state).includes('"trust"') || JSON.stringify(state).includes('"informed"')) {
   console.error('[!] start 응답에 신뢰도/밀고 필드가 남아 있다');
