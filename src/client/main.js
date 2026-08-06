@@ -42,10 +42,10 @@ const game = new Phaser.Game({
       fixedStep: false,
     },
   },
-  // Boot(에셋 로드) → Title(메뉴 — [게임 시작] 시 스테이지 fetch 착수) → Intro(오프닝)
+  // Boot(에셋 로드) → Intro(오프닝) → Title(메뉴 — [게임 시작] 시 스테이지 fetch 착수)
   //   → Tutorial(본부 훈련) → Stage(거리) → Mansion(저택 잠입) → Escape(지하 탈출)
   //   → Ending(본부 귀환)
-  scene: [BootScene, TitleScene, IntroScene, TutorialScene, StageScene, MansionScene, EscapeScene, EndingScene],
+  scene: [BootScene, IntroScene, TitleScene, TutorialScene, StageScene, MansionScene, EscapeScene, EndingScene],
 });
 
 // 개발 콘솔·자동화 검증에서 씬 상태를 들여다보기 위한 손잡이 (프로덕션 빌드에서는 빠진다).

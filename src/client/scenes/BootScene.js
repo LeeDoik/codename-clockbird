@@ -291,13 +291,14 @@ export class BootScene extends Phaser.Scene {
       return;
     }
 
-    // 정상 흐름 — 타이틀부터. 스테이지 시작 fetch 는 예전처럼 여기서 쏘지 않고
-    // 타이틀에서 [게임 시작]을 누른 순간 쏜다(TitleScene) — 타이틀에 머무는 동안
-    // LLM 세션을 열어 둘 이유가 없고, 대기는 여전히 오프닝·본부가 가린다.
+    // 정상 흐름 — 오프닝부터. 다 보거나 건너뛰면 타이틀이 뜨고, 게임 입장은
+    // 타이틀의 [게임 시작]이 맡는다. 스테이지 시작 fetch 도 그 순간 쏜다(TitleScene)
+    // — 오프닝·타이틀에 머무는 동안 LLM 세션을 열어 둘 이유가 없고, 대기는 본부
+    // 훈련(LLM 없이 시작한다)이 가린다.
     //
     // 웹폰트가 준비되기 전에 씬 텍스트를 그리면 폴백 고딕으로 래스터돼 굳는다.
     // 2초 안에 안 오면 그대로 진행 — CDN 이 막혀도 게임은 열려야 한다.
-    waitForFonts(2000).then(() => this.scene.start('Title'));
+    waitForFonts(2000).then(() => this.scene.start('Intro'));
   }
 
   /**
