@@ -1,4 +1,5 @@
 import { DEFAULT_CHAR_HEIGHT, nearestOf, worldToScreen } from './worldParts.js';
+import { playSfx } from '../audio/SoundManager.js';
 
 /**
  * 공통 인터랙션 레이어 (스펙 §2).
@@ -43,6 +44,8 @@ export class InteractionManager {
     this.dialogue = dialogue;
     this.nodes = new Map();
     this.nearest = null;
+    /** 말풍선이 지금 보이는 중인가 — 나타나는 순간에만 안내음을 한 번 울린다. */
+    this.bubbleShown = false;
     this.defaultRange = charHeight * RANGE_RATIO;
     this.bubbleDy = charHeight * BUBBLE_RATIO;
     this.#buildBubble();
@@ -125,6 +128,7 @@ export class InteractionManager {
     if (suppress || this.dialogue.isOpen) {
       // 대화 중에는 말풍선이 소음이다. 노드 추적은 유지한다 (F/R 분기가 current 를 쓴다).
       this.#hideBubble();
+      this.bubbleShown = false;
     }
     const items = [];
     let maxRange = this.defaultRange;
@@ -145,8 +149,12 @@ export class InteractionManager {
 
     this.nearest = near ?? null;
     if (!this.nearest || suppress || this.dialogue.isOpen) {
-      if (!this.nearest) this.#hideBubble();
+      if (!this.nearest) { this.#hideBubble(); this.bubbleShown = false; }
       return;
+    }
+    if (!this.bubbleShown) {
+      this.bubbleShown = true;
+      playSfx('textNext');
     }
     const { x, y } = this.#posOf(this.nearest);
     const verb = VERB[this.nearest.type] ?? '대화';
@@ -188,6 +196,7 @@ export class InteractionManager {
 
       case 'door':
         if (node.isUnlocked?.()) {
+          playSfx('close');
           this.dialogue.show('문', node.openText ?? '문이 열렸다.');
           this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
           node.onOpen?.();

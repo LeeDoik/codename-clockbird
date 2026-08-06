@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TitleScreen } from '../ui/TitleScreen.js';
 import { fetchStageStart } from '../net.js';
+import { playBgm } from '../audio/SoundManager.js';
 
 /**
  * 타이틀 씬 — Boot 다음, 플레이어가 처음 보는 화면이다.
@@ -20,6 +21,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create() {
+    playBgm('title');
     const title = new TitleScreen();
     title.show((key) => {
       if (key === 'start') {

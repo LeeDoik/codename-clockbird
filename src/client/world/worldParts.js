@@ -384,6 +384,9 @@ export function createPlayerVisual(
 /**
  * 방향키 + WASD → 속도. 대화 입력 중 정지는 호출하는 씬이 판단한다.
  * speed 를 안 주면 createPlayer 가 맵 축척으로 잡아 둔 값을 쓴다.
+ *
+ * @returns {boolean} 이번 프레임에 실제로 움직였는가 — 호출하는 씬이 발소리 루프를
+ *   켜고 끄는 데 쓴다 (audio/SoundManager.js 의 setLoop('walk', moving)).
  */
 export function applyMovement(player, { cursors, wasd, speed = player.walkSpeed ?? 200 }) {
   const left = cursors.left.isDown || wasd.A.isDown;
@@ -400,6 +403,7 @@ export function applyMovement(player, { cursors, wasd, speed = player.walkSpeed 
   // 대각선에서만 발이 41% 미끄러진다.
   const len = Math.hypot(dx, dy) || 1;
   player.body.setVelocity((dx / len) * speed, (dy / len) * speed);
+  return dx !== 0 || dy !== 0;
 }
 
 /**

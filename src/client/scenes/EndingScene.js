@@ -21,6 +21,7 @@ import {
   NPC_TEXTURE,
 } from '../entities/npcSprite.js';
 import { InteractionManager } from '../world/interact.js';
+import { setLoop } from '../audio/SoundManager.js';
 import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
 
@@ -166,8 +167,10 @@ export class EndingScene extends Phaser.Scene {
     }
 
     // 대화 중에는 걷지 않는다.
+    let moving = false;
     if (this.dialogue.isOpen) this.player.body.setVelocity(0, 0);
-    else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    else moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    setLoop('walk', moving);
     this.playerVisual.update();
 
     this.interact.update(this.player);

@@ -36,6 +36,7 @@ import { InteractionManager } from '../world/interact.js';
 import { makeBlockedLookup } from '../world/los.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS, nameLabelStyle } from '../ui/theme.js';
+import { playBgm, setLoop } from '../audio/SoundManager.js';
 // 타일 스튜디오(tools/tilemap-studio.html)로 만들어 내보낸 맵. Vite 가 JSON 을 파싱해 객체로 준다.
 import mapData from '../assets/map.json';
 import streetProps from '../assets/street-props.json';
@@ -166,6 +167,7 @@ export class StageScene extends Phaser.Scene {
   }
 
   create() {
+    playBgm('stage1');
     this.dialogue = new DialogueBox();
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
@@ -690,11 +692,13 @@ export class StageScene extends Phaser.Scene {
     // 대화창 입력 중에는 이동을 막는다.
     const typing = this.dialogue.isTyping;
 
+    let moving = false;
     if (typing) {
       this.player.body.setVelocity(0, 0);
     } else {
-      applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
+      moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
     }
+    setLoop('walk', moving);
     this.playerVisual.update();
 
     // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운

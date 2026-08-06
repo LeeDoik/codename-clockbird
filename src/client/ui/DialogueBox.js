@@ -1,3 +1,5 @@
+import { playSfx } from '../audio/SoundManager.js';
+
 /**
  * DOM 오버레이 대화창.
  *
@@ -221,6 +223,7 @@ export class DialogueBox {
     // busy 규약이 dismissed 를 세워 도착할 응답이 통째로 버려진다. Esc(명시적 취소)만 남긴다.
     if (this.busy) return true;
     if (this.hasMore) {
+      playSfx('textNext');
       this.pageIdx += 1;
       this.#renderPage();
       return true;
@@ -320,6 +323,7 @@ export class DialogueBox {
     this.streamBuf = '';
     this.textEl.classList.remove('thinking');
     if (this.dismissed) return full;
+    playSfx('textNext');
     this.onPagesDone = opts.onPagesDone ?? null;
     this.pages = this.#paginate(full);
     this.pageIdx = 0;

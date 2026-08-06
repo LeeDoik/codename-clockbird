@@ -1,3 +1,5 @@
+import { playSfx } from '../audio/SoundManager.js';
+
 /**
  * 미니게임 패널 — 감옥 퍼즐과 검문 타이밍이 공유하는 껍데기.
  *
@@ -150,6 +152,7 @@ export class MinigamePanel {
           return;
         }
 
+        playSfx(value ? 'clear' : 'fail');
         this.verdictEl.textContent = value ? '성공' : '실패';
         this.verdictEl.className = value ? 'ok' : 'fail';
         // 결과를 눈으로 확인할 틈. 이게 없으면 패널이 깜빡하고 사라져 뭐가 됐는지 모른다.
