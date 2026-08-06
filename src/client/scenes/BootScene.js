@@ -280,18 +280,24 @@ export class BootScene extends Phaser.Scene {
       return;
     }
 
-    // 스테이지 시작을 지금 쏘고 그 대기를 오프닝이 가린다. 프로미스는 {state} 또는 {error}
-    // 로만 resolve 하게 감싼다 — 오프닝이 끝날 때까지 소비되지 않아도 unhandledrejection
-    // 경고가 뜨지 않도록(그래서 IntroScene 이 30여 초 뒤에 한가롭게 await 해도 안전하다).
-    const startPromise = fetchStageStart();
-    this.registry.set('startPromise', startPromise);
+    // 개발용(?nointro) — 타이틀·오프닝을 모두 건너뛰고 곧장 거리로 간다. 이 길은
+    // 오프닝이 대기를 못 가리므로 fetch 를 지금 쏘고 로딩 화면(#legacyBoot)이 덮는다.
+    // 프로미스는 {state} 또는 {error} 로만 resolve 하게 감싸져 있어(net.js) 소비가
+    // 늦어도 unhandledrejection 경고가 뜨지 않는다.
+    if (noIntro) {
+      const startPromise = fetchStageStart();
+      this.registry.set('startPromise', startPromise);
+      waitForFonts(2000).then(() => this.#legacyBoot(startPromise));
+      return;
+    }
 
+    // 정상 흐름 — 타이틀부터. 스테이지 시작 fetch 는 예전처럼 여기서 쏘지 않고
+    // 타이틀에서 [게임 시작]을 누른 순간 쏜다(TitleScene) — 타이틀에 머무는 동안
+    // LLM 세션을 열어 둘 이유가 없고, 대기는 여전히 오프닝·본부가 가린다.
+    //
     // 웹폰트가 준비되기 전에 씬 텍스트를 그리면 폴백 고딕으로 래스터돼 굳는다.
     // 2초 안에 안 오면 그대로 진행 — CDN 이 막혀도 게임은 열려야 한다.
-    waitForFonts(2000).then(() => {
-      if (noIntro) this.#legacyBoot(startPromise);
-      else this.scene.start('Intro');
-    });
+    waitForFonts(2000).then(() => this.scene.start('Title'));
   }
 
   /**

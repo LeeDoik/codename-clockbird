@@ -13,6 +13,14 @@
       media="print"
       onload="this.media='all'"
     />
+    <!-- 타이틀 화면 전용 픽셀 서체(Galmuri) — 위와 같은 비차단 로드. DOM 글자라
+         폰트가 늦게 와도 굳지 않고 도착 즉시 다시 그려진다 (waitForFonts 불필요). -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
     <style>
       /* 디자인 토큰 — src/client/ui/theme.js 와 짝이다 (색을 바꾸면 두 곳 함께). */
       :root {
@@ -256,6 +264,141 @@
       }
       #intro-unmute.visible { display: block; }
       #intro-unmute:hover { filter: brightness(1.15); }
+
+      /* ── 타이틀 화면 ─────────────────────────────────────
+         ui/TitleScreen.js 와 짝. 클로드 디자인 「태엽새 타이틀 화면.dc.html」의 1920 기준
+         좌표를 --s 단위로 그대로 옮겼다 — 디자인 파일의 px 값과 아래 숫자가 1:1 이다.
+         서체가 본문과 다른 픽셀 폰트(Galmuri)인 것은 의도다: 타이틀은 "기계가 출력한
+         화면"이고 게임 본문은 "사람이 쓴 종이"다. */
+      #title {
+        position: absolute;
+        inset: 0;
+        display: none;
+        overflow: hidden;
+        background: linear-gradient(180deg, var(--ink) 0%, var(--leather) 58%, var(--ink) 100%);
+        font-family: 'Galmuri11', var(--font-head);
+      }
+      #title.visible { display: block; }
+      /* 배경 그림 — public/title/title-city.png (원본은 클로드 디자인 프로젝트의
+         assets/title-city.png, 2752×1536 — public/title/README.md 참고).
+         56% 지점을 보는 이유: 시계탑 무리가 그림 오른쪽에 있어, 왼쪽 글자 기둥과
+         겹치지 않는 구도가 이 지점이다. 파일이 없으면(onerror) 조용히 접히고 위의
+         가죽 그라디언트가 바탕으로 남는다 — public/intro 와 같은 규약. */
+      #title-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 56% bottom;
+        image-rendering: pixelated;
+      }
+      /* 조명 네 겹을 한 요소에 얹는다 (먼저 적은 것이 위 층) —
+         ① 주사선(브라운관) ② 왼쪽 어둠(글자 자리) ③ 상하 어둠 ④ 구석 비네트 */
+      #title-fx {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0 calc(2 * var(--s)), transparent calc(2 * var(--s)) calc(5 * var(--s))),
+          linear-gradient(90deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.72) 22%, rgba(0, 0, 0, 0.34) 42%, rgba(0, 0, 0, 0.08) 56%, transparent 68%),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0%, transparent 26%, transparent 74%, rgba(0, 0, 0, 0.5) 100%),
+          radial-gradient(ellipse at 46% 40%, transparent 54%, rgba(0, 0, 0, 0.5) 100%);
+      }
+      #title-panel {
+        position: absolute;
+        left: calc(110 * var(--s));
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      #title-codename {
+        display: inline-block;
+        font-size: calc(20 * var(--s));
+        letter-spacing: 0.34em;
+        color: var(--ink);
+        background: var(--brass-lo);
+        padding: calc(6 * var(--s)) calc(12 * var(--s)) calc(4 * var(--s));
+      }
+      /* 3단 그림자 계단이 돌출 글자를 만든다 — 디자인 원본 그대로. */
+      #title-name {
+        font-size: calc(146 * var(--s));
+        line-height: 1.04;
+        letter-spacing: 0.03em;
+        color: var(--brass-hi);
+        margin-top: calc(12 * var(--s));
+        text-shadow:
+          calc(5 * var(--s)) calc(5 * var(--s)) 0 var(--brass),
+          calc(10 * var(--s)) calc(10 * var(--s)) 0 var(--brass-lo),
+          calc(15 * var(--s)) calc(15 * var(--s)) 0 var(--ink);
+      }
+      #title-sub {
+        font-size: calc(28 * var(--s));
+        letter-spacing: 0.4em;
+        color: var(--paper-dim);
+        margin-top: calc(22 * var(--s));
+      }
+      #title-bars {
+        display: flex;
+        gap: calc(6 * var(--s));
+        margin: calc(24 * var(--s)) 0 calc(4 * var(--s));
+      }
+      #title-bars i { height: calc(8 * var(--s)); background: var(--brass-lo); }
+      #title-bars i:nth-child(1) { width: calc(56 * var(--s)); background: var(--brass); }
+      #title-bars i:nth-child(2) { width: calc(28 * var(--s)); }
+      #title-bars i:nth-child(3) { width: calc(14 * var(--s)); opacity: 0.6; }
+      #title-bars i:nth-child(4) { width: calc(8 * var(--s)); opacity: 0.35; }
+      #title-quote {
+        display: inline-block;
+        font-size: calc(21 * var(--s));
+        letter-spacing: 0.1em;
+        color: var(--paper-dim);
+        margin-bottom: calc(26 * var(--s));
+        background: rgba(10, 8, 5, 0.82);
+        padding: calc(8 * var(--s)) calc(14 * var(--s)) calc(6 * var(--s));
+      }
+      #title-menu {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: calc(8 * var(--s));
+      }
+      .title-item {
+        display: flex;
+        align-items: center;
+        gap: calc(14 * var(--s));
+        font-family: inherit;
+        font-size: calc(34 * var(--s));
+        letter-spacing: 0.1em;
+        border: none;
+        padding: calc(10 * var(--s)) calc(26 * var(--s)) calc(8 * var(--s)) calc(16 * var(--s));
+        cursor: pointer;
+        background: transparent;
+        color: var(--paper-dim);
+      }
+      .title-item .cursor { opacity: 0.3; }
+      .title-item.danger { color: var(--wax); }
+      /* 고른 줄 — 황동 판에 먹색 글자, 안쪽 이중 베벨. [게임 종료]만 봉랍색 판이다. */
+      .title-item.sel {
+        background: var(--brass);
+        color: var(--ink);
+        box-shadow:
+          inset calc(5 * var(--s)) calc(5 * var(--s)) 0 0 var(--brass-hi),
+          inset calc(-5 * var(--s)) calc(-5 * var(--s)) 0 0 var(--brass-lo);
+      }
+      .title-item.danger.sel { background: var(--wax); box-shadow: none; }
+      /* 깜빡임이 ease 가 아니라 steps 인 것도 원본 그대로 — 스르륵이 아니라 딸깍이어야
+         브라운관 커서다. */
+      .title-item.sel .cursor { opacity: 1; animation: title-blink 0.8s steps(1) infinite; }
+      @keyframes title-blink {
+        0%, 45% { opacity: 1; }
+        55%, 100% { opacity: 0.05; }
+      }
+      #title-hint {
+        margin-top: calc(18 * var(--s));
+        font-size: calc(19 * var(--s));
+        color: var(--paper-dim);
+        min-height: 1.2em;
+      }
 
       /* ── 대화창 ──────────────────────────────────────────
          DOM 오버레이인 이유는 한글 IME 와 스트리밍 표시. 배치는 인물과 글을 좌우로
@@ -2048,6 +2191,21 @@
           <div id="result-stats"></div>
           <button id="result-restart" class="sp-btn">다시 잠입한다</button>
           <div id="result-wait"></div>
+        </div>
+      </div>
+      <!-- 타이틀 화면 (ui/TitleScreen.js). 메뉴 버튼은 JS 가 #title-menu 에 심는다.
+           로딩 화면·베젤보다 앞(= 아래)이라 그 둘만 이 위에 올 수 있다. -->
+      <div id="title">
+        <img id="title-bg" src="/title/title-city.png" alt="" onerror="this.style.display='none'" />
+        <div id="title-fx"></div>
+        <div id="title-panel">
+          <div id="title-codename">CODENAME</div>
+          <div id="title-name">태엽새</div>
+          <div id="title-sub">HEART OF STEEL</div>
+          <div id="title-bars"><i></i><i></i><i></i><i></i></div>
+          <div id="title-quote">“강철은 인간의 마음을 이해할 수 없다”</div>
+          <div id="title-menu"></div>
+          <div id="title-hint"></div>
         </div>
       </div>
       <!-- 씬 전환 로딩 — 맨 끝(= 맨 위)이라 위의 모든 창을 덮는다 (ui/TransitionScreen.js) -->
