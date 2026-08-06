@@ -26,9 +26,18 @@ import {
 import { facingName } from '../entities/facing.js';
 import { makeBlockedLookup } from '../world/los.js';
 // 좌표·상수의 단일 출처. 씬은 여기서만 읽는다 — 씬 안에 좌표를 다시 적지 않는다.
-import { EVA, RESPAWN_GRACE_MS, SENTRY_HOMES, SPAWN, TILE, at } from '../world/escapeLayout.js';
+import {
+  EVA,
+  RESPAWN_GRACE_MS,
+  SENTRY_HOMES,
+  SPAWN,
+  TILE,
+  at,
+  makeRoamBlocked,
+} from '../world/escapeLayout.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { GameOverOverlay } from '../ui/GameOverOverlay.js';
 import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
 import { FONTS } from '../ui/theme.js';
 
@@ -128,8 +137,10 @@ export class EscapeScene extends Phaser.Scene {
 
     // 시야가 보는 벽은 충돌이 보는 벽과 같아야 한다 — 수로는 물이 시야를 막는다.
     this.isBlocked = makeBlockedLookup(escapeData, escapeProps);
-    // 로봇 셋은 정해진 길이 없다 — 맵 전역을 무작위로 돈다 (Sentry 머리말).
+    // 로봇 셋은 정해진 길이 없다 — 도로(ROAM_ROADS) 위를 무작위로 돈다 (Sentry 머리말).
+    // 배회만 도로로 제한하고 시야는 isBlocked 그대로다 — makeRoamBlocked 주석 참고.
     // cols·rows 는 길찾기가 격자를 훑는 범위다.
+    const roamBlocked = makeRoamBlocked(this.isBlocked);
     this.sentries = SENTRY_HOMES.map(
       (home) =>
         new Sentry(this, {
@@ -138,6 +149,7 @@ export class EscapeScene extends Phaser.Scene {
           cols: escapeData.cols,
           rows: escapeData.rows,
           isBlocked: this.isBlocked,
+          roamBlocked,
         }),
     );
 
@@ -181,6 +193,7 @@ export class EscapeScene extends Phaser.Scene {
 
     this.panel = new MinigamePanel();
     this.dialogue = new DialogueBox();
+    this.gameover = new GameOverOverlay();
     // 에바는 **처음에는 없다**. 북쪽 복도에 발을 들이는 순간 나타난다 (기획 도면).
     // 미리 세워 두면 맵 저쪽 끝에 서 있는 것이 보여서, 올라가는 내내 "저기 뭔가 있다"가
     // 되어 버린다 — 도면이 말하는 '등장'은 그 반대다.
@@ -306,13 +319,16 @@ export class EscapeScene extends Phaser.Scene {
   }
 
   /**
-   * 발각 — 결과 화면을 띄우지 않고 직전 체크포인트로 돌려보낸다.
+   * 발각 — 검거 연출(GameOverOverlay)을 세운 뒤 시작 지점으로 돌려보낸다.
    *
    * 계획서는 "즉시 게임오버"였지만 1분 30초짜리 맵을 통째로 다시 걷게 하면 그것이
-   * 루즈함의 주범이 된다 (스펙 §1 기각 이유).
+   * 루즈함의 주범이 된다 (스펙 §1 기각 이유) — 그래서 결과 화면·재시작 버튼 없이
+   * 연출 한 장면만 서고 저절로 다시 시작한다. 아무 키로 건너뛸 수 있어 손이 빠른
+   * 사람에게는 여전히 즉시 재시도다 (붉은 번쩍임 0.4 + 건너뛴 연출 + 걷힘 0.4).
    *
-   * 재시도 총 소요는 약 1.1초다 — 정지 0.4 + 페이드아웃 0.4 + 페이드인 0.3.
-   * (스펙 초안의 2.7초는 어림이 틀린 값이었다. 이 셋을 만지면 여기 숫자도 같이 고칠 것.)
+   * 순서가 중요하다: 연출이 화면을 다 덮은 채 끝나고(show 의 resolve), 그 **뒤에서**
+   * #respawn 이 판을 처음 상태로 되돌린 다음 hide 로 걷는다 — 덮개가 곧 암전이라
+   * 캐릭터가 순간이동하는 것이 보이지 않는다.
    */
   #caught() {
     if (this.respawning || this.ended) return;
@@ -321,9 +337,10 @@ export class EscapeScene extends Phaser.Scene {
     this.player.body.setVelocity(0, 0);
 
     this.cameras.main.flash(220, 194, 37, 26);
-    this.time.delayedCall(400, () => {
-      this.cameras.main.fadeOut(400, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.#respawn());
+    this.time.delayedCall(400, async () => {
+      await this.gameover.show(this.retries);
+      this.#respawn();
+      this.gameover.hide();
     });
   }
 
@@ -410,6 +427,11 @@ export class EscapeScene extends Phaser.Scene {
     // 도착하면 걸음을 멈추고 플레이어를 본 채로 선다.
     const dir = facingName(Math.atan2(py - this.eva.y, px - this.eva.x));
     this.eva.play(EVA_ANIM[`idle${dir}`]);
+
+    // 돌아갈 길 — 심문을 통과하면 이 ㄴ 자를 거꾸로 걸어 배수구로 물러난다
+    // (#toEnding). 플레이어는 심문 내내 얼어 있으므로(ended) 지금 잰 좌표가
+    // 그대로 유효하다. 같은 열이면 가로획이 없으니 세로 한 구간뿐이다.
+    this.evaRetreat = sameColumn ? [from] : [{ x: from.x, y: cornerY }, from];
   }
 
   async #startInterrogation() {
@@ -473,8 +495,9 @@ export class EscapeScene extends Phaser.Scene {
    * 여기서 끝나는데, 통과 판정이 뜨자마자 화면이 검어지면 그게 그냥 관문 하나
    * 넘은 것으로 읽힌다. 그래서 세 박자를 둔다:
    *
-   *   1. **에바가 사라진다** — 보내 준 쪽이 먼저 자리를 뜬다. 툭 꺼지지 않고
-   *      옅어지며 물러나야 "돌려보냈다"로 읽힌다.
+   *   1. **에바가 돌아간다** — 보내 준 쪽이 먼저 자리를 뜬다. 제자리에서
+   *      옅어지기만 하면 "사라졌다"이지 "제 갈 길을 갔다"가 아니다 — 왔던
+   *      ㄴ 자를 거꾸로 걸어 배수구까지 가서야 스며들 듯 옅어진다 (2026-08-06).
    *   2. **혼자 남아 속으로 말한다** — 화자 이름도 초상도 없다. 괄호로 묶인
    *      혼잣말이라 말이 아니라 생각이고, 이 장면에 다른 사람은 없다.
    *   3. 그러고 나서 암전 → 본부.
@@ -483,13 +506,29 @@ export class EscapeScene extends Phaser.Scene {
    * 이미 화면에 있는 스프라이트가 하고 있다.
    */
   async #toEnding() {
-    // 에바가 물러난다. 스프라이트를 곧장 숨기지 않고 트윈으로 옅어지게 한다 —
+    // 곧장 돌아서면 매정하다 — 패널이 닫히고 한 박자 마주 선 뒤 걸음을 뗀다.
+    await this.#beat(500);
+
+    // 왔던 길의 역순 (#evaApproach 가 남긴 evaRetreat): 가로획 → 꺾임 → 세로획.
+    const [corner, origin] = this.evaRetreat.length === 2
+      ? this.evaRetreat
+      : [null, this.evaRetreat[0]];
+    if (corner) {
+      const side = facingName(Math.atan2(0, corner.x - this.eva.x)); // Left | Right
+      await this.#evaWalk(corner.x, corner.y);
+      // 꺾이는 자리에서 한 박자 서서 돌아선다 — 올 때와 같은 이유 (#evaApproach).
+      this.eva.play(EVA_ANIM[`idle${side}`]);
+      await this.#beat(200);
+    }
+    await this.#evaWalk(origin.x, origin.y); // ㄴ 의 세로획 — 배수구로 올라간다
+
+    // 배수구 앞에서 옅어진다 — 나타났던 곳으로 스며들어야 "돌아갔다"가 맺힌다.
     // ⚠ 트윈이 alpha 를 0 으로 만들어 두므로 setVisible(false) 만으로는 안 되고,
     //   다시 세울 때 alpha 를 되돌려야 한다 (#respawn 은 이 경로를 안 타지만,
     //   나중에 재시작이 붙으면 여기서 물린다).
     await new Promise((resolve) => {
       this.tweens.add({
-        targets: this.eva, alpha: 0, duration: 700, ease: 'Sine.easeIn',
+        targets: this.eva, alpha: 0, duration: 450, ease: 'Sine.easeIn',
         onComplete: () => { this.eva.setVisible(false).setAlpha(1); resolve(); },
       });
     });

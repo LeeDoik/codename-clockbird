@@ -39,6 +39,11 @@ export class DialogueBox {
     this.onSend = null;
     /** 접선 코드 전달 */
     this.onCode = null;
+    /**
+     * 대화 모드에서 "접선(암호) 창으로 넘어가겠다"는 요청 (StageScene 동료 대화 전용).
+     * 세운 씬에서만 대화 모드에 코드 버튼이 보이고, 빈 입력칸의 [F] 도 이리로 온다.
+     */
+    this.onCodeRequest = null;
     /** 입력창 Enter 가 무엇을 하는지: 'chat'(대화) | 'code'(코드 전달) */
     this.inputMode = 'chat';
     /**
@@ -60,7 +65,12 @@ export class DialogueBox {
     this.onChoice = null;
 
     this.sendBtn.addEventListener('click', () => this.#fire(this.onSend));
-    this.codeBtn.addEventListener('click', () => this.#fire(this.onCode));
+    // 코드 버튼은 두 몫이다 — 코드 입력 모드에서는 쓴 것을 제출하고, 대화 모드에서는
+    // (onCodeRequest 를 세운 곳에서만 보인다) 접선 창으로 넘어간다.
+    this.codeBtn.addEventListener('click', () => {
+      if (this.inputMode === 'chat' && this.onCodeRequest) this.onCodeRequest();
+      else this.#fire(this.onCode);
+    });
     // Esc 와 같은 일을 한다 — busy 중이면 hide() 가 dismissed 표식을 남긴다.
     this.closeBtn.addEventListener('click', () => this.hide());
 
@@ -82,6 +92,22 @@ export class DialogueBox {
         this.hide();
         return;
       }
+      // 대화 모드의 **빈** 입력칸에서 [F] — 접선(암호) 창으로 전환한다 (onCodeRequest
+      // 를 세운 씬에서만). 쓰던 글이 있으면 글자로 둔다. 한글 IME 로 같은 물리 키(ㄹ)를
+      // 칠 때는 key 가 'Process' 로 오므로 여기 안 걸린다 — "로봇은…" 같은 첫 글자를
+      // 삼키지 않는다.
+      if (
+        (e.key === 'f' || e.key === 'F') &&
+        !e.isComposing &&
+        !this.field.value &&
+        this.inputMode === 'chat' &&
+        this.onCodeRequest
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.onCodeRequest();
+        return;
+      }
       // IME 조합 중 Enter 는 무시해야 한글 입력이 중간에 끊기지 않는다.
       if (e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
@@ -96,6 +122,7 @@ export class DialogueBox {
   #reset() {
     this.onSend = null;
     this.onCode = null;
+    this.onCodeRequest = null;
     this.inputMode = 'chat';
     this.dismissed = false;
     this.busy = false;
@@ -329,11 +356,15 @@ export class DialogueBox {
   }
 
   showInput(placeholder = '말을 건넨다...', mode = 'chat') {
+    // 모드가 갈리면 쓰다 만 글은 버린다 — 대화하다 접선 창으로 넘어갔는데 입력칸에
+    // 대화 문장이 남아 있으면 그게 코드로 나가는 사고가 된다.
+    if (mode !== this.inputMode) this.field.value = '';
     this.inputMode = mode;
     this.field.placeholder = placeholder;
     // 대화(E)와 접선 코드 제출(F)을 구분한다 — 모드에 맞는 버튼만 보인다.
+    // 대화 모드라도 접선으로 넘어갈 길(onCodeRequest)이 있으면 코드 버튼을 세운다.
     this.sendBtn.style.display = mode === 'code' ? 'none' : '';
-    this.codeBtn.style.display = mode === 'code' ? '' : 'none';
+    this.codeBtn.style.display = mode === 'code' || this.onCodeRequest ? '' : 'none';
     this.inputWrap.classList.add('visible');
     this.field.focus();
   }
@@ -344,6 +375,9 @@ export class DialogueBox {
     // 아닐 때도 남아 누를 수 있는 것처럼 보인다. [닫기]는 그 줄에 그대로 남는다.
     this.sendBtn.style.display = 'none';
     this.codeBtn.style.display = 'none';
+    // 접선 전환 훅은 입력창의 수명과 같다 — 남겨 두면 다른 씬의 대화 입력칸에서
+    // [F] 가 죽은 씬의 접선 창을 연다 (DialogueBox 는 씬을 넘나드는 싱글턴이다).
+    this.onCodeRequest = null;
     this.field.blur();
   }
 

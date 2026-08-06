@@ -66,7 +66,7 @@ const GRENADE_FREEZE_MS = 4000;
 const TILE = mapData.tileSize; // 32
 
 /** 평소의 조작 안내. 감옥에 갇히면 여기 있는 키가 전부 막히므로 따로 세운다 (#toJail). */
-const KEY_HINTS = '[E] 대화    [F] 암호    [R] 구출    [C] 단서 수첩';
+const KEY_HINTS = '[E] 대화    [R] 구출    [C] 단서 수첩';
 
 /**
  * [대화하기]의 기본 대사 — 페르소나(personas.json)의 말투를 따른 한 마디씩이다.
@@ -162,7 +162,7 @@ export class StageScene extends Phaser.Scene {
     this.answerShown = false;
     // 단서 수첩 — [F] 접선으로 얻은 NPC → 연상 단어. (C 키로 열람)
     this.clues = new Map();
-    // [F] 암호 말하기로 코드를 건넬 대상 id (지금은 접선책 고정, Task 14 에서 전 동료로 확대)
+    // 접선([F])으로 코드를 건넬 대상 id — 맞히면 그 동료가 접선책이 된다.
     this.codeTargetId = null;
     // 판이 끝났는가. update() 를 멈추는 스위치이자 결과 화면 중복 호출 가드.
     this.ended = false;
@@ -267,7 +267,9 @@ export class StageScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
     this.keyE = this.input.keyboard.addKey('E');
-    this.keyF = this.input.keyboard.addKey('F');
+    // F 는 씬이 잡지 않는다 — 접선은 대화창(DOM) 안에서만 열리고, 그 키는 입력칸이
+    // 직접 읽는다 (DialogueBox.onCodeRequest). 여기서 잡으면 캡처가 걸려 입력칸 밖의
+    // F 가 브라우저 기본 동작까지 막는다.
     this.keyR = this.input.keyboard.addKey('R');
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
@@ -314,8 +316,10 @@ export class StageScene extends Phaser.Scene {
   /**
    * 인터랙션 노드 등록. 체포 상태가 바뀌면 #syncAllyNodes 가 재등록한다.
    *
-   * 말을 걸 수 있는 사람은 두 갈래다. 동료 다섯은 [대화하기]로 자유 대화(서버 LLM)를,
-   * [암호 말하기]로 접선(단서 공개 + 코드 접수)을 받는다 — 코드는 누구에게 건네도 되고
+   * 말을 걸 수 있는 사람은 두 갈래다. 동료 다섯은 [E] 로 기본 대사 + 자유 대화(서버
+   * LLM)가 열리고, **그 창 안에서** [F] 로 접선 — 단서 공개 + 코드 접수 — 이 열린다
+   * (2026-08-07: 사이에 있던 선택지 메뉴를 걷어냈다 — 기획 피드백. E 한 번이면 말이
+   * 나와야지, 메뉴 한 층을 거치면 대화가 아니라 자판기다). 코드는 누구에게 건네도 되고
    * 맞힌 그 동료가 접선책이 되어 저택으로 데려간다. 마을 사람 넷은 정해진 대사만 읽는다.
    */
   #registerInteractables() {
@@ -363,23 +367,11 @@ export class StageScene extends Phaser.Scene {
     }
     this.interact.register({
       id: ally.id,
-      type: 'choiceNpc',
+      type: 'npc',
       sprite: entry.node,
-      speaker: `${ally.name} (${ally.role})`,
-      line: this.clues.has(ally.id)
-        ? `"…내 단어는 이미 건넸다. 「${this.clues.get(ally.id).word}」."`
-        : `${ally.name}이(가) 주위를 살피더니 낮게 말한다.\n"…조직에서 왔군."`,
-      portrait: ally.id,
-      choices: [
-        { label: '대화하기', key: 'E' },
-        { label: '암호 말하기', key: 'F' },
-        { label: '그만하기', key: 'Esc' },
-      ],
-      onChoice: (key) => {
-        if (key === 'E') this.#talk(ally);
-        else if (key === 'F') this.#offerCode(ally);
-        else this.dialogue.hide();
-      },
+      // 말풍선은 기본값([E] 대화)을 쓴다 — 접선([F])은 **대화창 안에서만** 여는 문이라
+      // (2026-08-07 기획) 머리 위에 미리 적으면 밖에서도 눌리는 키처럼 읽힌다.
+      onInteract: () => this.#talk(ally),
     });
   }
 
@@ -439,13 +431,13 @@ export class StageScene extends Phaser.Scene {
         `동료 ${total}명 중 ${arrested}명은 같은 암호를 떠올려 정체가 드러나 이미 붙잡혀 갔다.\n(감옥에 갇힌 얼굴을 확인하라.)`,
       );
     }
-    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [F] 암호 말하기로 접선하라 — 그가 흘리는 단서를 모아,\n겹치는 단어(코드)를 추리해 아무 동료에게나 건네면 된다.`);
+    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [E] 로 말을 걸고, 그 창에서 [F] 로 접선하라 —\n그가 흘리는 단서를 모아 겹치는 단어(코드)를 추리해 아무 동료에게나 건네면 된다.`);
     if (arrested > 0) {
       lines.push(
         `\n감옥(좌측 상단) 창살 앞에서 [R] — 붙잡힌 동료를 빼낼 수 있다.\n소란은 새어 나가 경계 레벨이 오르지만, 그가 떠올린 단어는\n둘이 겹쳐서 잡혀갈 만큼 확실한 단서다.`,
       );
     }
-    lines.push('\n[E] 대화 · [F] 암호 말하기(접선 = 단서) · [R] 구출 · [C] 단서 수첩');
+    lines.push('\n[E] 대화 (그 창에서 [F] 접선 = 단서) · [R] 구출 · [C] 단서 수첩');
 
     this.dialogue.show('접선 지령', lines.join('\n'));
     this.dialogue.setHint('[Space] / [Esc] 로 쪽지를 접는다');
@@ -466,7 +458,7 @@ export class StageScene extends Phaser.Scene {
     const hint = this.state.hint;
     const head = hint ? `접선 코드: ${'○'.repeat(hint.length)} (${hint.category})\n\n` : '';
     if (this.clues.size === 0) {
-      this.clueBook.setText(`${head}아직 수집한 단서가 없다.\n\n동료에게 다가가 [F] 암호 말하기로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.`);
+      this.clueBook.setText(`${head}아직 수집한 단서가 없다.\n\n동료에게 [E] 로 말을 건 뒤 그 창에서 [F] 로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.`);
       return;
     }
     const lines = [];
@@ -687,7 +679,6 @@ export class StageScene extends Phaser.Scene {
       const pressedClues = Phaser.Input.Keyboard.JustDown(this.keyClues);
       const pressedReveal = Phaser.Input.Keyboard.JustDown(this.keyReveal);
       Phaser.Input.Keyboard.JustDown(this.keyE);
-      Phaser.Input.Keyboard.JustDown(this.keyF);
 
       // 나가는 중(암전)에는 [R] 이 죽는다 — 이미 열린 창살을 다시 따는 판이 열린다.
       if (pressedRescue && !this.jailLeaving) this.#pickJailLock();
@@ -724,7 +715,6 @@ export class StageScene extends Phaser.Scene {
     // 키 상태는 대기 중에도 매 프레임 소비한다 — 단락 평가로 건너뛰면 눌린 채 남은 플래그가
     // 응답이 도착하는 프레임에 뒤늦게 발동한다.
     const pressedTalk = Phaser.Input.Keyboard.JustDown(this.keyE);
-    const pressedContact = Phaser.Input.Keyboard.JustDown(this.keyF);
     const pressedRescue = Phaser.Input.Keyboard.JustDown(this.keyR);
     const pressedSpace = Phaser.Input.Keyboard.JustDown(this.keySpace);
     const pressedClues = Phaser.Input.Keyboard.JustDown(this.keyClues);
@@ -733,25 +723,15 @@ export class StageScene extends Phaser.Scene {
     this.interact.update(this.player, { suppress: waiting });
 
     if (!waiting && pressedTalk) {
-      if (this.dialogue.isOpen && !this.dialogue.hasMore && this.dialogue.onChoice) {
-        this.dialogue.onChoice('E');
-      } else if (this.dialogue.isOpen && !this.dialogue.isTyping) {
+      if (this.dialogue.isOpen && !this.dialogue.isTyping) {
         this.dialogue.advance();
       } else if (!this.dialogue.isOpen) {
         this.interact.trigger();
       }
     }
-    // F — 선택지가 떠 있으면 "암호 말하기" 선택, 아니면 (튜토리얼과 같은 조작으로)
-    // 코드를 받는 상대 앞에서 바로 입력창을 연다.
-    if (!waiting && pressedContact) {
-      if (this.dialogue.isOpen && this.dialogue.onChoice) {
-        this.dialogue.onChoice('F');
-      } else if (!this.dialogue.isOpen && this.interact.current) {
-        const cur = this.interact.current;
-        const target = this.state.allies.find((a) => a.id === cur.id && !a.arrested);
-        if (target) this.#offerCode(target);
-      }
-    }
+    // F 는 여기서 안 받는다 — 접선은 **대화창 안에서만** 여는 문이다 (2026-08-07 기획).
+    // 그 창의 빈 입력칸에서 누른 [F] 와 [접선 코드 전달] 버튼이 DialogueBox 의
+    // onCodeRequest 를 거쳐 #offerCode 로 온다.
     // R — 감옥의 동료 구출. 대상이 없어도 눌리게 둔다 (어디로 가야 하는지 알려주기 위해).
     if (!waiting && pressedRescue) {
       this.#tryRescue();
@@ -1140,34 +1120,36 @@ export class StageScene extends Phaser.Scene {
   }
 
   /**
-   * 선택지 "대화하기" — 기본 대사 한 마디 뒤에 자유 대화(LLM)를 연다.
+   * [E] — 기본 대사 한 마디와 함께 자유 대화(LLM) 입력창을 연다.
    *
    * 접선(/contact)은 여기서 하지 않는다 (2026-08-06 기획). 예전에는 첫 대화가 접선을
    * 겸해 말을 걸자마자 연상 단어부터 나왔는데, 만나자마자 코드 단서를 흘리는 것이
-   * 부자연스러웠다 — 단서는 코드를 주고받는 자리인 [암호 말하기](#offerCode)로 옮겼다.
+   * 부자연스러웠다 — 단서는 코드를 주고받는 자리인 [F] 접선(#offerCode)에서 나온다.
+   * 이 창에 떠 있는 동안에도 [F](빈 입력칸)와 [접선 코드 전달] 버튼이 그리로 잇는다.
    */
   #talk(ally) {
     this.currentAllyId = ally.id;
-    this.dialogue.hideChoices();
     this.dialogue.show(
       `${ally.name} (${ally.role})`,
       ALLY_SMALL_TALK[ally.id] ?? '"…조심해서 다녀라."',
       { portrait: ally.id },
     );
+    // showInput 보다 먼저 세운다 — 코드 버튼을 보일지 말지를 showInput 이 이 값으로 정한다.
+    this.dialogue.onCodeRequest = () => this.#offerCode(ally);
     this.dialogue.showInput('말을 건넨다...', 'chat');
-    this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
+    this.dialogue.setHint('[Enter] 대화 · [F] 암호 · [Esc] 닫기');
   }
 
   /**
-   * 선택지 "암호 말하기" — 접선의 자리다.
+   * [F] — 접선의 자리다. **대화창 안에서만** 열린다 (거리에서 바로 누르는 길은
+   * 2026-08-07 에 없앴다 — 말을 걸지도 않고 암호부터 대는 것이 순서가 아니다).
    *
    * 첫 번째에는 /contact 로 상대의 연상 단어(단서)를 받아 수첩에 적고, 코드를 말하라는
-   * 대사와 함께 입력창을 연다 (2026-08-06 기획 — 단서는 [대화하기]가 아니라 여기서
-   * 나온다). 중복 판정(체포)도 이 첫 접선 시점에 갱신된다.
+   * 대사와 함께 입력창을 연다 (2026-08-06 기획 — 단서는 대화가 아니라 여기서 나온다).
+   * 두 번째부터는 "이미 말했잖아"다. 중복 판정(체포)도 첫 접선 시점에 갱신된다.
    */
   async #offerCode(target) {
     this.codeTargetId = target.id;
-    this.dialogue.hideChoices();
 
     if (!this.clues.has(target.id)) {
       this.dialogue.setBusy(true);
@@ -1218,9 +1200,10 @@ export class StageScene extends Phaser.Scene {
       return;
     }
 
+    // 두 번째부터 — 단서는 한 번만 나온다. 수첩([C])이 이미 쥐고 있다.
     this.dialogue.show(
       `${target.name} (${target.role})`,
-      '상대가 눈을 들지 않은 채 낮게 묻는다.\n"…코드는?"',
+      `상대가 잠깐 눈을 들었다 내린다.\n"…단서는 이미 말했잖아. 「${this.clues.get(target.id).word}」. 코드는?"`,
       { portrait: target.id },
     );
     this.dialogue.showInput('접선 코드 입력...', 'code');
@@ -1322,7 +1305,7 @@ export class StageScene extends Phaser.Scene {
       `${ally.name} (${ally.role})`,
       `${freed.name}이(가) 창살 밖으로 빠져나와 제자리로 돌아갔다.\n\n` +
         `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n\n` +
-        `[F] 암호 말하기로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
+        `[E] 로 말을 걸고 [F] 로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
       '[Space] / [Esc] 로 닫는다',
       { portrait: ally.id },
     );

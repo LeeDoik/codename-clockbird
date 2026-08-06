@@ -400,6 +400,179 @@
         min-height: 1.2em;
       }
 
+      /* ── 엔딩 커튼 ─────────────────────────────────────
+         ui/EndingCurtain.js 와 짝. 내레이션 두 장 → 파이널 타블로의 세 박자다.
+         서체·주사선·도시 배경이 타이틀 화면과 같은 것은 의도다 — 게임이 열린
+         화면과 같은 문법으로 닫혀야 수미가 맞는다. */
+      #ending {
+        position: absolute;
+        inset: 0;
+        display: none;
+        background: #000;
+        font-family: 'Galmuri11', var(--font-head);
+        overflow: hidden;
+      }
+      #ending.visible { display: block; }
+      /* 내레이션 카드 — 검은 화면에 글 한 장씩. */
+      .ending-card {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: calc(36 * var(--s));
+        text-align: center;
+        font-size: calc(30 * var(--s));
+        line-height: 2;
+        letter-spacing: 0.06em;
+        color: var(--paper);
+        opacity: 0;
+        transition: opacity 900ms ease;
+        pointer-events: none;
+      }
+      .ending-card.on { opacity: 1; }
+      /* 회중시계 — 로딩 화면과 같은 그림(watch-face.png), 다른 속도다. 그쪽 바늘은
+         1.8초에 한 바퀴 도는 스피너지만 여기는 "멈춰 있던 시계가 다시 가기 시작"하는
+         순간이라 분침이 12초에 한 바퀴 — 살아 있다는 것만 보일 만큼 느리다.
+         바늘 축(50.3% / 56.1%)은 #transition-clock 의 실측값 그대로다. */
+      #ending-watch {
+        position: relative;
+        width: calc(216 * var(--s));
+        height: calc(281 * var(--s));
+        background: url('/ui/watch-face.png') center / contain no-repeat;
+        image-rendering: pixelated;
+        filter: drop-shadow(0 calc(6 * var(--s)) calc(16 * var(--s)) rgba(0, 0, 0, 0.8));
+      }
+      /* ⚠ 축은 다이얼의 기하 중심(50.3%/56.1%)이 아니라 **그림에 찍힌 핀**(49.7%/60.2%,
+         2026-08-07 실측)이다. 그림의 핀이 중심보다 아래에 찍혀 있어서, 중심에 붙이면
+         바늘이 핀에서 11px 떠서 돈다 — 로딩 화면의 1.8초 스피너에서는 안 보였지만
+         여기 12초 바늘에서는 바로 보인다. */
+      #ending-watch::before,
+      #ending-watch::after {
+        content: '';
+        position: absolute;
+        left: 49.7%;
+        top: 60.2%;
+        width: calc(3 * var(--s));
+        transform-origin: 50% 100%;
+        background: var(--brass);
+        border-radius: calc(1.5 * var(--s));
+      }
+      #ending-watch::before {
+        height: calc(74 * var(--s));
+        background: var(--brass-hi);
+        animation: ending-tick 12s linear infinite;
+      }
+      #ending-watch::after { height: calc(48 * var(--s)); animation: ending-tick 144s linear infinite; }
+      @keyframes ending-tick {
+        from { transform: translate(-50%, -100%) rotate(0deg); }
+        to { transform: translate(-50%, -100%) rotate(360deg); }
+      }
+
+      /* 파이널 타블로 — 타이틀의 도시 위로 태엽새가 난다. */
+      #ending-final { position: absolute; inset: 0; opacity: 0; transition: opacity 1600ms ease; }
+      #ending-final.on { opacity: 1; }
+      /* 도시는 어둠에서 밝아 온다 — "반격의 서막"(브란트의 마지막 대사)을 새벽이 그린다. */
+      #ending-city {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 50% bottom;
+        image-rendering: pixelated;
+        filter: brightness(0.5);
+      }
+      #ending-final.on #ending-city { animation: ending-dawn 7s ease-out forwards; }
+      @keyframes ending-dawn {
+        from { filter: brightness(0.5); }
+        to { filter: brightness(1); }
+      }
+      /* 조명 — 타이틀(#title-fx)과 같은 문법. 왼쪽 어둠만 없다 — 여기는 중앙 무대다. */
+      #ending-fx {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0 calc(2 * var(--s)), transparent calc(2 * var(--s)) calc(5 * var(--s))),
+          linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, transparent 30%, transparent 62%, rgba(0, 0, 0, 0.62) 100%),
+          radial-gradient(ellipse at 50% 42%, transparent 46%, rgba(0, 0, 0, 0.58) 100%);
+      }
+      /* 뒤에서 도는 큰 톱니 — 로딩 화면(#transition::before)과 같은 그림. */
+      #ending-cog {
+        position: absolute;
+        right: calc(-120 * var(--s));
+        bottom: calc(-140 * var(--s));
+        width: calc(520 * var(--s));
+        height: calc(520 * var(--s));
+        background: url('/ui/cog-large.png') center / contain no-repeat;
+        image-rendering: pixelated;
+        opacity: 0.16;
+        filter: brightness(0.45) saturate(0.5);
+        animation: tr-cog 36s linear infinite;
+      }
+      #ending-panel {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: calc(16 * var(--s));
+        text-align: center;
+      }
+      /* 3단 그림자 계단 — 타이틀 화면(#title-name)과 같은 글자, 중앙 무대라 조금 작다. */
+      #ending-title {
+        font-size: calc(104 * var(--s));
+        line-height: 1.04;
+        letter-spacing: 0.04em;
+        color: var(--brass-hi);
+        text-shadow:
+          calc(4 * var(--s)) calc(4 * var(--s)) 0 var(--brass),
+          calc(8 * var(--s)) calc(8 * var(--s)) 0 var(--brass-lo),
+          calc(12 * var(--s)) calc(12 * var(--s)) 0 var(--ink);
+      }
+      #ending-sub { font-size: calc(24 * var(--s)); letter-spacing: 0.4em; color: var(--paper-dim); }
+      #ending-quote {
+        font-size: calc(20 * var(--s));
+        letter-spacing: 0.1em;
+        color: var(--paper-dim);
+        background: rgba(10, 8, 5, 0.82);
+        padding: calc(7 * var(--s)) calc(14 * var(--s)) calc(5 * var(--s));
+      }
+      /* TO BE CONTINUED — 대화 버튼과 같은 놋쇠 판(button.png)에 앉는다. */
+      #ending-plate {
+        margin-top: calc(12 * var(--s));
+        border: calc(14 * var(--s)) solid transparent;
+        border-image: url('/ui/button.png') 6 fill / calc(14 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        font-size: calc(26 * var(--s));
+        /* 자간만큼 오른쪽이 비어 보인다 — 왼쪽 여백으로 되갚는다. */
+        letter-spacing: 0.34em;
+        padding: calc(2 * var(--s)) calc(12 * var(--s)) 0 calc(22 * var(--s));
+        color: var(--brass-hi);
+      }
+      /* 글자들은 화면 한가운데서 위에서부터 차례로 떠오른다 (2026-08-07 — 태엽새
+         그림을 빼고 글자만 남겼다). */
+      #ending-panel > * { opacity: 0; }
+      #ending-final.on #ending-panel > * { animation: ending-fade 1100ms ease forwards; }
+      #ending-final.on #ending-title { animation-delay: 300ms; }
+      #ending-final.on #ending-sub { animation-delay: 700ms; }
+      #ending-final.on #ending-quote { animation-delay: 1200ms; }
+      #ending-final.on #ending-plate {
+        animation:
+          ending-fade 1100ms ease 1800ms forwards,
+          ending-breathe 2.6s ease-in-out 3000ms infinite;
+      }
+      @keyframes ending-fade {
+        to { opacity: 1; }
+      }
+      @keyframes ending-breathe {
+        0%, 100% { opacity: 0.78; }
+        50% { opacity: 1; }
+      }
+
       /* ── 대화창 ──────────────────────────────────────────
          DOM 오버레이인 이유는 한글 IME 와 스트리밍 표시. 배치는 인물과 글을 좌우로
          갈라 놓는다 — 인물은 패널 왼쪽 바깥(left 640 앞)에 서고, 패널은 그 옆에서
@@ -1597,6 +1770,112 @@
          마주쳤다"가 되고, 통째로 검게 깔면 인물만 뜬 다른 화면처럼 보인다. */
       #minigame:has(.duel) { background: rgba(10, 9, 7, 0.55); }
 
+      /* ── 심문 진행 명판 — 문항 램프 + 탐지 게이지 (ui/DuelProgress.js) ──
+         에바(왼쪽)·대화 상자(중하단)·판정 글자(중앙 38%)를 다 피해 우상단.
+         숫자는 어디에도 없다 — 램프 수·게이지 폭 전부 서버 state 가 정한다. */
+      #duel-progress { display: none; }
+      #minigame-card.duel #duel-progress {
+        display: flex;
+        flex-direction: column;
+        gap: calc(8 * var(--s));
+        position: absolute;
+        top: calc(36 * var(--s));
+        right: calc(44 * var(--s));
+        padding: calc(12 * var(--s)) calc(18 * var(--s));
+        border: calc(18 * var(--s)) solid transparent;
+        border-image: url('/ui/duel-plaque.png') 20 fill / calc(18 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        pointer-events: none;
+      }
+      #duel-progress-row {
+        display: flex;
+        align-items: center;
+        gap: calc(9 * var(--s));
+      }
+      #duel-progress-eye {
+        /* 램프보다 한 치수 크고 간격도 넓다 — 아홉 번째 램프로 안 읽히게. */
+        width: calc(58 * var(--s));
+        height: calc(58 * var(--s));
+        margin-right: calc(12 * var(--s));
+        background: url('/ui/duel-eye.png') center / contain no-repeat;
+        image-rendering: pixelated;
+      }
+      /* 탐지가 바닥에 가까우면 렌즈가 깨어난다 — 게이지를 안 봐도 낌새가 온다. */
+      #duel-progress.alarm #duel-progress-eye {
+        filter: drop-shadow(0 0 calc(10 * var(--s)) rgba(194, 37, 26, 0.85));
+        animation: dp-eye-pulse 1.1s ease-in-out infinite;
+      }
+      @keyframes dp-eye-pulse {
+        50% { filter: drop-shadow(0 0 calc(4 * var(--s)) rgba(194, 37, 26, 0.3)); }
+      }
+      #duel-progress-lamps { display: flex; gap: calc(8 * var(--s)); }
+      .dp-lamp {
+        width: calc(44 * var(--s));
+        height: calc(44 * var(--s));
+        background: url('/ui/duel-lamp-off.png') center / contain no-repeat;
+        image-rendering: pixelated;
+      }
+      .dp-lamp.ok { background-image: url('/ui/duel-lamp-ok.png'); }
+      .dp-lamp.warn { background-image: url('/ui/duel-lamp-warn.png'); }
+      .dp-lamp.bad { background-image: url('/ui/duel-lamp-bad.png'); }
+      /* 방금 새겨진 램프는 한 번 튄다 — 판정이 이 구석까지 왔다는 손맛.
+         steps 인 이유: 픽셀 그림이 매끄럽게 커지면 중간 프레임에서 보간처럼 보인다. */
+      .dp-lamp.lit { animation: dp-ignite 0.45s steps(3, end); }
+      @keyframes dp-ignite {
+        0% { transform: scale(1.55); filter: brightness(2); }
+        100% { transform: scale(1); filter: none; }
+      }
+      /* 지금 물어 오는 문항 — 흐리게 깜빡여 "여기"를 가리킨다. */
+      .dp-lamp.now { animation: dp-now 1.6s ease-in-out infinite; }
+      @keyframes dp-now { 50% { filter: brightness(1.9); } }
+      #duel-progress-count {
+        margin-left: calc(6 * var(--s));
+        font-size: calc(24 * var(--s));
+        color: var(--brass-hi);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+      }
+      #duel-progress-meter {
+        position: relative;
+        /* border-box — 42 중 위아래 레일 15×2 를 빼면 채널(막대 자리)이 12. */
+        height: calc(42 * var(--s));
+        border-width: calc(15 * var(--s)) calc(21 * var(--s));
+        border-style: solid;
+        border-color: transparent;
+        border-image: url('/ui/duel-meter.png') 18 25 / calc(15 * var(--s)) calc(21 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+        background: rgba(10, 9, 7, 0.7);
+        background-clip: padding-box;
+        overflow: hidden;
+      }
+      #duel-progress-meter-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 100%;
+        transition: width 0.6s ease;
+        background: linear-gradient(180deg, #7fae9a, var(--patina) 55%, #3f6156);
+      }
+      /* 잉걸빛 둘은 :root 에 짝이 없다 — ui-assets.js 의 C.ember/emberHi 와 같은 값. */
+      #duel-progress.wary #duel-progress-meter-fill {
+        background: linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
+      }
+      #duel-progress.alarm #duel-progress-meter-fill {
+        background: linear-gradient(180deg, #ff8a3c, #c2451a 55%, #6d1f14);
+      }
+      #duel-progress-detect {
+        align-self: flex-end;
+        font-size: calc(17 * var(--s));
+        color: var(--paper-dim);
+        font-variant-numeric: tabular-nums;
+      }
+      #duel-progress.alarm #duel-progress-detect { color: #ff8a3c; }
+      @media (prefers-reduced-motion: reduce) {
+        #duel-progress.alarm #duel-progress-eye,
+        .dp-lamp.lit,
+        .dp-lamp.now { animation: none; }
+      }
+
       /* 심문 답변 — 선택지는 세로로 쌓고, 그 아래 자유 입력을 둔다. */
       .mg-col { display: flex; flex-direction: column; gap: 8px; }
       .mg-col .mg-btn { text-align: left; }
@@ -1986,6 +2265,110 @@
          것이라, 씬에 그리면 scene.start 와 함께 죽어 정확히 덮어야 할 프레임을 못 덮는다.
          배경이 불투명한 것도 같은 이유다 — 뒤에서 새 씬이 지어지는 중간 프레임을
          보여 주지 않는다. */
+      /* ── 검거 연출 — 스테이지 3 게임오버 (ui/GameOverOverlay.js) ──
+         덮개가 거의 불투명한 이유: show 가 끝난 뒤 이 뒤에서 판을 처음 상태로
+         되돌리므로(EscapeScene#caught) 되돌리는 순간이 비쳐 보이면 안 된다. */
+      #gameover {
+        position: absolute;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: calc(16 * var(--s));
+        background: rgba(9, 7, 5, 0.96);
+        overflow: hidden;
+        cursor: pointer;
+      }
+      #gameover.visible { display: flex; }
+      #gameover.leaving { opacity: 0; transition: opacity 400ms linear; } /* GameOverOverlay 의 LEAVE_MS 와 짝 */
+      /* 창살 — 화면 위에서 내리꽂힌다. 비례 확대(auto 100%)라 화면이 클수록 굵다.
+         반쯤 비치는 이유: 주인공은 장면·명판이고 창살은 무대 뒤 그림자다. */
+      #gameover-bars {
+        position: absolute;
+        inset: 0;
+        background: url('/ui/gameover-bars.png') repeat-x center top / auto 100%;
+        image-rendering: pixelated;
+        opacity: 0.45;
+        animation: go-slam 320ms cubic-bezier(0.6, 0, 1, 1) both;
+      }
+      @keyframes go-slam {
+        0% { transform: translateY(-104%); }
+        74% { transform: translateY(0); }
+        86% { transform: translateY(calc(-14 * var(--s))); } /* 쿵 — 짧게 튀었다 앉는다 */
+        100% { transform: translateY(0); }
+      }
+      /* 검거 장면 — 무대 액자에 담는다 (게임의 다른 창들과 같은 한 장). */
+      #gameover-scene {
+        position: relative;
+        width: calc(832 * var(--s));
+        height: calc(512 * var(--s));
+        border: calc(24 * var(--s)) solid transparent;
+        border-image: url('/ui/stage-frame.png') 36 / calc(24 * var(--s)) / 0 round;
+        background: #0b0906 url('/ui/gameover-catch.png') center / contain no-repeat;
+        background-clip: padding-box;
+        background-origin: padding-box;
+        image-rendering: pixelated;
+        animation: go-pop 340ms 180ms cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
+      }
+      @keyframes go-pop {
+        0% { transform: scale(1.12); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      /* 서치라이트 — 그림 속 렌즈에서 소년까지 CSS 쐐기로 잇는다. 원본(Pro)의
+         광선이 렌즈 앞에서 끊긴 채 나와(세 번 굴려 세 번 다 — 광선을 끝까지 긋는
+         판은 안 나왔다) 그리다 만 자리를 빛으로 잇는다. 렌즈 앞의 짧은 밑동은
+         이 쐐기의 밝은 근원부에 흡수된다. 좌표는 그림(416×256) 실측 비율 —
+         가장 큰 렌즈가 (42%, 37%), 소년이 x 62~83% · 머리 y 56%. 상자 비율이
+         원본과 같아(832×512) contain 이 여백 없이 꽉 찬다. */
+      #gameover-scene::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        clip-path: polygon(42% 33%, 100% 52%, 100% 100%, 75% 100%, 42% 41%);
+        background: linear-gradient(97deg, rgba(255, 196, 120, 0.38), rgba(255, 166, 76, 0.1) 70%, transparent 92%);
+        mix-blend-mode: screen;
+        animation: go-beam 2.2s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes go-beam { 50% { opacity: 0.72; } } /* 가스등이 그렇듯 숨을 쉰다 */
+      /* 명판 — 도장 찍히듯 내려앉는다. 실패의 색(봉랍)은 글자가 말한다. */
+      #gameover-plate {
+        position: relative;
+        margin-top: calc(-52 * var(--s)); /* 액자 아래 변을 살짝 물고 앉는다 */
+        width: calc(432 * var(--s));
+        height: calc(168 * var(--s));
+        background: url('/ui/gameover-plate.png') center / 100% 100% no-repeat;
+        image-rendering: pixelated;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: calc(76 * var(--s));
+        letter-spacing: 0.35em;
+        text-indent: 0.35em;
+        color: var(--wax);
+        text-shadow: 0 0 calc(20 * var(--s)) rgba(160, 51, 37, 0.6);
+        animation: go-stamp 260ms 560ms cubic-bezier(0.3, 1.6, 0.4, 1) backwards;
+      }
+      @keyframes go-stamp {
+        0% { transform: scale(1.9) rotate(-7deg); opacity: 0; }
+        100% { transform: scale(1) rotate(-2deg); opacity: 1; }
+      }
+      #gameover-line { position: relative; font-size: calc(26 * var(--s)); color: var(--paper); }
+      #gameover-retry { position: relative; font-size: calc(18 * var(--s)); color: var(--paper-dim); }
+      #gameover-hint {
+        position: absolute;
+        bottom: calc(28 * var(--s));
+        font-size: calc(16 * var(--s));
+        color: var(--paper-dim);
+        opacity: 0.7;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #gameover-bars, #gameover-scene, #gameover-scene::after, #gameover-plate { animation: none; }
+      }
+
       #transition {
         position: absolute;
         inset: 0;
@@ -2070,12 +2453,15 @@
         image-rendering: pixelated;
         filter: drop-shadow(0 calc(6 * var(--s)) calc(16 * var(--s)) rgba(0, 0, 0, 0.8));
       }
+      /* ⚠ 2026-08-07 정정: 예전 실측(50.3%/56.1%)은 문자판의 **기하 중심**이었는데,
+         그림의 핀은 그보다 아래(49.7%/60.2%)에 찍혀 있다. 빠른 스피너라 티가 안
+         났지만 엔딩의 느린 바늘(#ending-watch)에서 드러나 함께 맞췄다. */
       #transition-clock::before,
       #transition-clock::after {
         content: '';
         position: absolute;
-        left: 50.3%;
-        top: 56.1%;
+        left: 49.7%;
+        top: 60.2%;
         width: calc(3 * var(--s));
         transform-origin: 50% 100%;
         background: var(--brass);
@@ -2174,6 +2560,19 @@
           <div id="minigame-content"></div>
           <div id="minigame-hint"></div>
           <div id="minigame-verdict"></div>
+          <!-- 심문 진행 명판 (ui/DuelProgress.js). content 칸은 턴마다 비워지므로
+               에바 초상과 같은 정책으로 카드에 눌러앉는다 — duel 배치에서만 보인다. -->
+          <div id="duel-progress">
+            <div id="duel-progress-row">
+              <div id="duel-progress-eye"></div>
+              <div id="duel-progress-lamps"></div>
+              <div id="duel-progress-count"></div>
+            </div>
+            <div id="duel-progress-meter">
+              <div id="duel-progress-meter-fill"></div>
+            </div>
+            <div id="duel-progress-detect"></div>
+          </div>
         </div>
       </div>
       <div id="docpanel">
@@ -2191,6 +2590,38 @@
           <div id="result-stats"></div>
           <button id="result-restart" class="sp-btn">다시 잠입한다</button>
           <div id="result-wait"></div>
+        </div>
+      </div>
+      <!-- 검거 연출 (ui/GameOverOverlay.js) — 스테이지 3에서 순찰 로봇에게 잡혔을 때.
+           결과 화면이 아니라 재시도 사이의 한 장면이라 버튼이 없다. -->
+      <div id="gameover">
+        <div id="gameover-bars"></div>
+        <div id="gameover-scene"></div>
+        <div id="gameover-plate">검 거</div>
+        <div id="gameover-line">경비 로봇에게 붙잡혔다 — 시작 지점으로 끌려간다</div>
+        <div id="gameover-retry"></div>
+        <div id="gameover-hint">아무 키나 눌러 넘어간다</div>
+      </div>
+      <!-- 엔딩 커튼 (ui/EndingCurtain.js). 게임의 마지막 화면 — 이 뒤로는 타이틀·
+           로딩·베젤만 위에 올 수 있고, 실제로 겹치는 것은 베젤뿐이다. -->
+      <div id="ending">
+        <div id="ending-card1" class="ending-card">
+          훔쳐 낸 서류는 그날 밤 다섯 갈래로 필사되어<br />도시의 어둠 속으로 흩어졌다.
+        </div>
+        <div id="ending-card2" class="ending-card">
+          <div id="ending-watch"></div>
+          <div>그리고 — 멈춰 있던 시계들이<br />하나씩 다시 감기기 시작했다.</div>
+        </div>
+        <div id="ending-final">
+          <img id="ending-city" src="/title/title-city.png" alt="" onerror="this.style.display='none'" />
+          <div id="ending-fx"></div>
+          <div id="ending-cog"></div>
+          <div id="ending-panel">
+            <div id="ending-title">태엽새</div>
+            <div id="ending-sub">HEART OF STEEL</div>
+            <div id="ending-quote">“강철은 인간의 마음을 이해할 수 없다”</div>
+            <div id="ending-plate">TO BE CONTINUED</div>
+          </div>
         </div>
       </div>
       <!-- 타이틀 화면 (ui/TitleScreen.js). 메뉴 버튼은 JS 가 #title-menu 에 심는다.

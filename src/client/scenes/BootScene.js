@@ -280,6 +280,14 @@ export class BootScene extends Phaser.Scene {
       return;
     }
 
+    // 개발용 — 엔딩(본부 귀환)으로 곧장 들어간다. 엔딩은 세션이 없어 쏠 fetch 도 없다.
+    // 커튼 연출(EndingCurtain)은 게임에서 가장 닿기 비싼 화면이다 — 정상 경로로는
+    // 세 스테이지를 다 깨야 한 번 본다.
+    if (import.meta.env.DEV && params.has('ending')) {
+      waitForFonts(2000).then(() => this.scene.start('Ending'));
+      return;
+    }
+
     // 개발용(?nointro) — 타이틀·오프닝을 모두 건너뛰고 곧장 거리로 간다. 이 길은
     // 오프닝이 대기를 못 가리므로 fetch 를 지금 쏘고 로딩 화면(#legacyBoot)이 덮는다.
     // 프로미스는 {state} 또는 {error} 로만 resolve 하게 감싸져 있어(net.js) 소비가

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { EndingCurtain } from '../ui/EndingCurtain.js';
 import {
   applyMovement,
   buildColliders,
@@ -129,26 +130,17 @@ export class EndingScene extends Phaser.Scene {
     this.step += 1;
   }
 
-  /** 마지막 화면 — To be continued. */
+  /**
+   * 막이 내린다 — 내레이션 두 장을 거쳐 태엽새가 나는 파이널 타블로.
+   *
+   * 예전에는 여기서 캔버스에 모노스페이스 글자 두 줄을 직접 그렸다. 연출은 전부
+   * DOM(ui/EndingCurtain.js)으로 옮겼다 — 타이틀 화면과 같은 서체·조명을 그대로
+   * 쓰기 위해서다. 카메라는 접기만 하고 다시 밝히지 않는다 (커튼이 위를 덮는다).
+   */
   #curtain() {
     this.cameras.main.fadeOut(1200, 0, 0, 0);
     this.uiCam?.fadeOut(1200, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      const text = this.add
-        .text(960, 540, '코드네임: 태엽새\n\nTo be continued', {
-          fontFamily: 'monospace',
-          fontSize: '44px',
-          color: '#d9cfc0',
-          align: 'center',
-          lineSpacing: 12,
-        })
-        .setOrigin(0.5)
-        .setAlpha(0);
-      this.asUi(text);
-      // 페이드아웃된 카메라 위에 UI 카메라만 다시 밝힌다 — 월드는 어두운 채로 둔다.
-      this.uiCam.fadeIn(900, 0, 0, 0);
-      this.tweens.add({ targets: text, alpha: 1, duration: 1400, delay: 300 });
-    });
+    this.cameras.main.once('camerafadeoutcomplete', () => new EndingCurtain().play());
   }
 
   update() {

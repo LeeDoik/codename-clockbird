@@ -1,0 +1,12 @@
+# railway up 이 올리는 빌드 컨텍스트에서 뺀다 — 런타임·빌드에 안 쓰이는 것만.
+#
+# design/ 이 118MB 로 가장 크다: 아트 원본·중간 산출물이라 게임은 안 읽는다
+# (게임이 쓰는 사본은 src/client/assets/ 와 public/ 에 있다).
+# dist/ 는 서버(nixpacks)가 npm run build 로 새로 굽는다 — 로컬 것을 올릴 이유가 없다.
+# public/(초상·UI·인트로 영상)과 src/ 는 통째로 필요하다 — 여기 적지 말 것.
+design/
+docs/
+dist/
+tools/
+*.bat
+.env

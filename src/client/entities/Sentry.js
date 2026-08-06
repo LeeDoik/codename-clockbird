@@ -33,13 +33,19 @@ import {
  *
  * ── 순찰 방식 (2026-08-05) ──
  *
- * 고정 왕복 경로를 걷어내고 **맵 전역 무작위 순회**로 바꿨다. 갈 수 있는 칸 중 하나를
+ * 고정 왕복 경로를 걷어내고 **무작위 순회**로 바꿨다. 갈 수 있는 칸 중 하나를
  * 뽑아 길찾기로 걸어가고, 닿으면 잠시 둘러본 뒤 다시 뽑는다. 왕복이던 시절에는 셋이
  * 세 복도를 일정한 주기로 지켜서 지나갈 틈이 아예 안 났다 (escapeLayout.SENTRY_HOMES).
  *
  * 길찾기(world/roam.js)가 필요한 이유는 이 로봇이 **길을 찾지 않기** 때문이다 — 두 점
  * 사이를 직선으로 갈 뿐이라, 목적지만 무작위로 뽑으면 물웅덩이를 가로질러 간다.
  * roam.js 가 꺾이는 칸만 남긴 길을 주고, 여기서는 그 직선 구간을 이어 달린다.
+ *
+ * 배회와 시야는 **다른 격자를 본다** (2026-08-07). walk 마스크는 플레이어용 관대한
+ * 판정이라 바위섬·웅덩이 테두리 같은 "길 아닌" 칸도 열려 있는데, 로봇이 거길 목적지로
+ * 찍으면 벽을 타는 것처럼 보였다. 그래서 길찾기는 도로로 제한한 roamBlocked 를 쓰고
+ * (escapeLayout.makeRoamBlocked), 시야·감지는 그대로 isBlocked 를 쓴다 — 시야까지
+ * 도로에 막히면 그려지는 콘과 판정이 어긋난다.
  */
 
 /** 웨이포인트 도착 판정 반경 (px) */
@@ -59,9 +65,11 @@ export class Sentry {
    * @param {number} opts.tileSize
    * @param {number} opts.cols 맵 칸 수 — 길찾기가 격자를 훑는 범위다
    * @param {number} opts.rows
-   * @param {(col: number, row: number) => boolean} opts.isBlocked
+   * @param {(col: number, row: number) => boolean} opts.isBlocked 시야·감지가 보는 벽
+   * @param {(col: number, row: number) => boolean} [opts.roamBlocked] 길찾기가 보는 벽 —
+   *   도로 제한(escapeLayout.makeRoamBlocked). 안 주면 isBlocked 를 그대로 쓴다.
    */
-  constructor(scene, { home, tileSize, cols, rows, isBlocked, speed = SENTRY_SPEED,
+  constructor(scene, { home, tileSize, cols, rows, isBlocked, roamBlocked, speed = SENTRY_SPEED,
     coneAngle = CONE_ANGLE, coneRange = CONE_RANGE }) {
     this.scene = scene;
     this.home = home;
@@ -69,6 +77,7 @@ export class Sentry {
     this.cols = cols;
     this.rows = rows;
     this.isBlocked = isBlocked;
+    this.roamBlocked = roamBlocked ?? isBlocked;
     this.speed = speed;
     this.coneAngle = coneAngle;
     this.coneRange = coneRange;
@@ -145,7 +154,7 @@ export class Sentry {
     const row = Math.floor(this.sprite.y / this.tileSize);
     const cells = randomRoamPath(
       { col, row },
-      { cols: this.cols, rows: this.rows, isBlocked: this.isBlocked, minSteps: ROAM_MIN_STEPS },
+      { cols: this.cols, rows: this.rows, isBlocked: this.roamBlocked, minSteps: ROAM_MIN_STEPS },
     );
     this.path = cells.map((c) => ({
       x: c.col * this.tileSize + this.tileSize / 2,

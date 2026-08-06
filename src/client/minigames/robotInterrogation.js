@@ -5,6 +5,8 @@
  * interrogation.js 와 같은 정책). 덕분에 UI 흐름과 서버 계약이 따로 논다.
  */
 
+import { DuelProgress } from '../ui/DuelProgress.js';
+
 /** 답변 길이 상한. 서버도 같은 값으로 자른다 (여기 것은 편의, 저기 것은 방어). */
 const MAX_ANSWER_LEN = 120;
 
@@ -55,6 +57,11 @@ export async function runRobotInterrogation(panel, io) {
   // 못 찾으면 서버가 실제로 세운 신분(state.identity)으로 대신한다.
   const chosen = start.state.choices.find((c) => c.id === identityId) ?? start.state.identity;
 
+  // 진행 명판 — 문항 램프와 탐지 게이지 (duel 배치에서만 보인다). 총 문항 수도
+  // 탐지 시작값도 여기서 못박지 않는다 — 서버 state 가 단일 출처다.
+  const progress = new DuelProgress();
+  progress.reset(start.state);
+
   // ── 2. 문답 루프 ──
   for (;;) {
     panel.setStatus('…아이가 생각한다.');
@@ -75,6 +82,9 @@ export async function runRobotInterrogation(panel, io) {
       return fail(panel, `전송 실패 — ${err.message}`);
     }
 
+    // 대사가 나오는 동안 명판의 램프가 켜지고 게이지가 움직인다 — 판정이
+    // 구석까지 갔다는 손맛은 말보다 그림이 먼저 준다.
+    progress.record(r);
     await showReply(panel, r, chosen.word);
 
     if (r.state.outcome === 'win') {
@@ -198,11 +208,8 @@ async function showReply(panel, r, identityWord) {
     box.append(p);
   }
 
-  const bar = document.createElement('div');
-  bar.textContent = `탐지 ${r.state.detection} · ${r.state.asked}/${r.state.questionMax}`;
-  bar.style.opacity = '0.55';
-  box.append(bar);
-
+  // 탐지 수치와 몇 문째인지는 우상단 진행 명판(DuelProgress)이 상시 게시한다 —
+  // 예전의 `탐지 100 · 3/8` 한 줄은 그쪽으로 옮겨 갔다.
   panel.contentEl.replaceChildren(box);
   await sleep(notes.length ? 3000 : 2000);
 }

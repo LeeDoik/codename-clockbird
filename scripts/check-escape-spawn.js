@@ -36,6 +36,7 @@ import {
   SENTRY_SPEED,
   TILE,
   at,
+  makeRoamBlocked,
 } from '../src/client/world/escapeLayout.js';
 
 const map = JSON.parse(
@@ -87,20 +88,26 @@ for (const [i, home] of SENTRY_HOMES.entries()) {
   );
 }
 
-console.log('\n[4] 각 집에서 맵 전역에 닿는가');
-let walkable = 0;
+console.log('\n[4] 각 집에서 도로 전체에 닿는가');
+// 배회는 walk 마스크가 아니라 **도로(ROAM_ROADS)로 제한**된다 — Sentry 가 길찾기에
+// 쓰는 것과 같은 판정으로 재야 검사의 뜻이 있다 (makeRoamBlocked 주석 참고).
+const roamBlocked = makeRoamBlocked(isBlocked);
+const roamGrid = { cols: map.cols, rows: map.rows, isBlocked: roamBlocked };
+let roadCells = 0;
 for (let r = 0; r < map.rows; r++) {
-  for (let c = 0; c < map.cols; c++) if (!isBlocked(c, r)) walkable++;
+  for (let c = 0; c < map.cols; c++) if (!roamBlocked(c, r)) roadCells++;
 }
 for (const [i, home] of SENTRY_HOMES.entries()) {
   const from = { col: Math.floor(home.x / TILE), row: Math.floor(home.y / TILE) };
-  const { dist } = walkField(from, grid);
+  ok(!roamBlocked(from.col, from.row), `로봇 ${i} 의 집이 도로 위인가`, `(${from.col},${from.row})`);
+  const { dist } = walkField(from, roamGrid);
   let reached = 0;
   for (let k = 0; k < dist.length; k++) if (dist[k] >= 0) reached++;
-  const pct = (reached / walkable) * 100;
-  // 100% 를 요구하지 않는다 — 이 맵에는 끊긴 구역이 있다(가운데 통로가 19행에서 끊긴
-  // 위쪽 골목). 로봇이 도는 곳이 맵의 대부분이면 "전역 순회"라는 말이 성립한다.
-  ok(pct >= 90, `로봇 ${i}`, `${reached}/${walkable}칸 (${pct.toFixed(1)}%)`);
+  const pct = (reached / roadCells) * 100;
+  // 도로는 사각형끼리 전부 이어지게 그렸으므로 100% 여야 한다 — 사각형을 하나
+  // 옮기다 끊기면 그 로봇은 평생 한 토막만 돈다. 막다른 골목(가운데 위 통로)도
+  // 도로에 넣었으니 "닿는가"에는 포함된다.
+  ok(pct >= 100, `로봇 ${i}`, `도로 ${reached}/${roadCells}칸 (${pct.toFixed(1)}%)`);
 }
 
 console.log(failures ? `\n실패 ${failures}건\n` : '\n전부 통과\n');

@@ -53,6 +53,12 @@ export const PALETTES = {
   verdigris: [C.ink, C.charcoal, C.iron, C.patina, C.paperDim, C.paper],
   // 장면·인물 — 전부 쓴다. 여기서만 색이 넉넉해야 그림이 산다.
   scene: Object.values(C),
+  // 문항 램프 — 같은 놋쇠 링에 렌즈 색만 갈린다. 링 몫의 놋쇠(brassLo·brass)를
+  // 셋 다 같이 주지 않으면 램프마다 다른 물건으로 나온다 (verdigris 팔레트만
+  // 쓰면 링이 쇳빛으로 식는다). 렌즈 색은 각자 한 계열만 — 섞으면 샌다.
+  lampOk: [C.ink, C.charcoal, C.iron, C.brassLo, C.brass, C.patina, C.paper],
+  lampWarn: [C.ink, C.charcoal, C.iron, C.brassLo, C.brass, C.ember, C.emberHi, C.paper],
+  lampBad: [C.ink, C.charcoal, C.iron, C.brassLo, C.brass, C.wax, C.trackRed, C.paper],
 };
 
 /**
@@ -715,6 +721,209 @@ export const ASSETS = [
     opts: { detail: 'highly detailed', shading: 'basic shading', outline: 'single color outline', view: 'high top-down' },
   },
 
+  // ── 심문 진행 명판 (스테이지 3 · 에바 대면) ────────────────────
+  //
+  // 문답이 몇 번째인지, 지금까지 어떻게 답해 왔는지가 지금은 본문 한 줄
+  // (`탐지 100 · 3/8`)로만 흘러가고, 그 칸은 다음 턴에 지워진다. 쌓이는 느낌이
+  // 없으니 "잘 버티고 있다"는 긴장도 같이 사라진다 — duel 배치 우상단 명판에
+  // 문항 램프 여덟 개와 탐지 게이지를 상시 게시한다.
+  //
+  // 램프는 색으로만 가르지 않는다 — 무사는 온전한 점등, 감점은 **금 간 렌즈**.
+  // 색약 사용자에게 색은 보조 신호이지 유일한 신호가 아니다.
+  {
+    id: 'duel-plaque',
+    label: '심문 진행 명판 — 램프와 탐지 게이지가 앉는 판',
+    palette: 'metal',
+    size: { width: 240, height: 120 },
+    // 실측(2026-08-06 판, 여백 잘린 222×101 기준): 놋쇠 레일 0~7px, 모서리
+    // 리벳이 9~18px에 앉는다 — 리벳까지 모서리 조각에 담으려면 20. 판 속
+    // 새김선(인셋 ~30px)은 가운데 조각에 남아 늘어나지만 램프가 그 위를 덮는다.
+    slice: 20,
+    fill: true, // 판이 곧 배경이다 — 빼면 램프가 수로 위 허공에 뜬다
+    target: '#duel-progress (duel 배치 우상단, 신규)',
+    description:
+      'a rectangular dark iron plaque seen flat from the front, a narrow bevelled bronze rail along ' +
+      'all four edges with a small rivet in each corner, the middle filled with flat near-black ' +
+      'charcoal metal, worn and grimy, ' + METAL,
+    negative: NO_FRAME + ', hollow, transparent center, thick frame, cogwheel, ornate, engraving',
+    opts: { detail: 'low detail', shading: 'basic shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
+  {
+    id: 'duel-lamp-off',
+    label: '문항 램프 — 아직 안 물은 질문',
+    palette: 'metal',
+    size: { width: 56, height: 56 },
+    target: '#duel-progress .dp-lamp (기본 상태)',
+    description:
+      'a small round indicator lamp seen straight on from the front, a weathered bronze ring housing ' +
+      'with four tiny rivets, a dark unlit near-black glass lens filling the inside, dead and dormant, ' + METAL,
+    negative: NO_FRAME + ', glow, glowing, lit, bright center, light rays, cracked, background',
+    opts: { detail: 'medium detail', shading: 'basic shading', outline: 'single color outline', no_background: true, view: 'side' },
+  },
+  {
+    id: 'duel-lamp-ok',
+    label: '문항 램프 — 무사히 넘겼다',
+    palette: 'lampOk',
+    size: { width: 56, height: 56 },
+    target: '#duel-progress .dp-lamp.ok',
+    // 녹청인 이유: 게임이 성공을 이 색으로 말한다 (#minigame-verdict.ok · seal-clear).
+    description:
+      'a small round indicator lamp seen straight on from the front, a weathered bronze ring housing ' +
+      'with four tiny rivets, the glass lens glowing calm verdigris green with a brighter green core ' +
+      'and a tiny pale glint, steady and reassuring, ' + METAL,
+    negative: NO_FRAME + ', red, orange, blue, cracked, broken, dark lens, light rays, background',
+    opts: { detail: 'medium detail', shading: 'basic shading', outline: 'single color outline', no_background: true, view: 'side' },
+  },
+  {
+    id: 'duel-lamp-warn',
+    label: '문항 램프 — 지적만 받고 넘어갔다 (첫 모순 사면)',
+    palette: 'lampWarn',
+    size: { width: 56, height: 56 },
+    target: '#duel-progress .dp-lamp.warn',
+    description:
+      'a small round indicator lamp seen straight on from the front, a weathered bronze ring housing ' +
+      'with four tiny rivets, the glass lens half-lit with a wavering warm amber ember glow, dimmer ' +
+      'around the rim, uneasy and flickering, ' + METAL,
+    negative: NO_FRAME + ', green, red, blue, cracked, broken, light rays, background',
+    opts: { detail: 'medium detail', shading: 'basic shading', outline: 'single color outline', no_background: true, view: 'side' },
+  },
+  {
+    id: 'duel-lamp-bad',
+    label: '문항 램프 — 감점 (거짓·노출·모순)',
+    palette: 'lampBad',
+    size: { width: 56, height: 56 },
+    target: '#duel-progress .dp-lamp.bad',
+    // 금 간 렌즈가 곧 상태다 — 색을 못 읽어도 깨진 것은 보인다.
+    description:
+      'a small round indicator lamp seen straight on from the front, a weathered bronze ring housing ' +
+      'with four tiny rivets, the glass lens glowing deep sealing-wax red and split by a jagged dark ' +
+      'crack running across it, damaged and ominous, ' + METAL,
+    negative: NO_FRAME + ', green, blue, intact, clean, light rays, background',
+    opts: { detail: 'medium detail', shading: 'basic shading', outline: 'single color outline', no_background: true, view: 'side' },
+  },
+  {
+    id: 'duel-meter',
+    label: '탐지 게이지 액자 — 100 에서 깎여 0 이면 들킨다',
+    palette: 'metal',
+    // ⚠ 56 높이로 두 번 실패했다 — 두 번 다 캡이 왼쪽에만 붙고 오른쪽은 레일이
+    //   화면 밖으로 흘렀다. 같은 문장으로 성공한 alert-gauge 와의 차이는 높이뿐
+    //   (72 vs 56) — 납작한 캔버스는 그 자체가 "끝없는 레일"이라는 지시로 읽힌다
+    //   (needle 의 1차 실패와 같은 함정). 문장은 안 고치고 높이만 72 로 세운다.
+    size: { width: 320, height: 72 },
+    // 실측(여백 잘린 304×51 기준): 모서리 볼트판이 x 8~24, 위 레일 y 0~17,
+    // 빈 채널 y 18~31, 아래 레일 y 32~50 — 상하 18, 좌우 25.
+    slice: '18 25',
+    target: '#duel-progress-meter (안쪽 막대는 CSS 가 그린다)',
+    // alert-gauge 와 같은 성격의 물건이지만 이쪽은 DOM 이고 눈금 없이 낮다 —
+    // 명판 안에 앉는 부품이라 화면 전체용 게이지보다 조용해야 한다.
+    description:
+      'a long horizontal metal gauge housing seen flat from the side, perfectly symmetrical left to right, ' +
+      'hollow empty channel running through the middle, a flat square bronze end cap at the left end and ' +
+      'an identical mirrored one at the right end, each cap with a single rivet, ' +
+      'thin dark iron rails along the top and bottom of the channel, ' + METAL,
+    negative: NO_FRAME + ', filled bar, colored fill, red, green, progress bar, bulbous, pipe, numbers, ' +
+      'asymmetric, pointed end, arrow, spear tip, tapering, one end different, tick marks',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
+  {
+    id: 'duel-eye',
+    label: '감시 렌즈 — 명판 왼쪽. 탐지가 낮아지면 붉게 깨어난다',
+    palette: 'lampBad',
+    size: { width: 72, height: 72 },
+    target: '#duel-progress-eye',
+    // 탐지 게이지의 주인이 누구인지 그림으로 말한다 — 이 판은 에바가 당신을
+    // 재는 판이다. 낮은 탐지 구간에서 CSS 가 붉은 그림자를 얹어 깨운다.
+    description:
+      'a single round robot camera eye seen straight on from the front, a heavy riveted dark iron ring ' +
+      'housing, a deep near-black glass lens with a narrow glowing red iris ring in the centre, ' +
+      'cold and watchful, ' + METAL,
+    negative: NO_FRAME + ', green, blue, eyeball, pupil, eyelashes, human eye, light rays, background',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', no_background: true, view: 'side' },
+  },
+
+  // ── 게임오버 — 스테이지 3 검거 (순찰 로봇에게 잡혔을 때) ──────
+  //
+  // 지금은 붉은 번쩍임 → 암전 → 시작 지점, 1.1초다. 빠른 재시도라는 설계는
+  // 지키되(스펙 §1 — 루즈함 방지), "잡혔다"가 화면에 한 번도 서지 않으니
+  // 게이지가 왜 무서운지 그림이 말해 준 적이 없다 — 검거 한 장면을 세운다.
+  // 아무 키로 건너뛸 수 있어 손이 빠른 사람은 여전히 즉시 재시도다.
+  {
+    id: 'gameover-catch',
+    label: '검거 장면 — 서치라이트에 붙잡힌 소년과 순찰 로봇',
+    model: 'pro',
+    // 판 전체가 그림이다 (stage-bg 와 같은 이유로 벗기면 광선과 안개가 날아간다).
+    opaque: true,
+    size: { width: 416, height: 256 },
+    target: '#gameover-scene (신규 — 검거 연출의 한가운데)',
+    // 소년은 grenade-throw 의 인물 묘사를 그대로 쓴다 — 같은 인물이 다른 장면에
+    // 다시 나오는 것이므로 낱말이 갈리면 사람이 갈린다.
+    // 로봇은 **스테이지 3의 전투 로봇**(설정서 26, Sentry)이다 — 1차는 스테이지 1
+    // 검문 로봇(guard-robot, 놋쇠 술통)을 그려 버려서 실제로 잡은 놈과 다른 놈이
+    // 화면에 섰다. 설정화의 핵심: 머리가 따로 없고 둥근 몸통에 주황 렌즈 눈이
+    // 여럿, 한 팔은 톱날·한 팔은 총열, 칠흑 장갑에 붉은 이음매.
+    // Pro 는 negative 도 팔레트도 안 받으므로 금지 사항을 전부 문장 안에 적었다.
+    // 배경은 순검정을 못박는다 — 2차 굴림에서 흰 바탕이 나왔었다 (이 판은 통짜
+    // 그림이라 반입 때 배경을 안 벗긴다).
+    description:
+      'a dramatic pixel art game over scene seen from the side like a side-scrolling game, ' +
+      'on the left a hulking jet-black armoured combat robot facing right, it has no head — ' +
+      'its huge rounded dome torso is studded with several round glowing orange-red lens eyes ' +
+      'of different sizes, thin antenna rods sticking up from the top of the dome, ' +
+      'one arm ending in a jagged steel saw blade and the other arm ending in a thick gun barrel, ' +
+      'heavy segmented near-black armour plates with faint deep-red seams and small bronze bolts, ' +
+      'the largest lens projecting a wide harsh cone of warm amber searchlight to the right across the scene, ' +
+      'caught inside the beam a small ragged young boy facing the robot with both hands raised in surrender, ' +
+      'messy dark curly hair, brass goggles on his forehead, long red scarf, off-white shirt with rolled ' +
+      'sleeves, leather satchel, worn trousers and boots, his long shadow stretching away from the light, ' +
+      'a plain solid pure black background behind them, dim gaslit Victorian steampunk mood, ' +
+      'the glowing lenses and the amber beam the only bright things in the frame, ' +
+      'chunky pixel art, limited palette, crisp hard edges, dark warm-brown outlines, ' +
+      'no text, no letters, no numbers, no ui, no frame, no border',
+    opts: {},
+  },
+  {
+    id: 'gameover-bars',
+    label: '감옥 창살 — 검거 순간 화면 위에서 내리꽂힌다',
+    palette: 'metal',
+    // 가로로 되풀이해 깐다(repeat-x, 높이는 화면에 맞춰 비례 확대). 창살 사이가
+    // 뚫려 있어야 뒤의 장면이 비치므로 배경을 벗겨 투명으로 만든다 — 틈이 위아래
+    // 가장자리에 닿아 있어 flood fill 이 그리로 들어간다.
+    // 268 인 이유: 표준(pixflux)은 가로세로가 4의 배수라야 한다 (270 은 422 를 냈다).
+    size: { width: 320, height: 268 },
+    target: '#gameover-bars (신규 — repeat-x 로 화면 폭을 채운다)',
+    // ⚠ 1차는 "gaps completely empty" 를 모델이 **어두운 갈색 바탕**으로 칠해 왔고
+    //   (clue-paper 2차와 같은 함정 — '비어 있다'는 바탕색 칠하기로 읽힌다), 창살도
+    //   바탕과 톤이 같은 실오라기로 나와 컷아웃이 가를 수 없었다. 처방도 같다 —
+    //   배경을 순검정으로 못박고, 굵기는 "옆의 틈만큼 굵다"로 도형처럼 적는다.
+    description:
+      'a row of thick vertical iron prison bars standing on a plain solid pure black background, ' +
+      'seen straight on from the front, four evenly spaced massive round iron bars each running from ' +
+      'the top edge to the bottom edge of the image, each bar nearly as wide as the gap beside it, ' +
+      'a warm pale highlight running down one side of each bar and a riveted iron cap at the top and ' +
+      'bottom of each bar, heavy and oppressive, ' + METAL,
+    negative: NO_FRAME + ', wall, bricks, chain, lock, door, gate frame, cell, room, background scenery, ' +
+      'horizontal bars only, diagonal, bent bars, curved, thin, wire, hairline, pinstripe, fence, mesh, ' +
+      'grey background, brown background',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
+  {
+    id: 'gameover-plate',
+    label: '검거 명판 — 「검 거」 글자가 앉는 쇠판',
+    palette: 'alarm',
+    // 도장(seal-fail)과 다른 물건이다 — 그쪽은 서류에 찍는 기각 도장이고 이쪽은
+    // 판결을 내거는 철판이다. 봉랍 빨강 줄이 실패의 색을 미리 말한다
+    // (#minigame-verdict.fail 과 같은 계열).
+    size: { width: 288, height: 112 },
+    target: '#gameover-plate (신규 — 위에 「검 거」 가 글자로 올라간다)',
+    description:
+      'a heavy rectangular battered iron sign plate seen flat from the front, thick bevelled edges, ' +
+      'a large hex bolt in each of the four corners, the middle filled with flat near-black charcoal ' +
+      'metal for large letters to sit on, a thin sealing-wax red pinstripe running just inside the edge, ' +
+      'scratched and dented, ' + METAL,
+    negative: NO_FRAME + ', hollow, transparent center, cogwheel, ornate, engraving, chain, hanging, rope',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
+
   // ── 무대 그림 ──────────────────────────────────────────────────
   {
     id: 'stage-bg',
@@ -794,5 +1003,30 @@ export const ASSETS = [
     negative: 'text, ui, frame, border, background scenery, human, face, sleek, chrome, futuristic, ' +
       'bright colors, teal, turquoise, mint green, cast shadow, ground shadow',
     opts: { detail: 'highly detailed', shading: 'detailed shading', outline: 'single color outline', no_background: true, view: 'side', direction: 'west' },
+  },
+
+  // ── 엔딩 커튼 (To be continued) ────────────────────────────────
+  //
+  // 게임 제목이 "태엽새"인데 정작 태엽새가 화면에 한 번도 안 나온다 — 엔딩의
+  // 마지막 화면이 그 새가 처음이자 마지막으로 나는 자리다 (ui/EndingCurtain.js).
+  //
+  // Pro 인 이유: 이 그림은 화면 한가운데 2배로 크게 서는 주인공이라 표준 모델의
+  // 뭉개진 디테일이 그대로 보인다. 감옥 퍼즐 부품 다섯과 같은 판단이다.
+  {
+    id: 'ending-bird',
+    label: '태엽새 — 엔딩 마지막 화면의 엠블럼',
+    model: 'pro',
+    size: { width: 400, height: 288 },
+    target: '#ending 파이널 타블로 한가운데 (신규)',
+    description:
+      'a mechanical clockwork bird flying with both wings spread wide, seen from the side facing right, ' +
+      'built from weathered tarnished brass and dark iron plates, riveted metal feathers layered along ' +
+      'the wings, a large brass wind-up key sticking up from its back, exposed cogwheels and gears ' +
+      'visible inside its open chest, a small warm amber glowing eye, thin trailing steam wisps behind ' +
+      'the wing tips, warm amber rim light along the upper edges, soot and grime in the crevices, ' +
+      'matte not shiny, dim gaslit Victorian steampunk, chunky pixel art, limited palette, ' +
+      'crisp hard edges, dark warm-brown outlines, no text, no letters, no numbers, ' +
+      'one bird only, nothing behind it, plain empty background',
+    opts: { no_background: true },
   },
 ];
