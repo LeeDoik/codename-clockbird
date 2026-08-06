@@ -49,19 +49,40 @@ import citizenLines from '../assets/citizens.json';
  * 시야·순찰 NPC 는 W3 에서 얹는다.
  */
 const SPEED = 200;
-/**
- * 자석 수류탄 시작 개수.
- *
- * 스토리보드 p16 은 "다 쓰면 게임오버"였지만 2026-08-05 에 적발이 감옥행으로 바뀌면서
- * 목숨이 아니게 됐다 — 이제 이 두 개는 **감옥에 안 가고 넘어갈 수 있는 횟수**다.
- */
-const GRENADES_START = 2;
+// 자석 수류탄의 개수 제한은 2026-08-06 에 삭제됐다. 원래 2개 시작에 "다 쓰면 게임오버"
+// (스토리보드 p16)였다가 "다 쓰면 감옥행"(08-05)으로 물러섰는데, 이제는 세지 않는다 —
+// 감옥행 여부는 오직 던지기 미니게임의 명중/빗나감이 가른다.
 /** 검문이 끝난 뒤 다시 잡히지 않는 시간. 서버의 checkpointCooldownUntil 과 같은 값이어야 한다. */
 const CHECKPOINT_COOLDOWN_MS = 10_000;
+/**
+ * 명중 후 로봇이 굳어 있는 시간 (ms).
+ *
+ * 수류탄의 판타지는 "자기장에 관절이 붙어 굳는다"인데, 예전에는 대사만 그렇게 말하고
+ * 로봇은 곧장 다시 걸었다 — 감지만 유예(graceMs)로 막았을 뿐이다. 이제 그 말대로
+ * 걸음이 실제로 멈춘다 (2026-08-06 기획). 굳음이 풀린 뒤의 감지 유예는 따로 이어진다
+ * (#grenadeEscape 의 타이머).
+ */
+const GRENADE_FREEZE_MS = 4000;
 const TILE = mapData.tileSize; // 32
 
 /** 평소의 조작 안내. 감옥에 갇히면 여기 있는 키가 전부 막히므로 따로 세운다 (#toJail). */
 const KEY_HINTS = '[E] 대화    [F] 암호    [R] 구출    [C] 단서 수첩';
+
+/**
+ * [대화하기]의 기본 대사 — 페르소나(personas.json)의 말투를 따른 한 마디씩이다.
+ *
+ * 단서(연상 단어)는 여기서 나오지 않는다 (2026-08-06 기획: 말을 걸자마자 접선 코드
+ * 단서부터 흘리는 것이 부자연스럽다 — 단서는 [암호 말하기] 쪽으로 옮겼다, #offerCode).
+ * 자유 대화(LLM)로 들어가는 첫인사 격이라 서버에 둘 것 없이 클라이언트 고정 대사다
+ * (citizens.json 과 같은 원칙).
+ */
+const ALLY_SMALL_TALK = {
+  watchmaker: '"…태엽은 감은 만큼만 도는 법이지. 조급해하지 마라."',
+  maid: '"…용건만 말씀하세요. 한자리에 오래 서 있으면 눈에 띕니다."',
+  engineer: '"…기관 소리 때문에 잘 안 들린다. 짧게 말해라."',
+  smuggler: '"어라, 낯이 익은데? …궁금한 게 있으면 물어봐. 값은 나중에 치르고."',
+  musician: '"어디 아픈 데는 없습니까. …요즘 거리가 흉흉하니 몸조심하세요."',
+};
 
 /**
  * 감옥 탈출 퍼즐에 실패한 뒤 다음 판이 열리기까지 (ms).
@@ -139,7 +160,7 @@ export class StageScene extends Phaser.Scene {
     // 개발용 정답 보기 (백틱 ` 키로 토글, REVEAL_ANSWER=1 일 때만 서버가 응답)
     this.debugAnswer = null;
     this.answerShown = false;
-    // 단서 수첩 — 첫 대화(자동 접선)로 얻은 NPC → 연상 단어. (C 키로 열람)
+    // 단서 수첩 — [F] 접선으로 얻은 NPC → 연상 단어. (C 키로 열람)
     this.clues = new Map();
     // [F] 암호 말하기로 코드를 건넬 대상 id (지금은 접선책 고정, Task 14 에서 전 동료로 확대)
     this.codeTargetId = null;
@@ -161,8 +182,8 @@ export class StageScene extends Phaser.Scene {
     this.jailAttempts = 0;
     // 창살이 열려 나가는 중 — 암전이 걷힐 때까지 [R] 이 새 판을 열지 못하게 막는다.
     this.jailLeaving = false;
-    // 자석 수류탄 — 적발에서 빠져나갈 수단. 0 이 되면 다음 적발이 곧 게임오버다.
-    this.grenades = GRENADES_START;
+    // 명중 직후 로봇이 굳어 있는 동안 참 — 검문 finally 의 순찰 재개를 막는다 (#grenadeEscape).
+    this.grenadeFreeze = false;
   }
 
   create() {
@@ -293,9 +314,9 @@ export class StageScene extends Phaser.Scene {
   /**
    * 인터랙션 노드 등록. 체포 상태가 바뀌면 #syncAllyNodes 가 재등록한다.
    *
-   * 말을 걸 수 있는 사람은 두 갈래다. 동료 다섯은 자유 대화(서버 LLM)로 연상 단어를
-   * 내주고 — 코드를 받는 별도 창구는 없다, 누구에게 건네도 되고 맞힌 그 동료가
-   * 접선책이 되어 저택으로 데려간다 — 마을 사람 넷은 정해진 대사만 읽는다.
+   * 말을 걸 수 있는 사람은 두 갈래다. 동료 다섯은 [대화하기]로 자유 대화(서버 LLM)를,
+   * [암호 말하기]로 접선(단서 공개 + 코드 접수)을 받는다 — 코드는 누구에게 건네도 되고
+   * 맞힌 그 동료가 접선책이 되어 저택으로 데려간다. 마을 사람 넷은 정해진 대사만 읽는다.
    */
   #registerInteractables() {
     for (const entry of this.allyNodes) this.#registerAllyNode(entry);
@@ -418,13 +439,13 @@ export class StageScene extends Phaser.Scene {
         `동료 ${total}명 중 ${arrested}명은 같은 암호를 떠올려 정체가 드러나 이미 붙잡혀 갔다.\n(감옥에 갇힌 얼굴을 확인하라.)`,
       );
     }
-    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [E] 대화해 단서를 모으고, 겹치는 단어(코드)를 추리해 시계 수리공에게 건네라.`);
+    if (remain > 0) lines.push(`\n남은 ${remain}명에게 [F] 암호 말하기로 접선하라 — 그가 흘리는 단서를 모아,\n겹치는 단어(코드)를 추리해 아무 동료에게나 건네면 된다.`);
     if (arrested > 0) {
       lines.push(
         `\n감옥(좌측 상단) 창살 앞에서 [R] — 붙잡힌 동료를 빼낼 수 있다.\n소란은 새어 나가 경계 레벨이 오르지만, 그가 떠올린 단어는\n둘이 겹쳐서 잡혀갈 만큼 확실한 단서다.`,
       );
     }
-    lines.push('\n[E] 대화(첫 대화 = 접선) · [F] 암호 말하기 · [R] 구출 · [C] 단서 수첩');
+    lines.push('\n[E] 대화 · [F] 암호 말하기(접선 = 단서) · [R] 구출 · [C] 단서 수첩');
 
     this.dialogue.show('접선 지령', lines.join('\n'));
     this.dialogue.setHint('[Space] / [Esc] 로 쪽지를 접는다');
@@ -445,7 +466,7 @@ export class StageScene extends Phaser.Scene {
     const hint = this.state.hint;
     const head = hint ? `접선 코드: ${'○'.repeat(hint.length)} (${hint.category})\n\n` : '';
     if (this.clues.size === 0) {
-      this.clueBook.setText(`${head}아직 수집한 단서가 없다.\n\n동료에게 다가가 [E] 로 말을 걸면,\n그가 흘린 연상 단어가 여기 기록된다.`);
+      this.clueBook.setText(`${head}아직 수집한 단서가 없다.\n\n동료에게 다가가 [F] 암호 말하기로 접선하면,\n그가 흘린 연상 단어가 여기 기록된다.`);
       return;
     }
     const lines = [];
@@ -565,8 +586,7 @@ export class StageScene extends Phaser.Scene {
 
     const active = this.state.allies.filter((a) => !a.arrested);
     const lines = [
-      `경계 레벨 ${this.state.alertLevel} / 3   |   접선 가능 ${active.length}/${this.state.allies.length}` +
-        `   |   자석 수류탄 ${'◆'.repeat(this.grenades)}${'◇'.repeat(GRENADES_START - this.grenades)}`,
+      `경계 레벨 ${this.state.alertLevel} / 3   |   접선 가능 ${active.length}/${this.state.allies.length}`,
     ];
     // 갇힌 동안에는 다른 줄보다 이게 먼저 읽혀야 한다 — 왜 안 움직이는지의 답이다.
     if (this.jailed) lines.push('구속됨 — 창살 잠금장치를 풀어야 나갈 수 있다. [R]');
@@ -789,9 +809,8 @@ export class StageScene extends Phaser.Scene {
    *  - **명중** — 로봇이 굳고 그 틈에 빠져나간다. 경계는 오르지 않는다.
    *  - **빗나감** — 붙잡혀 임시 감옥에 갇힌다 (#toJail). 판이 끝나지는 않는다.
    *
-   * 수류탄은 **던지는 순간 소모된다** — 빗나가도 돌아오지 않는다. 그래서 남은 개수가
-   * 곧 감옥에 안 가고 넘길 수 있는 횟수다. 0 개일 때 걸리면 던질 것이 없어 미니게임도
-   * 열리지 않고 그대로 끌려간다.
+   * 수류탄에 개수 제한은 없다 (2026-08-06 기획 — 상단 상수 블록 주석 참고). 감옥행
+   * 여부는 오직 던지기의 명중/빗나감이 가른다.
    */
   async #startCheckpoint() {
     if (this.checkpointActive) return;
@@ -809,23 +828,6 @@ export class StageScene extends Phaser.Scene {
         this.#endGame('spotted');
         return;
       }
-
-      // 던질 것이 없으면 판이 열리지 않는다 — 빈 손으로 여는 미니게임은 형식일 뿐이다.
-      if (this.grenades <= 0) {
-        const empty = await this.#post('checkpoint/qte', { result: 'fail' });
-        this.state = empty.state;
-        this.#updateHud();
-        this.#toJail(
-          '주머니를 더듬었지만 아무것도 잡히지 않는다.\n\n' +
-            '자석 수류탄이 없다. 로봇의 팔이 어깨를 붙든다.',
-        );
-        return;
-      }
-
-      // 핀을 뽑은 순간 한 발이 나간다 — 빗나가도 돌아오지 않는다. 미니게임이
-      // 끝난 뒤에 빼면 도중에 창을 닫아 개수를 아끼는 길이 생긴다.
-      this.grenades -= 1;
-      this.#updateHud();
 
       const hit = await runGrenadeThrow(this.minigame, this.state.alertLevel);
       if (this.ended) return;
@@ -851,7 +853,13 @@ export class StageScene extends Phaser.Scene {
       // 플레이어를 향해 유예가 끝나기만 기다리는 꼴이고, 나오는 순간의 유예는 창살을
       // 열어 준 쪽(#leaveJail)이 새로 준다. #toJail 은 첫 await 전에 jailed 를 세우므로
       // 이 finally 가 도는 시점에는 이미 참이다.
-      if (!this.jailed) for (const p of this.patrols) p.resume({ graceMs: CHECKPOINT_COOLDOWN_MS });
+      //
+      // 명중으로 굳어 있는 동안에도 재개하지 않는다 — 굳음이 풀리는 시점에
+      // #grenadeEscape 의 타이머가 대신 재개한다 (grenadeFreeze 도 jailed 처럼
+      // 첫 await 없이 세워지므로 여기서 이미 참이다).
+      if (!this.jailed && !this.grenadeFreeze) {
+        for (const p of this.patrols) p.resume({ graceMs: CHECKPOINT_COOLDOWN_MS });
+      }
     }
   }
 
@@ -920,28 +928,37 @@ export class StageScene extends Phaser.Scene {
   }
 
   /**
-   * 명중 — 로봇이 굳고 그 틈에 빠져나간다.
+   * 명중 — 로봇이 몇 초간 정말로 굳고(GRENADE_FREEZE_MS) 그 틈에 빠져나간다.
    *
    * 강한 자기장으로 구동부를 잠깐 붙여 놓는 무기다 (스토리보드 p16, 계획서 §4.3).
-   * 두 개로 시작하고 조우마다 한 개씩 나가므로, **남은 개수가 곧 남은 조우 횟수**다.
-   * 다 쓰면 그다음 발각부터는 감옥행이다 — 예전처럼 게임오버는 아니지만(2026-08-05),
-   * 감옥에서 나오는 데 쓴 시간만큼 경계가 오른 거리를 다시 걸어야 한다.
-   *
-   * ※ 지금은 클라이언트가 개수를 센다. 판이 끝나면 세션도 끝나 되돌릴 여지가 없어
-   *   당장 문제는 없지만, 서버 권위가 원칙이므로 세션으로 옮기는 것이 옳다 (후속).
+   * 개수 제한은 없다 (2026-08-06 기획 — 상단 상수 블록 주석 참고).
    */
   #grenadeEscape() {
     // 자기장이 터지는 순간 — 화면이 한 번 희게 튀고 로봇들이 굳는다.
     this.cameras.main.flash(220, 210, 230, 255);
     this.cameras.main.shake(180, 0.006);
-    for (const p of this.patrols) p.halt();
+
+    // 대사가 말하는 대로 걸음이 실제로 멈춘다 (2026-08-06). 푸른 기운은 자기장에
+    // 붙들렸다는 표시다 — 굳음이 풀리는 시점에 여기의 타이머가 순찰을 재개하므로,
+    // #startCheckpoint 의 finally 는 grenadeFreeze 를 보고 재개를 건너뛴다.
+    this.grenadeFreeze = true;
+    for (const p of this.patrols) {
+      p.halt();
+      p.sprite.setTint(0x9fc4e0);
+    }
+    this.time.delayedCall(GRENADE_FREEZE_MS, () => {
+      this.grenadeFreeze = false;
+      for (const p of this.patrols) p.sprite.clearTint();
+      // 굳어 있는 사이 판이 끝났거나 다시 잡혀갔다면 재개는 그쪽 흐름의 몫이다.
+      if (this.ended || this.jailed) return;
+      for (const p of this.patrols) p.resume({ graceMs: CHECKPOINT_COOLDOWN_MS });
+    });
 
     this.dialogue.show(
       '자석 수류탄',
       '팔이 뻗어 오는 순간, 충전을 끝낸 수류탄을 굴렸다.\n\n' +
         '푸른 섬광. 로봇의 관절이 서로 들러붙어 굳는다. 그 틈에 골목으로 몸을 던졌다.\n\n' +
-        `경계 레벨 ${this.state.alertLevel}/3   ·   남은 수류탄 ${this.grenades}개` +
-        (this.grenades === 0 ? '\n\n이제 던질 것이 없다. 다음에 걸리면 창살 안이다.' : ''),
+        `경계 레벨 ${this.state.alertLevel}/3`,
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
@@ -950,8 +967,7 @@ export class StageScene extends Phaser.Scene {
    * 빗나감 — 붙잡혀 감옥으로 끌려간다.
    *
    * 받아 줄 다음 단계가 없다. 예전에는 LLM 심문이 그 자리였는데 2026-08-05 에
-   * 삭제됐다 (#startCheckpoint 머리말). 던진 수류탄은 이미 나간 뒤라 남은 개수와
-   * 무관하게 여기서 잡힌다.
+   * 삭제됐다 (#startCheckpoint 머리말).
    */
   #grenadeMissed() {
     this.cameras.main.shake(240, 0.008);
@@ -1106,7 +1122,7 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.show(
       '탈출',
       '창살이 소리 없이 열린다. 골목의 찬 공기가 얼굴에 닿는다.\n\n' +
-        `경계 레벨 ${this.state.alertLevel}/3   ·   남은 수류탄 ${this.grenades}개`,
+        `경계 레벨 ${this.state.alertLevel}/3`,
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
   }
@@ -1124,20 +1140,39 @@ export class StageScene extends Phaser.Scene {
   }
 
   /**
-   * 선택지 "대화하기".
+   * 선택지 "대화하기" — 기본 대사 한 마디 뒤에 자유 대화(LLM)를 연다.
    *
-   * 첫 대화는 접선을 겸한다 — /contact 로 연상 단어를 밝혀 수첩에 기록한 뒤
-   * 자유 입력을 연다 (스펙 §2: [F] 는 "암호 말하기"로 넘어갔다).
-   * 중복 판정(체포)도 이 첫 접촉 시점에 갱신된다 — 기존 F 접선과 같은 시점이다.
+   * 접선(/contact)은 여기서 하지 않는다 (2026-08-06 기획). 예전에는 첫 대화가 접선을
+   * 겸해 말을 걸자마자 연상 단어부터 나왔는데, 만나자마자 코드 단서를 흘리는 것이
+   * 부자연스러웠다 — 단서는 코드를 주고받는 자리인 [암호 말하기](#offerCode)로 옮겼다.
    */
-  async #talk(ally) {
+  #talk(ally) {
     this.currentAllyId = ally.id;
     this.dialogue.hideChoices();
+    this.dialogue.show(
+      `${ally.name} (${ally.role})`,
+      ALLY_SMALL_TALK[ally.id] ?? '"…조심해서 다녀라."',
+      { portrait: ally.id },
+    );
+    this.dialogue.showInput('말을 건넨다...', 'chat');
+    this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
+  }
 
-    if (!this.clues.has(ally.id)) {
+  /**
+   * 선택지 "암호 말하기" — 접선의 자리다.
+   *
+   * 첫 번째에는 /contact 로 상대의 연상 단어(단서)를 받아 수첩에 적고, 코드를 말하라는
+   * 대사와 함께 입력창을 연다 (2026-08-06 기획 — 단서는 [대화하기]가 아니라 여기서
+   * 나온다). 중복 판정(체포)도 이 첫 접선 시점에 갱신된다.
+   */
+  async #offerCode(target) {
+    this.codeTargetId = target.id;
+    this.dialogue.hideChoices();
+
+    if (!this.clues.has(target.id)) {
       this.dialogue.setBusy(true);
-      this.dialogue.show(`${ally.name} (${ally.role})`, '조심스럽게 접선을 시도한다...', {
-        portrait: ally.id,
+      this.dialogue.show(`${target.name} (${target.role})`, '조심스럽게 접선을 시도한다...', {
+        portrait: target.id,
       });
 
       let contact;
@@ -1145,7 +1180,7 @@ export class StageScene extends Phaser.Scene {
         const res = await fetch('/api/stage/contact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: this.state.sessionId, allyId: ally.id }),
+          body: JSON.stringify({ sessionId: this.state.sessionId, allyId: target.id }),
         });
         contact = await res.json();
         if (!res.ok) throw new Error(contact.error ?? `HTTP ${res.status}`);
@@ -1157,34 +1192,32 @@ export class StageScene extends Phaser.Scene {
       }
 
       this.state = contact.state;
-      this.#recordClue(ally, contact.word);
+      this.#recordClue(target, contact.word);
       this.#syncAllyNodes();
+      this.#updateHud();
 
-      // 단어 공개는 두 페이지다 — 입력창은 다 읽은 뒤에 연다. 바로 열면
-      // 포커스가 페이지 넘김([Space])을 막아 둘째 페이지에 영영 못 간다.
-      this.dialogue.reply(
-        `${ally.name} (${ally.role})`,
-        `"...「${contact.word}」."\n\n그가 흘린 단서다. [C] 단서 수첩에 기록됐다.`,
-        '[Space] 다음',
-        {
-          portrait: ally.id,
-          onPagesDone: () => {
-            this.dialogue.showInput('말을 건넨다...', 'chat');
-            this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
-          },
-        },
+      // 접선하는 그 순간 중복이 확인돼 상대까지 붙잡혀 갈 수 있다 (session.contactAlly).
+      // 그때는 코드를 받을 사람이 없다 — 단어만 수첩에 남고 입력창은 열지 않는다.
+      if (this.state.allies.find((a) => a.id === target.id)?.arrested) {
+        this.dialogue.reply(
+          `${target.name} (${target.role})`,
+          `"…내 단어는 「${contact.word}」."\n\n말이 끝나기도 전에 로봇들이 그를 둘러싼다 — 같은 단어를 말한 자가 또 있었다.\n\n끌려가며 남긴 단어는 [C] 수첩에 적었다. 둘이 겹친 만큼 확실한 단서다.`,
+          '[Space] / [Esc] 로 닫는다',
+          { portrait: target.id },
+        );
+        return;
+      }
+
+      this.dialogue.show(
+        `${target.name} (${target.role})`,
+        `상대가 눈을 들지 않은 채 낮게 말한다.\n"…내 단어는 「${contact.word}」. 그래서 — 코드는?"`,
+        { portrait: target.id },
       );
+      this.dialogue.showInput('접선 코드 입력...', 'code');
+      this.dialogue.setHint('[Enter] 코드 전달 · [Esc] 취소 · 단어는 [C] 수첩에 기록됐다');
       return;
     }
 
-    this.dialogue.showInput('말을 건넨다...', 'chat');
-    this.dialogue.setHint('[Enter] 대화 · [Esc] 닫기');
-  }
-
-  /** 선택지 "암호 말하기" — 코드 입력창을 연다. */
-  #offerCode(target) {
-    this.codeTargetId = target.id;
-    this.dialogue.hideChoices();
     this.dialogue.show(
       `${target.name} (${target.role})`,
       '상대가 눈을 들지 않은 채 낮게 묻는다.\n"…코드는?"',
@@ -1194,7 +1227,7 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.setHint('[Enter] 코드 전달 · [Esc] 취소');
   }
 
-  /** F 접선으로 얻은 단서(NPC → 연상 단어)를 수첩에 기록한다. */
+  /** [F] 접선(#offerCode)으로 얻은 단서(NPC → 연상 단어)를 수첩에 기록한다. */
   #recordClue(ally, word) {
     if (!word) return;
     // 구출한 동료의 단어는 둘 이상이 겹쳐 냈기에 그가 잡혀갔던 단어다 — 수첩에서 구분해 준다.
@@ -1289,7 +1322,7 @@ export class StageScene extends Phaser.Scene {
       `${ally.name} (${ally.role})`,
       `${freed.name}이(가) 창살 밖으로 빠져나와 제자리로 돌아갔다.\n\n` +
         `소란이 새어 나갔다 — 경계 레벨 ${result.alertLevel}.\n\n` +
-        `[E] 대화로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
+        `[F] 암호 말하기로 다시 접선할 수 있다. 그가 떠올린 단어는\n둘이 겹쳐 낸 만큼 확실한 단서다.`,
       '[Space] / [Esc] 로 닫는다',
       { portrait: ally.id },
     );
