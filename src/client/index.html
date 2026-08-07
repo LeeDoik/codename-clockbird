@@ -490,6 +490,27 @@
       }
       .set-slider:hover .set-knob,
       .set-slider.dragging .set-knob { filter: brightness(1.15); }
+      /* 판을 떠나는 줄 — 슬라이더와 가로줄로 갈라 둔다. 소리를 맞추다 실수로 누를
+         자리가 아니라는 것을 눈으로 먼저 알려야 한다. */
+      #settings-actions {
+        margin-top: calc(28 * var(--s));
+        padding-top: calc(20 * var(--s));
+        border-top: 1px solid var(--brass-lo);
+        text-align: center;
+      }
+      #settings-to-title {
+        font-size: calc(21 * var(--s));
+        padding: calc(10 * var(--s)) calc(28 * var(--s));
+      }
+      /* 경고는 봉랍색 — 실패·위험에 쓰는 색이다 (--wax). */
+      #settings-warn {
+        margin-top: calc(11 * var(--s));
+        font-size: calc(18 * var(--s));
+        color: var(--wax);
+        letter-spacing: 0.02em;
+      }
+      /* 타이틀에서 연 창에는 돌아갈 곳이 없다 — 줄을 통째로 접는다. */
+      #settings:not(.in-game) #settings-actions { display: none; }
       #settings-hint {
         margin-top: calc(20 * var(--s));
         text-align: center;
@@ -2743,6 +2764,11 @@
         <div id="settings-card" class="sp-panel">
           <div id="settings-title">설 정</div>
           <div id="settings-rows"></div>
+          <!-- 판을 떠나는 길. 타이틀에서 연 창에는 돌아갈 곳이 없어 CSS 가 접는다. -->
+          <div id="settings-actions">
+            <button id="settings-to-title" class="sp-btn">타이틀 화면으로</button>
+            <div id="settings-warn">진행 상황은 저장되지 않습니다</div>
+          </div>
           <div id="settings-hint">[Esc] 닫기</div>
         </div>
       </div>

@@ -5,6 +5,9 @@ import { CSS, FONTS } from '../ui/theme.js';
 import { fetchStageStart } from '../net.js';
 import { playBgm } from '../audio/SoundManager.js';
 import { SettingsPanel } from '../ui/SettingsPanel.js';
+import { Hud } from '../ui/Hud.js';
+import { DialogueBox } from '../ui/DialogueBox.js';
+import { ClueBook } from '../ui/ClueBook.js';
 
 const W = 1920;
 const H = 1080;
@@ -28,6 +31,13 @@ export class TitleScene extends Phaser.Scene {
 
   create() {
     playBgm('title');
+    // 판 도중에 돌아왔을 수 있다 (설정 창의 [타이틀 화면으로]). 이 셋은 씬 밖 DOM 이라
+    // 씬을 끝내도 저절로 사라지지 않는다 — HUD 의 조작 안내가 타이틀 위에 그대로 남는다.
+    // 오프닝에서 처음 들어오는 길에서는 셋 다 이미 비어 있어 아무 일도 하지 않는다.
+    new Hud().hide();
+    new DialogueBox().hide();
+    new ClueBook().close();
+
     const title = new TitleScreen();
     title.show((key) => {
       if (key === 'start') {

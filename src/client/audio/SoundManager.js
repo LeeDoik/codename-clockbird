@@ -182,9 +182,11 @@ export function playBgm(key, opts = {}) {
   const soundKey = `bgm-${key}`;
   const base = opts.volume ?? (GAMEPLAY_BGM_KEYS.has(key) ? GAMEPLAY_BGM_VOLUME : MENU_BGM_VOLUME);
   if (currentBgmKey === soundKey && currentBgmSound?.isPlaying) {
-    // 같은 곡이어도 볼륨을 명시해 불렀다면 그건 들어준다 — 타이틀 곡을 엔딩에서 낮게
-    // 다시 트는 것처럼, 곡은 같고 화면의 성격만 다른 자리가 있다.
-    if (opts.volume !== undefined) {
+    // 곡은 그대로 두고 볼륨만 이 화면의 것으로 고쳐 단다 — 곡이 같고 화면의 성격만
+    // 다른 자리가 있다. 엔딩은 타이틀 곡을 대사 아래에 낮게 깔고(0.18), 거기서
+    // [타이틀 화면으로] 돌아가면 같은 곡이 다시 메뉴 크기(0.45)로 서야 한다.
+    // 곡을 끊지 않으므로 이어지는 느낌은 그대로다.
+    if (base !== currentBgmBase) {
       currentBgmBase = base;
       currentBgmSound.setVolume(base * volumes.bgm);
     }

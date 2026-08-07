@@ -26,9 +26,13 @@ export class SettingsPanel {
     this.rowsEl = document.getElementById('settings-rows');
     /** 닫힐 때 한 번 불린다 — 씬이 여기에 scene.resume 을 건다. */
     this.onClose = null;
+    /** 인게임에서 열렸다면 그 씬 — [타이틀 화면으로]가 떠날 곳을 여기서 안다. */
+    this.scene = null;
     this.sel = 0;
     this.rows = [];
     this.#buildRows();
+
+    document.getElementById('settings-to-title').addEventListener('click', () => this.#toTitle());
 
     // 열려 있는 동안 키보드는 전부 이 창의 것이다. capture 단계에서 끊어야 타이틀
     // 메뉴(window 리스너)와 Phaser 보다 **먼저** 잡힌다 — 안 그러면 설정에서 방향키를
@@ -42,6 +46,10 @@ export class SettingsPanel {
    */
   open(onClose = null) {
     this.onClose = onClose;
+    // 기본은 "판 밖에서 열린 창" — 떠날 씬도 없고 [타이틀 화면으로]도 접힌다.
+    // 인게임에서 여는 openPaused 가 뒤이어 이 둘을 세운다.
+    this.scene = null;
+    this.root.classList.remove('in-game');
     for (const entry of this.rows) this.#render(entry);
     this.#select(0);
     this.root.classList.add('visible');
@@ -63,11 +71,31 @@ export class SettingsPanel {
       scene.scene.resume();
       onResume?.();
     });
+    // open() 이 둘을 지우고 시작하므로 그 뒤에 세운다.
+    this.scene = scene;
+    this.root.classList.add('in-game');
+  }
+
+  /**
+   * [타이틀 화면으로] — 판을 버리고 처음 화면으로 돌아간다.
+   *
+   * 멈춰 둔 씬을 **먼저 깨운다**(close 가 onClose 로 resume 을 부른다). 멈춘 채로
+   * scene.start 를 부르면 떠나는 씬의 shutdown 이 정지 상태에서 돌아 뒷정리가
+   * 어중간하게 끝난다. 화면에 남은 HUD·대화창·수첩은 도착한 TitleScene 이 지운다 —
+   * 무엇이 지워져야 하는지는 떠나는 쪽이 아니라 **도착한 화면**이 안다.
+   */
+  #toTitle() {
+    const scene = this.scene;
+    if (!scene) return;
+    playSfx('switch');
+    this.close();
+    scene.scene.start('Title');
   }
 
   close() {
     if (!this.isOpen) return;
     this.root.classList.remove('visible');
+    this.scene = null;
     // 콜백을 먼저 비운다 — 씬이 resume 안에서 또 close 를 부르더라도 두 번 돌지 않는다.
     const done = this.onClose;
     this.onClose = null;
