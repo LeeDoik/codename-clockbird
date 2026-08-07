@@ -37,6 +37,7 @@ import {
 } from '../world/escapeLayout.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { GameOverOverlay } from '../ui/GameOverOverlay.js';
 import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
 import { FONTS } from '../ui/theme.js';
@@ -217,6 +218,8 @@ export class EscapeScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
+    this.keyEsc = this.input.keyboard.addKey('ESC');
+    this.settings = new SettingsPanel();
 
     this.#playIntro();
   }
@@ -264,6 +267,13 @@ export class EscapeScene extends Phaser.Scene {
       for (const s of this.sentries) s.update(delta, null);
       this.playerVisual.update();
       return;
+    }
+
+    // [Esc] — 설정 창. 여는 순간 판이 멈추므로 순찰도 발각 게이지도 그 자리에 선다
+    // (openPaused). 여기서 멈추지 않으면 소리를 줄이는 사이에 붙잡힌다.
+    if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
+      if (this.dialogue.isOpen) this.dialogue.hide();
+      else this.settings.openPaused(this, () => this.keyEsc.reset());
     }
 
     const moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });

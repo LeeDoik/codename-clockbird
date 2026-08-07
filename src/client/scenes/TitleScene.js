@@ -4,6 +4,7 @@ import { TransitionScreen } from '../ui/TransitionScreen.js';
 import { CSS, FONTS } from '../ui/theme.js';
 import { fetchStageStart } from '../net.js';
 import { playBgm } from '../audio/SoundManager.js';
+import { SettingsPanel } from '../ui/SettingsPanel.js';
 
 const W = 1920;
 const H = 1080;
@@ -41,6 +42,10 @@ export class TitleScene extends Phaser.Scene {
           return;
         }
         this.scene.start('Tutorial');
+      } else if (key === 'settings') {
+        // 타이틀은 그대로 둔 채 위에 띄운다 — 곡이 흐르는 중이라 배경음 슬라이더를
+        // 끌면 그 자리에서 결과가 들린다. 닫으면 메뉴가 그대로 있다.
+        new SettingsPanel().open();
       } else {
         window.close();
         title.setHint('창이 닫히지 않으면 브라우저 탭을 직접 닫아 주세요.');

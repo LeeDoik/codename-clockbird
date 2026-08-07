@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { Hud } from '../ui/Hud.js';
 import {
   buildColliders,
@@ -121,6 +122,7 @@ export class TutorialScene extends Phaser.Scene {
     this.keyF = this.input.keyboard.addKey('F');
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
+    this.settings = new SettingsPanel();
 
     this.hud = new Hud();
     this.hud.status('강철 심장 본부 — 훈련');
@@ -310,7 +312,12 @@ export class TutorialScene extends Phaser.Scene {
       return;
     }
     if (!typing && pressedSpace) this.dialogue.advance();
-    if (pressedEsc) this.dialogue.hide();
+    // [Esc] — 위에 덮인 것부터 걷는다: 대화창이 떠 있으면 그것을, 아니면 설정 창을 연다.
+    // 입력칸에 글을 쓰는 중이면 여기까지 오지 않는다 (DialogueBox 가 직접 처리한다).
+    if (pressedEsc) {
+      if (this.dialogue.isOpen) this.dialogue.hide();
+      else this.settings.openPaused(this, () => this.keyEsc.reset());
+    }
   }
 
   /** 선택지 "대화하기" — 자유 입력을 연다 (기본 대사는 레이어가 이미 띄웠다). */

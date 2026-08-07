@@ -12,6 +12,7 @@ let instance = null;
 
 const ITEMS = [
   { key: 'start', label: '게임 시작' },
+  { key: 'settings', label: '설정' },
   { key: 'quit', label: '게임 종료', danger: true },
 ];
 

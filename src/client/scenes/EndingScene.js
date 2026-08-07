@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { EndingCurtain } from '../ui/EndingCurtain.js';
 import {
   applyMovement,
@@ -123,6 +124,7 @@ export class EndingScene extends Phaser.Scene {
     // 연결해야 한다 (브리프 원문엔 이 두 키가 빠져 있었다 — task-13-report.md 참고).
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
+    this.settings = new SettingsPanel();
   }
 
   /** [E] 한 번에 한 줄. 마지막 줄을 읽고 창을 닫으면 update() 가 막을 내린다. */
@@ -181,6 +183,9 @@ export class EndingScene extends Phaser.Scene {
       if (pressedEsc) this.dialogue.hide();
     } else if (pressedE) {
       this.interact.trigger();
+    } else if (pressedEsc) {
+      // 대화창이 없을 때의 [Esc] — 설정 창. 막이 내리기 전까지는 여기도 판 위다.
+      this.settings.openPaused(this, () => this.keyEsc.reset());
     }
   }
 }

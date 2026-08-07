@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { Hud } from '../ui/Hud.js';
 import { DocumentPanel } from '../ui/DocumentPanel.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
@@ -196,6 +197,7 @@ export class MansionScene extends Phaser.Scene {
     this.keyE = this.input.keyboard.addKey('E');
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
+    this.settings = new SettingsPanel();
 
     // 플레이어는 어둠보다 위에 둔다 — 어둠이 걷히는 짧은 사이에도 자기 몸은 보여야 한다.
     // 화면에 실제로 보이는 건 playerVisual 이므로 깊이는 그쪽에 준다.
@@ -659,8 +661,11 @@ export class MansionScene extends Phaser.Scene {
     if (!typing && pressedSpace && this.dialogue.isOpen) {
       this.dialogue.advance();
     }
-    if (pressedEsc && this.dialogue.isOpen) {
-      this.dialogue.hide();
+    // [Esc] — 위에 덮인 것부터 걷는다: 대화창이 떠 있으면 그것을, 아니면 설정 창을 연다.
+    // 입력칸에 글을 쓰는 중이면 여기까지 오지 않는다 (DialogueBox 가 직접 처리한다).
+    if (pressedEsc) {
+      if (this.dialogue.isOpen) this.dialogue.hide();
+      else this.settings.openPaused(this, () => this.keyEsc.reset());
     }
   }
 

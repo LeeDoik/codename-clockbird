@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { Hud } from '../ui/Hud.js';
 import { ClueBook } from '../ui/ClueBook.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
@@ -281,6 +282,7 @@ export class StageScene extends Phaser.Scene {
     this.keyEsc = this.input.keyboard.addKey('ESC');
     this.keyReveal = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.BACKTICK);
     this.keyClues = this.input.keyboard.addKey('C');
+    this.settings = new SettingsPanel();
 
     // 디버그(백틱) 표시의 이유 문장이 길어도 #hud-status 가 오른쪽 여백에서 접는다.
     this.hud = new Hud();
@@ -707,7 +709,7 @@ export class StageScene extends Phaser.Scene {
       // 나가는 중(암전)에는 [R] 이 죽는다 — 이미 열린 창살을 다시 따는 판이 열린다.
       if (pressedRescue && !this.jailLeaving) this.#pickJailLock();
       if (pressedSpace) this.dialogue.advance();
-      if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) this.dialogue.hide();
+      if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) this.#escape();
       // 수첩은 갇혀서도 읽힌다 — 월드를 건드리지 않는 기록이고, 여기 앉아 다음 수를
       // 생각하는 것이 이 시간의 쓸모다.
       if (pressedClues) this.#toggleClues();
@@ -773,10 +775,8 @@ export class StageScene extends Phaser.Scene {
     if (!typing && pressedSpace) {
       this.dialogue.advance();
     }
-    // Esc 로도 대화창을 닫는다. 입력칸 포커스 중일 때는 DialogueBox 가 직접 처리하므로
-    // 여기서는 입력칸 밖(메시지만 표시 중)일 때를 담당한다.
     if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
-      this.dialogue.hide();
+      this.#escape();
     }
     // 백틱(`) — 개발용 정답 토글
     if (Phaser.Input.Keyboard.JustDown(this.keyReveal)) {
@@ -786,6 +786,19 @@ export class StageScene extends Phaser.Scene {
     if (!typing && pressedClues) {
       this.#toggleClues();
     }
+  }
+
+  /**
+   * [Esc] — 위에 덮인 것부터 차례로 걷는다: 대화창이 떠 있으면 그것을 닫고, 아무것도
+   * 없으면 설정 창을 연다.
+   *
+   * 입력칸에 글을 쓰는 중일 때는 여기까지 오지 않는다 — DialogueBox 가 그 Esc 를 직접
+   * 처리하고 stopPropagation 으로 끊어 Phaser 가 아예 못 본다.
+   */
+  #escape() {
+    if (this.dialogue.isOpen) this.dialogue.hide();
+    else if (this.clueBook.isOpen) this.#toggleClues();
+    else this.settings.openPaused(this, () => this.keyEsc.reset());
   }
 
   /**
