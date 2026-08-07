@@ -447,49 +447,69 @@
       /* 숫자가 흔들리지 않게 고정폭 숫자 — 끄는 동안 % 가 1 자리씩 늘고 줄면
          라벨 전체가 덜컹인다. */
       .set-val { color: var(--brass); font-variant-numeric: tabular-nums; }
-      /* 슬라이더 — 홈에 황동 띠가 차고 그 끝에 손잡이가 선다.
-         <input type="range"> 를 쓰지 않은 이유: 손잡이·홈을 브라우저마다 따로
-         손봐야 하는데, 이 화면은 액자 리벳까지 그림으로 맞춘 자리라 그 편차를
-         감당할 여지가 없다. 끌기는 포인터 캡처로 직접 받는다(SettingsPanel). */
+      /* 슬라이더 — 검문 조우의 타이밍 트랙과 **같은 부품**을 쓴다.
+         홈은 track-frame(가로 채널 + 대칭 청동 캡), 손잡이는 needle(그 위를 타는
+         놋쇠 추). 둘은 짝으로 구워진 그림이라 서로 맞출 것이 없고, 플레이어는 이미
+         그 물건으로 수류탄 타이밍을 맞춰 봤다 — 볼륨도 같은 어휘로 읽힌다.
+         (설정 전용으로 홈·손잡이를 새로 구워 봤지만 두 판 다 접었다. 왜 접었고 왜
+          이 둘을 도로 쓰는지는 scripts/ui-assets.js 의 설정 창 항목에 적어 두었다.)
+
+         <input type="range"> 를 쓰지 않은 이유도 여기 있다 — 손잡이가 그림이라
+         브라우저별 기본 손잡이를 걷어내는 것부터가 일이다. 끌기는 포인터 캡처로
+         직접 받는다(SettingsPanel). */
       .set-slider {
         position: relative;
-        height: calc(28 * var(--s));
+        /* ⚠ 이 두께를 줄이지 말 것. 9분할은 원본 테두리(위아래 9px)를 그대로 박는데
+           막대가 얇으면 그 테가 실오라기로 보인다 — .gr-track 이 38 에서 52 로 올린
+           것과 같은 계산이다 (위아래 13씩 + 채널 26). */
+        height: calc(52 * var(--s));
         cursor: pointer;
         /* 끄는 동안 브라우저가 화면을 같이 스크롤·확대하지 않게 한다 (터치·펜). */
         touch-action: none;
       }
-      .set-track,
+      .set-track {
+        position: absolute;
+        inset: 0;
+        background: #14100a;
+        background-clip: padding-box;
+        border-style: solid;
+        border-color: transparent;
+        border-width: calc(13 * var(--s)) calc(26 * var(--s));
+        border-image: url('/ui/track-frame.png') 9 17 / calc(13 * var(--s)) calc(26 * var(--s)) / 0 round;
+        image-rendering: pixelated;
+      }
+      /* 액자가 border 라서 아래 둘의 기준(padding box)이 채널 **안쪽**으로 옮겨진다.
+         이게 맞다 — 띠도 손잡이도 청동 캡 위로 올라가면 안 된다. 끌기 계산도 같은
+         상자를 쓰므로(SettingsPanel 의 clientLeft/clientWidth) 손과 그림이 안 어긋난다. */
       .set-fill {
         position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        height: calc(10 * var(--s));
-      }
-      .set-track {
-        left: 0;
-        right: 0;
-        background: #17110a;
-        border: 1px solid var(--brass-lo);
-        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
-      }
-      .set-fill {
+        top: 0;
+        bottom: 0;
         left: 0;
         width: 0;
-        background: linear-gradient(180deg, var(--brass-hi), var(--brass) 60%, var(--brass-lo));
+        /* 차오르는 놋쇠만 CSS 다 — 0 에서 가득까지 자라는 띠에 끝동이 있으면 짧을 때
+           좌우 테가 겹쳐 그림으로 만들 수 없다. .gr-zone 이 초록을 CSS 로 칠하는 것과
+           같은 이유이고, 네 판을 굽고 내린 결론이다 (ui-assets.js 의 ⚠). */
+        background: linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
       }
       .set-knob {
         position: absolute;
-        top: 50%;
+        /* needle 은 26:100 이라 `contain` 이 **높이에 갇힌다** — 폭을 키우는 방법은
+           상자를 세로로 벌리는 것뿐이다 (채널 26 + 위아래 13씩 = 52 → 그려지는 폭 ≈ 13).
+           margin-left 는 그 폭의 절반이다. 안 그러면 손잡이의 왼쪽 끝이 값을 가리켜
+           눈에 보이는 것보다 반 칸 작게 잡힌다. */
+        top: calc(-13 * var(--s));
+        bottom: calc(-13 * var(--s));
         left: 0;
         width: calc(16 * var(--s));
-        height: calc(28 * var(--s));
-        transform: translate(-50%, -50%);
-        background: linear-gradient(180deg, var(--brass-hi), var(--brass) 45%, var(--brass-lo));
-        border: 1px solid var(--ink);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+        margin-left: calc(-8 * var(--s));
+        background: url('/ui/needle.png') center / contain no-repeat;
+        image-rendering: pixelated;
       }
       .set-slider:hover .set-knob,
-      .set-slider.dragging .set-knob { filter: brightness(1.15); }
+      .set-slider.dragging .set-knob {
+        filter: drop-shadow(0 0 calc(6 * var(--s)) rgba(232, 193, 90, 0.6));
+      }
       /* 판을 떠나는 줄 — 슬라이더와 가로줄로 갈라 둔다. 소리를 맞추다 실수로 누를
          자리가 아니라는 것을 눈으로 먼저 알려야 한다. */
       #settings-actions {
@@ -498,9 +518,25 @@
         border-top: 1px solid var(--brass-lo);
         text-align: center;
       }
+      /* 버튼 판 (public/ui/exit-plate.png, 186×57 · PixelLab).
+         .sp-btn 의 놋쇠 그라디언트를 덮어쓴다 — 바로 위에 놋쇠 슬라이더 셋이 늘어서
+         있어서 같은 놋쇠 얼굴이면 넷째 슬라이더로 읽히고, 무엇보다 이건 **판을 버리는
+         단추**라 소리 조절과 같은 무게로 보이면 안 된다.
+         판이 먹색이므로 글자도 .sp-btn 의 먹색(--ink)에서 종이색으로 갈아야 읽힌다. */
       #settings-to-title {
         font-size: calc(21 * var(--s));
-        padding: calc(10 * var(--s)) calc(28 * var(--s));
+        /* 테두리 14 + 안여백 4 + 글자 ≈ 57 — 그림 높이와 1:1 로 맞는다. */
+        padding: calc(4 * var(--s)) calc(24 * var(--s));
+        color: var(--paper);
+        text-shadow: 0 calc(2 * var(--s)) 0 rgba(0, 0, 0, 0.65);
+        background: none;
+        box-shadow: none;
+        border-radius: 0;
+        border-style: solid;
+        border-color: transparent;
+        border-width: calc(14 * var(--s));
+        border-image: url('/ui/exit-plate.png') 14 fill / calc(14 * var(--s)) / 0 round;
+        image-rendering: pixelated;
       }
       /* 경고는 봉랍색 — 실패·위험에 쓰는 색이다 (--wax). */
       #settings-warn {

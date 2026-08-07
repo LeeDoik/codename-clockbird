@@ -1029,4 +1029,67 @@ export const ASSETS = [
       'one bird only, nothing behind it, plain empty background',
     opts: { no_background: true },
   },
+
+  // ── 설정 창 (타이틀 [설정] · 인게임 [Esc]) ─────────────────────
+  //
+  // 카드 액자는 새로 안 굽는다 — `.sp-panel`(stage-frame)을 이미 쓰고 있고,
+  // 버튼도 `.sp-btn` 공용이다. 남는 것은 **슬라이더 세 조각**인데 지금은 셋 다
+  // CSS 그라디언트다. 한 화면 안에서 액자만 그림이고 그 속의 부품은 매끈한
+  // 그라디언트라 서로 다른 게임의 물건처럼 놓여 있다.
+  //
+  // 셋을 따로 굽는 이유는 각자 다르게 늘어나기 때문이다. 홈은 가로로 늘고,
+  // 띠는 0 에서 가득까지 매 프레임 늘고, 손잡이는 안 는다. 한 장으로 그리면
+  // 늘어나는 부분과 안 늘어나는 부분이 한 그림에 섞인다.
+  // ⚠ 홈과 손잡이는 **새로 안 굽는다.** 두 번씩 굴려 보고 접었다 — 실패가 우연이
+  //   아니라 이미 이 표에 적혀 있는 함정이었다.
+  //
+  //   홈(320×56, `recessed channel ... identical mirrored end cap`) — 두 판 다
+  //     오른쪽 캡이 캔버스 밖으로 잘려 나갔다 (양끝 거울 평균차 42 · 100). alert-gauge
+  //     의 ⚠ 가 적어 둔 그 증상이고, 9분할은 좌우 모서리를 각각 박으므로 짝짝이가 된다.
+  //   손잡이(64×112) — 1판은 3/4 입체(needle 의 ⚠ 3차와 같은 실패), 2판은 폭 21px
+  //     실오라기(needle 의 ⚠ 1차와 같은 실패). 저 칸이 세 번 헛디딘 끝에 찾은 답이
+  //     지금의 needle 이다.
+  //
+  //   두 부품 다 **이미 있다**: track-frame(가로 채널 + 대칭 청동 캡)과 needle(그 위를
+  //   타는 놋쇠 손잡이). 게다가 둘은 짝으로 설계돼 검문 조우의 타이밍 트랙에서 같이
+  //   돌고 있다 — 볼륨 슬라이더가 그 어휘를 그대로 쓰면 플레이어가 이미 아는 물건이
+  //   된다. 감옥 퍼즐이 stage-frame 을 도로 쓴 것과 같은 판단이다.
+  // ⚠ 차오르는 띠도 **안 굽는다.** 네 판을 굴렸고 네 판 다 사방에 테를 두른 판이
+  //   나왔다 (negative 에 end cap·side border·frame·bracket 을 넣어도, tape-strip 처럼
+  //   "좌우 끝까지 이어진다"고 못박아도 그렸다). 모델 탓이라기보다 부탁이 틀렸다 —
+  //   **0 에서 가득까지 자라는 띠에는 끝동이 있으면 안 된다.** 9분할로 늘리면 100%
+  //   에서는 멀쩡하지만 20% 에서는 좌우 테가 제 폭을 넘어 겹치고, 이어 붙이면 테가
+  //   일정 간격으로 되풀이돼 띠가 토막 난다.
+  //
+  //   이 저장소는 이미 같은 답을 냈다: 검문 트랙도 **액자만 그림이고 차오르는 색은
+  //   CSS 그라디언트**다 (.gr-track 의 빨강 배경 · .gr-zone 의 초록). 볼륨도 그대로 간다.
+  {
+    id: 'exit-plate',
+    label: '[타이틀 화면으로] 버튼 판 — 판을 버리고 떠나는 문',
+    palette: 'metal',
+    // 글자가 여섯 자라 button.png(53×20)로는 좁다. 9분할이라 늘리면 그만이지만,
+    // 원본이 가로로 짧으면 리벳 사이가 벌어져 판이 성기게 보인다.
+    size: { width: 192, height: 64 },
+    // 실측(2026-08-07 판, 여백 잘린 186×57 기준): 놋쇠 레일은 2px 로 얇지만 모서리
+    // 브래킷의 곡선이 12px 까지 뻗는다. 10 으로 끊으면 그 꼬리가 잘리므로 14 —
+    // space-plate·key-plate 와 같은 값이 되었다.
+    slice: 14,
+    fill: true, // 판이 곧 배경이다 — 빼면 글자가 허공에 뜬다 (space-plate 와 같은 이유)
+    target: '#settings-to-title (지금은 .sp-btn 그라디언트)',
+    // 문장은 hud-plate·duel-plaque 에서 그대로 가져왔다. 둘 다 한 번에 나온 판이고
+    // **어두운 쇠판 + 놋쇠 테 + 모서리 리벳**이라는 같은 물건이라, 새로 쓰는 것보다
+    // 검증된 문장을 옮기는 쪽이 화풍이 안 갈린다 (이 파일 머리말의 규칙).
+    //
+    // space-plate(놋쇠 얼굴)를 안 따라간 이유는 하나다 — 이 버튼 바로 위에 놋쇠
+    // 슬라이더 셋이 늘어선다. 같은 놋쇠 얼굴이면 넷째 슬라이더처럼 보이고, 무엇보다
+    // 이건 **판을 버리는 단추**라 소리 조절과 같은 무게로 보이면 안 된다.
+    description:
+      'a wide rectangular dark iron button plate seen flat from the front, a narrow bevelled bronze rim ' +
+      'running along all four edges with a small rivet in each corner, the middle filled with flat ' +
+      'near-black charcoal metal left completely blank for a label to sit on, a faint warm amber ' +
+      'highlight along the top rim and a dark shadow along the bottom rim, scratched grimy metal, ' + METAL,
+    negative: NO_FRAME + ', hollow, transparent center, thick frame, cogwheel, gear, ornate, engraving, ' +
+      'bright brass face, golden face, keyboard, many keys, round, circular, lever, switch, handle',
+    opts: { detail: 'medium detail', shading: 'detailed shading', outline: 'single color outline', view: 'side', no_background: true },
+  },
 ];

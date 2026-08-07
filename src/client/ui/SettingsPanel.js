@@ -111,15 +111,21 @@ export class SettingsPanel {
     this.rows = VOLUME_CHANNELS.map((channel, i) => {
       const row = document.createElement('div');
       row.className = 'set-row';
+      // 띠와 손잡이는 홈의 **자식**이다 — 홈의 액자가 border 라, 자식의 기준 상자가
+      // 청동 캡 안쪽(채널)으로 저절로 옮겨진다. 퍼센트를 그 상자에 맡기면 손잡이가
+      // 캡 위로 올라갈 일이 없다 (index.html 의 .set-track 주석 참고).
       row.innerHTML =
         '<div class="set-label"><span></span><span class="set-val"></span></div>' +
-        '<div class="set-slider"><div class="set-track"></div><div class="set-fill"></div><div class="set-knob"></div></div>';
+        '<div class="set-slider"><div class="set-track">' +
+        '<div class="set-fill"></div><div class="set-knob"></div>' +
+        '</div></div>';
       row.querySelector('.set-label span').textContent = channel.label;
 
       const entry = {
         channel: channel.key,
         rowEl: row,
         slider: row.querySelector('.set-slider'),
+        trackEl: row.querySelector('.set-track'),
         valEl: row.querySelector('.set-val'),
         fillEl: row.querySelector('.set-fill'),
         knobEl: row.querySelector('.set-knob'),
@@ -141,10 +147,14 @@ export class SettingsPanel {
   #bindDrag(entry, i) {
     let dragging = false;
 
+    // 재는 상자는 홈의 **채널**이다 (getBoundingClientRect 는 액자까지 포함한 테두리
+    // 상자라 그대로 쓰면 청동 캡 두께만큼 어긋난다). clientLeft = 왼쪽 테두리 두께,
+    // clientWidth = 그 안쪽 폭 — 띠·손잡이가 % 로 앉는 바로 그 상자다.
     const applyAt = (e) => {
-      const rect = entry.slider.getBoundingClientRect();
-      if (!rect.width) return;
-      this.#set(entry, (e.clientX - rect.left) / rect.width);
+      const rect = entry.trackEl.getBoundingClientRect();
+      const width = entry.trackEl.clientWidth;
+      if (!width) return;
+      this.#set(entry, (e.clientX - rect.left - entry.trackEl.clientLeft) / width);
     };
 
     entry.slider.addEventListener('pointerdown', (e) => {
