@@ -3,6 +3,7 @@ import { TitleScreen } from '../ui/TitleScreen.js';
 import { TransitionScreen } from '../ui/TransitionScreen.js';
 import { CSS, FONTS } from '../ui/theme.js';
 import { fetchStageStart } from '../net.js';
+import { playBgm } from '../audio/SoundManager.js';
 
 const W = 1920;
 const H = 1080;
@@ -25,6 +26,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create() {
+    playBgm('title');
     const title = new TitleScreen();
     title.show((key) => {
       if (key === 'start') {

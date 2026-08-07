@@ -40,6 +40,7 @@ import { DialogueBox } from '../ui/DialogueBox.js';
 import { GameOverOverlay } from '../ui/GameOverOverlay.js';
 import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
 import { FONTS } from '../ui/theme.js';
+import { playBgm, setLoop, setLoopVolume, playSfx } from '../audio/SoundManager.js';
 
 /**
  * 스테이지 3 — 저택 탈출.
@@ -79,6 +80,11 @@ const GAUGE_FALL = 40;
  * 이게 없으면 콘 경계에서 게이지가 깜빡이며 오르내려 플레이어가 규칙 자체를 못 읽는다.
  */
 const GAUGE_GRACE_MS = 1000;
+/**
+ * 경고음 최대 볼륨 (0~1). 게이지가 다 찰 때 이 값에 닿는다 — 사이렌처럼 계속 크게
+ * 울리면 정작 중요한 순간(발각 직전)의 위기감이 묻히므로 다른 효과음보다 낮게 잡는다.
+ */
+const WARNING_MAX_VOLUME = 0.3;
 
 /**
  * 에바가 ㄴ 자로 다가올 때 **먼저 내려오는 거리** (월드 px, #evaApproach).
@@ -120,6 +126,7 @@ export class EscapeScene extends Phaser.Scene {
   }
 
   create() {
+    playBgm('stage3');
     // 네 맵이 같은 방식이다 — 한 장에 구운 배경을 1:1 로 깔고 충돌만 따로 세운다.
     this.add.image(0, 0, 'escape-bg').setOrigin(0, 0).setDepth(-100);
     this.walls = buildColliders(this, escapeData, escapeProps);
@@ -250,12 +257,17 @@ export class EscapeScene extends Phaser.Scene {
   update(time, delta) {
     if (this.ended || this.respawning || this.intro) {
       this.player.body.setVelocity(0, 0);
+      setLoop('walk', false);
+      // 발각된 순간(#caught) 게이지가 꽉 찬 채로 여기 들어올 수 있다 — 걸음 소리와
+      // 같은 이유로 같이 끊는다. 안 그러면 리스폰 연출 내내 경고음이 최대 볼륨으로 남는다.
+      setLoop('warning', false);
       for (const s of this.sentries) s.update(delta, null);
       this.playerVisual.update();
       return;
     }
 
-    applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    const moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    setLoop('walk', moving);
     this.playerVisual.update();
 
     // 배수구 앞 통로에 발을 들이면 에바가 나타나고 심문이 시작된다 — 한 번만 발동한다.
@@ -282,6 +294,11 @@ export class EscapeScene extends Phaser.Scene {
     } else if (this.time.now >= this.fallAt) {
       this.gauge = Math.max(0, this.gauge - (GAUGE_FALL * delta) / 1000);
     }
+
+    // 게이지가 찰수록 경고음도 함께 커진다 — 콘 밖으로 나가면 즉시 끊는다(다음
+    // 발각 때 다시 작은 소리부터 시작해야 "또 걸렸다"는 느낌이 새로 산다).
+    setLoop('warning', seen);
+    if (seen) setLoopVolume('warning', WARNING_MAX_VOLUME * (this.gauge / GAUGE_MAX));
 
     this.#drawGauge(seen);
 
@@ -465,6 +482,7 @@ export class EscapeScene extends Phaser.Scene {
     });
 
     if (outcome === 'win') {
+      playSfx('clear');
       this.#toEnding();
       return;
     }

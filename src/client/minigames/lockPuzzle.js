@@ -26,6 +26,8 @@
  * 이 골격을 못 만든다.
  */
 
+import { playBgm, playSfx } from '../audio/SoundManager.js';
+
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const shuffle = (arr) => arr.map((v) => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map(([, v]) => v);
 const range = (n) => Array.from({ length: n }, (_, i) => i);
@@ -134,6 +136,7 @@ function wiring() {
           if (b.disabled) return;
           if (!selected) { setHint('먼저 좌측 기호를 고른다.'); return; }
           if (map.get(selected) === n) {
+            playSfx('switch');
             const from = leftBtns.get(selected);
             from.classList.remove('sel');
             from.classList.add('done');
@@ -229,6 +232,7 @@ function keypad() {
         b.onclick = () => {
           if (b.disabled) return;
           if (v === order[idx]) {
+            playSfx('steam');
             b.classList.add('done');
             b.disabled = true;
             slots.children[idx].textContent = String(v);
@@ -326,6 +330,7 @@ function pressure() {
             redraw();
             return;
           }
+          playSfx('gear');
           selected.add(v);
           b.classList.add('sel');
           redraw();
@@ -367,6 +372,7 @@ const TYPES = [wiring, keypad, pressure];
  */
 export function runLockPuzzle(panel, { from = 'outside' } = {}) {
   const puzzle = pick(TYPES)();
+  playBgm('minigame2');
   return panel.run({
     title: `${from === 'inside' ? '감옥 탈출' : '창살 잠금장치'} — ${puzzle.title}`,
     subtitle: puzzle.subtitle,
@@ -388,5 +394,8 @@ export function runLockPuzzle(panel, { from = 'outside' } = {}) {
 
       return () => { delete content.dataset.puzzle; };
     },
+  }).then((result) => {
+    playBgm('stage1');
+    return result;
   });
 }

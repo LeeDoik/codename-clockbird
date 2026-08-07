@@ -66,6 +66,7 @@ import {
 import { fetchStageStart } from '../net.js';
 import { waitForFonts, FONTS, CSS } from '../ui/theme.js';
 import { TransitionScreen } from '../ui/TransitionScreen.js';
+import { preloadAudio, initSoundManager } from '../audio/SoundManager.js';
 
 /**
  * 로딩 씬.
@@ -178,9 +179,15 @@ export class BootScene extends Phaser.Scene {
       frameWidth: EVA_FRAME_SIZE,
       frameHeight: EVA_FRAME_SIZE,
     });
+    // BGM·SFX — 전부 여기서 한 번 싣는다 (게임 전역 자산). audio/SoundManager.js 참고.
+    preloadAudio(this);
   }
 
   create() {
+    // 이후 어느 파일에서든 SoundManager 의 playSfx/playBgm 을 바로 쓸 수 있게, 이 씬의
+    // sound 매니저(= 게임 전역 매니저)를 한 번만 등록해 둔다.
+    initSoundManager(this);
+
     // 12프레임 아이들 시트 등록 — 이제 거리의 에이던 하나뿐이다.
     // 나머지 인물은 정지 그림 한 장이거나 아래의 방향별 시트를 쓴다.
     for (const key of ['watchmakerIdle']) {

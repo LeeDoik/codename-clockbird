@@ -27,6 +27,7 @@ import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { nameLabelStyle } from '../ui/theme.js';
 import { TransitionScreen } from '../ui/TransitionScreen.js';
+import { playBgm, setLoop } from '../audio/SoundManager.js';
 import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
 
@@ -87,6 +88,7 @@ export class TutorialScene extends Phaser.Scene {
   }
 
   create() {
+    playBgm('tutorial');
     this.dialogue = new DialogueBox();
     this.dialogue.onSend = (message) => this.#chat(message);
     this.dialogue.onCode = (guess) => this.#submitGuess(guess);
@@ -263,8 +265,10 @@ export class TutorialScene extends Phaser.Scene {
     if (this.ended) return;
 
     const typing = this.dialogue.isTyping;
+    let moving = false;
     if (typing) this.player.body.setVelocity(0, 0);
-    else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    else moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    setLoop('walk', moving);
     this.playerVisual.update();
 
     // 응답을 기다리는 동안에도 상호작용을 열어 두면, 늦게 도착한 스트림이 그 사이 띄운

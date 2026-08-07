@@ -19,6 +19,8 @@
  * 실제로 어려워져야 "경계가 올랐다"는 숫자가 몸으로 읽힌다.
  */
 
+import { playBgm, setLoop, playSfx } from '../audio/SoundManager.js';
+
 /** 게이지 칸 수 — 화면에 그려지는 칸이자 충전의 단위다. */
 const CHARGE_CELLS = 6;
 /** 한 번 누를 때 차오르는 양 (칸). 여섯 칸을 채우는 데 최소 다섯 번이다. */
@@ -38,6 +40,8 @@ const SWEEP_MS_MIN = 620;
 const TIME_LIMIT_MS = 12_000;
 /** 경계 레벨 상한 — Patrol 과 같은 값을 쓴다 */
 const MAX_LEVEL = 3;
+/** 충전 루프 볼륨 — 원본 음원이 꽤 크게 마스터링돼 있어 기본 효과음 볼륨보다 낮춘다. */
+const ENERGY_CHARGE_VOLUME = 0.4;
 
 /**
  * 인물 그림. 파일이 없으면 숨는다 — 초상(DialogueBox)과 같은 규약이다.
@@ -73,6 +77,8 @@ export function runGrenadeThrow(panel, alertLevel) {
   const sweepMs = Math.max(SWEEP_MS_MIN, SWEEP_MS_BASE - SWEEP_MS_PER_LEVEL * level);
   // 구간이 가장자리에 붙으면 왕복 끝에서 손잡이가 오래 머물러 쉬워진다 — 안쪽에만 둔다.
   const zoneStart = 0.08 + Math.random() * (1 - zoneW - 0.16);
+
+  playBgm('minigame1');
 
   return panel.run({
     title: '수류탄 투척',
@@ -132,6 +138,9 @@ export function runGrenadeThrow(panel, alertLevel) {
       // 어긋나 있으면 매번 다른 자리에서 시작해 첫 프레임을 읽을 수 없다.
       let sweepElapsed = 0;
 
+      // 충전 중에는 에너지가 차오르는 소리를 계속 튼다 — 투척 단계로 넘어가면 멈춘다.
+      setLoop('energyCharge', true, { volume: ENERGY_CHARGE_VOLUME });
+
       // 패널의 제한 시간과 같은 이유로 프레임 간격을 쌓아 잰다 — 탭을 다녀왔을 때
       // 그 공백을 그대로 인정하면 게이지가 통째로 빠지거나 손잡이가 순간이동한다.
       const MAX_FRAME_MS = 100;
@@ -161,6 +170,7 @@ export function runGrenadeThrow(panel, alertLevel) {
 
       function toThrow() {
         phase = 'throw';
+        setLoop('energyCharge', false);
         stage.classList.replace('charging', 'throwing');
         setSubtitle('손잡이가 초록색 구간일 때 던지세요.');
         setHint('범위를 벗어나면 바로 실패!');
@@ -193,6 +203,8 @@ export function runGrenadeThrow(panel, alertLevel) {
         burst.className = `gr-burst ${ok ? 'hit' : 'miss'}`;
         stage.append(burst);
 
+        // 명중이든 빗나가든, 던진 수류탄은 어딘가에 부딪힌다.
+        playSfx('boom');
         finish(ok);
       };
 
@@ -205,8 +217,14 @@ export function runGrenadeThrow(panel, alertLevel) {
         if (e.key === ' ' || e.key === 'Enter') press();
       };
 
-      // 제한 시간에 걸려 패널이 접을 때도 rAF 는 반드시 멈춰야 한다.
-      return () => cancelAnimationFrame(rafId);
+      // 제한 시간에 걸려 패널이 접을 때도 rAF 는 반드시 멈춰야 하고, 충전음도 같이 멎어야 한다.
+      return () => {
+        cancelAnimationFrame(rafId);
+        setLoop('energyCharge', false);
+      };
     },
+  }).then((result) => {
+    playBgm('stage1');
+    return result;
   });
 }
