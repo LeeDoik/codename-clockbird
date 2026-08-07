@@ -725,7 +725,7 @@ export class MansionScene extends Phaser.Scene {
       this.dialogue.setBusy(false);
     }
 
-    if (pending) this.#applyEvent(pending);
+    if (pending) await this.#applyEvent(pending);
     this.dialogue.endStream('[Space] 다음 · [Esc] 닫기');
     // 밀고는 즉시 끝내지 않는다 — 즉시 ended 를 세우면 update() 가 멈춰 [Space] 페이지
     // 넘김이 죽고, 플레이어가 진 이유를 읽기 전에 결과 화면이 덮는다.
@@ -746,7 +746,17 @@ export class MansionScene extends Phaser.Scene {
     }
   }
 
-  #applyEvent({ event, line, state }) {
+  /**
+   * 동료를 확인한 순간(key/hint)은 여느 대화 턴과 달라야 한다 — 예전엔 이 순간에도
+   * 그냥 보상 문구 한 줄이 조용히 이어 붙을 뿐이라, 플레이어가 "뭔가 풀렸다"는 걸
+   * 느낄 길이 없었다(2026-08-07 피드백). 그래서 이 사건만 따로 세 박자로 늘어뜨린다:
+   * ① 동료가 "이제 확인됐다"는 그 순간의 반응(revealLine) — 정보가 아니라 반응이다.
+   * ② (열쇠 보유자만) 화면 플래시 — 열쇠를 건네받는 무게를 그림 없이 카메라 효과로 낸다.
+   * ③ 실질 정보(key/hint 원문)와 시스템 안내.
+   * `#chat` 이 이 함수를 끝까지 기다린 뒤에야 "[Space] 다음" 힌트를 띄우므로, 대사가
+   * 다 나오기 전에 다음으로 넘어가란 안내가 먼저 뜨는 일은 없다.
+   */
+  async #applyEvent({ event, revealLine, line, state }) {
     this.#syncState(state);
     this.#updateHud();
 
@@ -766,12 +776,22 @@ export class MansionScene extends Phaser.Scene {
       return;
     }
     if (event === 'key' || event === 'hint') {
-      if (event === 'key') playSfx('clear');
+      if (revealLine) {
+        await this.#beat(400);
+        this.dialogue.append(`\n\n"${revealLine}"`);
+        await this.#beat(1800);
+      }
+      playSfx('clear');
+      if (event === 'key') {
+        this.cameras.main.flash(400, 255, 255, 255, false);
+        this.uiCam?.flash(400, 255, 255, 255, false);
+        await this.#beat(300);
+      }
       // 보상 문구는 서버가 쥔 원문 그대로 붙인다 — 모델이 고쳐 말하면 단서가 흐려진다.
       this.dialogue.append(`\n\n"${line}"`);
       this.dialogue.append(
         event === 'key'
-          ? '\n\n[연구실 열쇠를 손에 넣었다. 하인 통로 끝의 문을 열 수 있다.]'
+          ? '\n\n[세드릭에게서 연구실 열쇠를 건네받았다. 하인 통로 끝의 문을 열 수 있다.]'
           : '\n\n[열쇠를 쥔 사람의 단서를 얻었다.]',
       );
     }
