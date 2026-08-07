@@ -1,3 +1,5 @@
+import { playSfx } from '../audio/SoundManager.js';
+
 /**
  * 문서 열람 패널 (DOM 오버레이).
  *
@@ -28,6 +30,7 @@ export class DocumentPanel {
   }
 
   open({ title, body, onClose = null }) {
+    playSfx('close');
     this.titleEl.textContent = title;
     this.bodyEl.textContent = body;
     this.onClose = onClose;
@@ -36,6 +39,7 @@ export class DocumentPanel {
 
   close() {
     if (!this.isOpen) return;
+    playSfx('close');
     this.root.classList.remove('visible');
     const cb = this.onClose;
     this.onClose = null;

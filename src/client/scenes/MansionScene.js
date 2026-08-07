@@ -28,6 +28,7 @@ import {
 import { InteractionManager } from '../world/interact.js';
 import { readSSE } from '../net.js';
 import { CSS, FONTS } from '../ui/theme.js';
+import { playBgm, setLoop, playSfx, stopBgm } from '../audio/SoundManager.js';
 import mansionData from '../assets/mansion.json';
 import mansionProps from '../assets/mansion-props.json';
 
@@ -158,6 +159,7 @@ export class MansionScene extends Phaser.Scene {
   }
 
   create() {
+    playBgm('stage2');
     this.dialogue = new DialogueBox();
     this.dialogue.onSend = (message) => this.#chat(message);
     this.docPanel = new DocumentPanel();
@@ -610,14 +612,17 @@ export class MansionScene extends Phaser.Scene {
     // 문서 열람 중 세계는 정지한다 — 월드 카메라 키입력도 먹히지 않는다.
     if (this.docPanel?.isOpen) {
       this.player.body.setVelocity(0, 0);
+      setLoop('walk', false);
       // 멈춘 김에 걷기 애니메이션도 접어야 한다 — 안 그러면 제자리에서 계속 걷는다.
       this.playerVisual.update();
       return;
     }
 
     const typing = this.dialogue.isTyping;
+    let moving = false;
     if (typing) this.player.body.setVelocity(0, 0);
-    else applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    else moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
+    setLoop('walk', moving);
     this.playerVisual.update();
 
     // 문간(방 사각형 밖)에서는 null 이 나온다 — 그때는 방을 바꾸지 않는다.
@@ -757,6 +762,7 @@ export class MansionScene extends Phaser.Scene {
       return;
     }
     if (event === 'key' || event === 'hint') {
+      if (event === 'key') playSfx('clear');
       // 보상 문구는 서버가 쥔 원문 그대로 붙인다 — 모델이 고쳐 말하면 단서가 흐려진다.
       this.dialogue.append(`\n\n"${line}"`);
       this.dialogue.append(
@@ -832,6 +838,7 @@ export class MansionScene extends Phaser.Scene {
     this.docPanel.close();
 
     // 소리가 먼저 온다 — 무슨 일이 벌어졌는지는 아직 모른다.
+    playSfx('boom');
     this.cameras.main.shake(320, 0.004);
     this.dialogue.show('연구실', '(밖에서 소란스러운 소리가 들린다.)');
     this.dialogue.setHint('');
@@ -842,6 +849,10 @@ export class MansionScene extends Phaser.Scene {
     // 감시 로봇(일러스트 26_전투 로봇, 검은 장갑·붉은 센서)과 같은 기체 — 이 경보가
     // 곧 그 추격으로 이어진다는 예고이기도 하다.
     this.cameras.main.flash(240, 194, 37, 26);
+    // 침입자를 특정했다는 대사다 — 배경음이 계속 돌면 위협이 묻힌다. 여기서 끊고
+    // 경고음이 그 자리를 대신한다.
+    stopBgm();
+    playSfx('warning');
     this.dialogue.show('경보', '"침입자 정보 발견, 경계 태세 강화."', { portrait: 'sentry' });
     await this.#beat(2600);
 

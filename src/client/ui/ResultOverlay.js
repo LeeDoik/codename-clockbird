@@ -1,5 +1,6 @@
 import { fetchStageStart } from '../net.js';
 import { TransitionScreen } from './TransitionScreen.js';
+import { playSfx } from '../audio/SoundManager.js';
 
 /**
  * 결과 화면 (클리어 / 게임오버).
@@ -61,6 +62,7 @@ export class ResultOverlay {
    * @param {string} [opts.waitText] 재시작을 기다리는 동안 띄울 문구
    */
   show({ outcome, codeWord, stats, onRestart, restart, waitText }) {
+    playSfx(outcome === 'cleared' ? 'clear' : 'fail');
     const [title, line] = OUTCOMES[outcome] ?? OUTCOMES.caught;
     this.onRestart = onRestart;
     this.restartFn = restart ?? fetchStageStart;
