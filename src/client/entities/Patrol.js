@@ -31,6 +31,14 @@ import {
 /** 웨이포인트 도착 판정 반경 (px) */
 const ARRIVE_EPS = 5;
 
+/**
+ * 센서가 죽어 있는 동안 그리는 점선 고리의 토막 수와, 한 토막이 차지하는 비율
+ * (0.55 = 칠한 곳 55% · 빈 곳 45%). 토막을 더 잘게 쪼개면 이 축척(줌 1.5)에서는
+ * 점선이 아니라 흐린 실선으로 보인다. #drawOfflineRing 참고.
+ */
+const OFFLINE_RING_DASHES = 16;
+const OFFLINE_RING_FILL = 0.55;
+
 const TILE = mapData.tileSize;
 /**
  * 이름표를 정수리 위로 올리는 거리 — 발이 좌표에 놓이므로 인물 높이만큼 올린다.
@@ -77,6 +85,8 @@ export class Patrol {
     this.halted = false;
     /** 이 시각 전에는 감지하지 않는다 (통과 직후 재감지 금지) */
     this.graceUntil = 0;
+    /** 그 유예의 전체 길이 — 점선 고리가 얼마나 진해졌는지 재는 분모다 (#graceProgress) */
+    this.graceMs = 0;
     /** 마지막으로 바라본 방향 (라디안). 멈춰 있어도 시야는 유지된다. */
     this.facing = 0;
     /** 지금 재생 중인 애니메이션 키 — 같은 키를 다시 play() 하면 걸음이 첫 프레임으로 되감긴다. */
@@ -137,12 +147,27 @@ export class Patrol {
   }
 
   /**
+   * 유예가 얼마나 지났는가 (0 = 방금 풀려남, 1 = 곧 되살아남). 유예 중이 아니면 1.
+   * 점선 원이 옅은 데서 진해지며 "돌아오는 중"을 보여주는 데 쓴다 (#drawOfflineRing).
+   */
+  get #graceProgress() {
+    if (!this.graceMs) return 1;
+    const left = this.graceUntil - this.scene.time.now;
+    return left <= 0 ? 1 : Math.min(1, Math.max(0, 1 - left / this.graceMs));
+  }
+
+  /**
    * 다시 돌기 시작한다.
    * graceMs 동안은 감지하지 않는다 — 검문을 막 통과했는데 같은 자리에서 곧바로
    * 다시 잡히면 빠져나갈 방법이 없다. (서버의 통과 쿨다운이 이중 안전망이다.)
+   *
+   * ⚠ 이 유예가 곧 **탈출 시간**이다. 자석 수류탄으로 굳히는 4초(GRENADE_FREEZE_MS)는
+   * 대개 대사창을 읽는 사이에 다 지나가 버리므로 — 창이 떠 있는 동안은 이동 자체가
+   * 막힌다 — 실제로 도망칠 수 있는 시간은 여기서 나온다. 그래서 짧게 줄일 수 없다.
    */
   resume({ graceMs = 4000 } = {}) {
     this.halted = false;
+    this.graceMs = graceMs;
     this.graceUntil = this.scene.time.now + graceMs;
   }
 
@@ -198,14 +223,31 @@ export class Patrol {
     this.label.setPosition(this.sprite.x, this.sprite.y + LABEL_DY);
   }
 
+  /**
+   * 감지 원은 **세 가지 상태**를 그린다. 셋이 다 필요하다는 걸 두 번의 플레이테스트가
+   * 하나씩 알려 줬다.
+   *
+   *  1. 멈춤(halted) — **아무것도 안 그린다.** 검문 중이거나 자석 수류탄에 굳어 있는
+   *     동안이다. 로봇이 눈에 띄게 서 있으므로 원이 없는 이유가 화면에 이미 있다.
+   *  2. 유예(!detecting) — **점선 고리.** 걷기는 하는데 센서가 아직 안 돌아온 상태다.
+   *     처음엔 아무것도 안 그렸는데, 로봇이 다시 걸어다니는데도 원이 없어서 "범위가
+   *     영영 안 돌아온다"로 읽혔다(2026-08-08 피드백). 그렇다고 평소의 붉은 원을
+   *     그리면 이번엔 "원 안인데 안 걸린다"가 되어(그게 08-07 피드백이었다) 원점이다.
+   *     그래서 **평소와 다른 그림**을 쓴다: 채우기 없이, 자기장에 붙들렸을 때의 푸른색
+   *     점선으로, 유예가 끝나갈수록 진해지며 천천히 돈다. "아직 죽어 있다, 그러나
+   *     돌아오는 중"이 한 눈에 읽힌다.
+   *  3. 살아 있음 — 평소의 붉은 원. 이 원 안이면 걸린다.
+   */
   #drawCone(alertLevel) {
     this.cone.clear();
-    // 감지가 꺼져 있으면 원도 없다 (detecting 주석 참고). 검문을 막 통과했거나, 자석
-    // 수류탄에 굳었거나, 감옥에서 막 나온 사이가 여기다 — 그 시간이 "지금은 안전하다"로
-    // 읽혀야 유예가 선물이 된다.
-    if (!this.detecting) return;
+    if (this.halted) return;
 
     const r = this.radius(alertLevel);
+    if (!this.detecting) {
+      this.#drawOfflineRing(r);
+      return;
+    }
+
     // 경계가 오를수록 진해진다 — 위험도가 숫자가 아니라 화면으로 보여야 한다.
     const a = 0.1 + 0.05 * clampLevel(alertLevel);
     // 감지 원 — 안쪽을 옅게 채우고 가장자리를 한 겹 진하게 둘러, 경계가 어디까지인지
@@ -214,6 +256,35 @@ export class Patrol {
     this.cone.fillCircle(this.sprite.x, this.sprite.y, r);
     this.cone.lineStyle(2, 0xc25b4a, Math.min(0.75, a * 3.4));
     this.cone.strokeCircle(this.sprite.x, this.sprite.y, r);
+  }
+
+  /**
+   * 센서가 죽어 있는 동안의 고리 (#drawCone 의 상태 2).
+   *
+   * 채우기가 없는 것이 핵심이다 — 살아 있는 원은 안이 붉게 차 있어서 "이 안은 위험"
+   * 이지만, 이건 테두리만 있어서 "여기까지가 곧 위험해질 자리"로 읽힌다. 색도 붉은색
+   * 이 아니라 자기장에 붙들린 로봇의 푸른빛(#grenadeEscape 의 tint 와 같은 값)이다.
+   *
+   * 토막이 천천히 도는 것과 유예가 끝날수록 진해지는 것, 둘 다 "다시 켜지는 중"이라는
+   * 같은 말을 한다 — 남은 시간을 숫자로 띄우는 대신 화면으로 세게 한다.
+   */
+  #drawOfflineRing(r) {
+    const progress = this.#graceProgress;
+    // 처음엔 거의 안 보이다가 되살아날 즈음 또렷해진다. 끝값을 살아 있는 원의 테두리
+    // (최대 0.75)보다 낮게 잡아, 진해진 점선이 살아 있는 원보다 세 보이지 않게 한다.
+    const alpha = 0.16 + 0.34 * progress;
+    // 한 바퀴 4초. 걸음보다 느려야 로봇이 아니라 센서가 도는 것으로 보인다.
+    // 나머지만 취해 한 바퀴 안에 가둔다 — 판이 길어져도 각도가 무한정 커지지 않는다.
+    const spin = ((this.scene.time.now / 4000) % 1) * Math.PI * 2;
+    const span = (Math.PI * 2) / OFFLINE_RING_DASHES;
+
+    this.cone.lineStyle(2, 0x9fc4e0, alpha);
+    for (let i = 0; i < OFFLINE_RING_DASHES; i++) {
+      const from = spin + i * span;
+      this.cone.beginPath();
+      this.cone.arc(this.sprite.x, this.sprite.y, r, from, from + span * OFFLINE_RING_FILL);
+      this.cone.strokePath();
+    }
   }
 
   /** 대상이 감지 반경 안에 있고, 그 사이를 벽이 막지 않는가. */
