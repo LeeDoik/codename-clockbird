@@ -269,9 +269,13 @@ export class StageScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
     this.keyE = this.input.keyboard.addKey('E');
-    // F 는 씬이 잡지 않는다 — 접선은 대화창(DOM) 안에서만 열리고, 그 키는 입력칸이
-    // 직접 읽는다 (DialogueBox.onCodeRequest). 여기서 잡으면 캡처가 걸려 입력칸 밖의
-    // F 가 브라우저 기본 동작까지 막는다.
+    // F — 말을 건 뒤 뜨는 선택지의 [암호 말하기]. 튜토리얼(간부)과 같은 방식이다.
+    // 거리에서 그냥 누르는 길은 여전히 없다 — update() 가 "선택지가 떠 있을 때"로 건다.
+    //
+    // 입력칸에 F 를 칠 때 캡처가 걸리지 않을까 걱정할 필요는 없다: 입력칸의 keydown 이
+    // stopPropagation 으로 끊어(DialogueBox) window 까지 올라가지 않으므로 Phaser 는
+    // 그 키를 아예 못 본다.
+    this.keyF = this.input.keyboard.addKey('F');
     this.keyR = this.input.keyboard.addKey('R');
     this.keySpace = this.input.keyboard.addKey('SPACE');
     this.keyEsc = this.input.keyboard.addKey('ESC');
@@ -367,13 +371,30 @@ export class StageScene extends Phaser.Scene {
       });
       return;
     }
+    // [E] 로 말을 걸면 기본 대사와 함께 **선택지**가 선다 — 곧바로 입력칸을 열지 않는다.
+    // 예전에는 말을 거는 즉시 자유 대화 입력칸이 열렸는데, 그러면 포커스가 입력칸에
+    // 붙어 [F](암호 말하기)를 누를 수 없었다. 한글 IME 를 켠 채로는 더 그렇다 — F 는
+    // 'ㄹ' 조합으로 들어가 keydown 의 key 가 'Process' 가 되어 단축키 판정에 안 걸린다.
+    // 튜토리얼의 간부·저택의 인물이 쓰는 choiceNpc 와 같은 방식으로 되돌린다.
     this.interact.register({
       id: ally.id,
-      type: 'npc',
+      type: 'choiceNpc',
       sprite: entry.node,
-      // 말풍선은 기본값([E] 대화)을 쓴다 — 접선([F])은 **대화창 안에서만** 여는 문이라
+      speaker: `${ally.name} (${ally.role})`,
+      line: ALLY_SMALL_TALK[ally.id] ?? '"…조심해서 다녀라."',
+      portrait: ally.id,
+      // 말풍선은 기본값([E] 대화)을 쓴다 — 접선([F])은 말을 건 **뒤에야** 열리는 문이라
       // (2026-08-07 기획) 머리 위에 미리 적으면 밖에서도 눌리는 키처럼 읽힌다.
-      onInteract: () => this.#talk(ally),
+      choices: [
+        { label: '대화하기', key: 'E' },
+        { label: '암호 말하기', key: 'F' },
+        { label: '그만하기', key: 'Esc' },
+      ],
+      onChoice: (key) => {
+        if (key === 'E') this.#talk(ally);
+        else if (key === 'F') this.#offerCode(ally);
+        else this.dialogue.hide();
+      },
     });
   }
 
@@ -681,6 +702,7 @@ export class StageScene extends Phaser.Scene {
       const pressedClues = Phaser.Input.Keyboard.JustDown(this.keyClues);
       const pressedReveal = Phaser.Input.Keyboard.JustDown(this.keyReveal);
       Phaser.Input.Keyboard.JustDown(this.keyE);
+      Phaser.Input.Keyboard.JustDown(this.keyF);
 
       // 나가는 중(암전)에는 [R] 이 죽는다 — 이미 열린 창살을 다시 따는 판이 열린다.
       if (pressedRescue && !this.jailLeaving) this.#pickJailLock();
@@ -719,6 +741,7 @@ export class StageScene extends Phaser.Scene {
     // 키 상태는 대기 중에도 매 프레임 소비한다 — 단락 평가로 건너뛰면 눌린 채 남은 플래그가
     // 응답이 도착하는 프레임에 뒤늦게 발동한다.
     const pressedTalk = Phaser.Input.Keyboard.JustDown(this.keyE);
+    const pressedCode = Phaser.Input.Keyboard.JustDown(this.keyF);
     const pressedRescue = Phaser.Input.Keyboard.JustDown(this.keyR);
     const pressedSpace = Phaser.Input.Keyboard.JustDown(this.keySpace);
     const pressedClues = Phaser.Input.Keyboard.JustDown(this.keyClues);
@@ -727,15 +750,22 @@ export class StageScene extends Phaser.Scene {
     this.interact.update(this.player, { suppress: waiting });
 
     if (!waiting && pressedTalk) {
-      if (this.dialogue.isOpen && !this.dialogue.isTyping) {
+      if (this.dialogue.isOpen && !this.dialogue.hasMore && this.dialogue.onChoice) {
+        // 선택지가 떠 있으면 E = [대화하기]
+        this.dialogue.onChoice('E');
+      } else if (this.dialogue.isOpen && !this.dialogue.isTyping) {
         this.dialogue.advance();
       } else if (!this.dialogue.isOpen) {
         this.interact.trigger();
       }
     }
-    // F 는 여기서 안 받는다 — 접선은 **대화창 안에서만** 여는 문이다 (2026-08-07 기획).
-    // 그 창의 빈 입력칸에서 누른 [F] 와 [접선 코드 전달] 버튼이 DialogueBox 의
-    // onCodeRequest 를 거쳐 #offerCode 로 온다.
+    // F = 선택지의 [암호 말하기]. 접선은 **말을 건 뒤에만** 여는 문이라(2026-08-07 기획)
+    // 선택지가 떠 있을 때로만 건다 — 거리에서 그냥 누르면 아무 일도 일어나지 않는다.
+    // (자유 대화 창으로 들어간 뒤에는 그 창의 빈 입력칸 [F] 와 [접선 코드 전달] 버튼이
+    //  DialogueBox 의 onCodeRequest 를 거쳐 같은 #offerCode 로 온다.)
+    if (!waiting && pressedCode && this.dialogue.isOpen && !this.dialogue.hasMore && this.dialogue.onChoice) {
+      this.dialogue.onChoice('F');
+    }
     // R — 감옥의 동료 구출. 대상이 없어도 눌리게 둔다 (어디로 가야 하는지 알려주기 위해).
     if (!waiting && pressedRescue) {
       this.#tryRescue();
@@ -1124,7 +1154,8 @@ export class StageScene extends Phaser.Scene {
   }
 
   /**
-   * [E] — 기본 대사 한 마디와 함께 자유 대화(LLM) 입력창을 연다.
+   * 선택지 [대화하기] — 자유 대화(LLM) 입력창을 연다.
+   * 기본 대사는 인터랙션 레이어가 이미 띄웠다 (choiceNpc, #registerAllyNode).
    *
    * 접선(/contact)은 여기서 하지 않는다 (2026-08-06 기획). 예전에는 첫 대화가 접선을
    * 겸해 말을 걸자마자 연상 단어부터 나왔는데, 만나자마자 코드 단서를 흘리는 것이
@@ -1133,11 +1164,7 @@ export class StageScene extends Phaser.Scene {
    */
   #talk(ally) {
     this.currentAllyId = ally.id;
-    this.dialogue.show(
-      `${ally.name} (${ally.role})`,
-      ALLY_SMALL_TALK[ally.id] ?? '"…조심해서 다녀라."',
-      { portrait: ally.id },
-    );
+    this.dialogue.hideChoices();
     // showInput 보다 먼저 세운다 — 코드 버튼을 보일지 말지를 showInput 이 이 값으로 정한다.
     this.dialogue.onCodeRequest = () => this.#offerCode(ally);
     this.dialogue.showInput('말을 건넨다...', 'chat');
@@ -1154,6 +1181,8 @@ export class StageScene extends Phaser.Scene {
    */
   async #offerCode(target) {
     this.codeTargetId = target.id;
+    // 선택지에서 왔다면 그 버튼줄부터 걷는다 (튜토리얼 #offerCode 와 같은 순서).
+    this.dialogue.hideChoices();
 
     if (!this.clues.has(target.id)) {
       this.dialogue.setBusy(true);
