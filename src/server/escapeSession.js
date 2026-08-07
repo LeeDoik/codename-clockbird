@@ -113,11 +113,15 @@ export function pushEscapeTurn(session, question, answer) {
 /**
  * 세 판정 결과를 게이지에 반영한다 (2026-08-07 기획 — 거짓·모순·모호 셋뿐이다).
  *
- * 셋 다 탐지 게이지를 깎는다 — 감점 폭이 곧 결함의 무게다. 그 위에 두 규칙을
- * 명시로 못박는다: 거짓 두 번째는 즉사, 모순은 한 번도 봐주지 않는다. 이 둘은
- * PENALTY_LIE·PENALTY_CONTRADICTION 산수로도 이미 게이지가 0 이 되지만, 감점
- * 폭이 나중에 바뀌어도 이 두 규칙 자체는 흔들리면 안 되므로 게이지에만 기대지
- * 않는다.
+ * 한 턴에 여러 결함이 같이 잡혀도 게이지는 **가장 무거운 것 하나만** 깎는다 —
+ * 거짓과 모호가 겹쳤다고 두 배로 깎이면 판정이 박하다는 인상만 준다(2026-08-07
+ * 피드백). 무게 순서는 모순 > 거짓 > 모호. 그 위에 두 규칙을 명시로 못박는다:
+ * 거짓 두 번째는 즉사, 모순은 한 번도 봐주지 않는다 — 감점 폭이 나중에 바뀌어도
+ * 이 두 규칙 자체는 흔들리면 안 되므로 게이지 산수에만 기대지 않는다.
+ *
+ * events 는 감점과 별개로 **이번 턴에 걸린 것 전부**를 담는다 — 램프 색이나
+ * 대사 우선순위(client/minigames/robotInterrogation.js)는 여러 결함 중 가장
+ * 무거운 것을 그대로 골라 쓰면 되므로, 여기서 미리 하나로 줄일 필요가 없다.
  *
  * @param {{lie: boolean, contradiction: boolean, vague: boolean, confidence: number}} verdict
  * @returns {{events: string[]}} 클라이언트가 연출할 사건 목록
@@ -127,17 +131,13 @@ export function applyVerdict(session, { lie, contradiction, vague, confidence })
 
   if (lie) {
     session.lieCount += 1;
-    session.detection -= PENALTY_LIE;
     events.push(session.lieCount >= LIE_MAX ? 'lie-fatal' : 'lie-warned');
   }
-  if (contradiction) {
-    session.detection -= PENALTY_CONTRADICTION;
-    events.push('contradiction');
-  }
-  if (vague) {
-    session.detection -= PENALTY_VAGUE;
-    events.push('vague');
-  }
+  if (contradiction) events.push('contradiction');
+  if (vague) events.push('vague');
+
+  const penalty = contradiction ? PENALTY_CONTRADICTION : lie ? PENALTY_LIE : vague ? PENALTY_VAGUE : 0;
+  session.detection -= penalty;
 
   // 확신도는 최댓값을 유지한다. 턴마다 출렁이게 두면 선언 타이밍이 운에 좌우된다.
   if (Number.isFinite(confidence)) {
