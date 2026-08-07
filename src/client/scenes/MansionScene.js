@@ -188,6 +188,13 @@ export class MansionScene extends Phaser.Scene {
     this.reportedPending = false;
     /** 조사 요청이 날아가는 중 — 연타로 두 번 보내지 않게 */
     this.inspecting = false;
+    /**
+     * 동료 id → 그가 정보를 건네며 한 대사 전문.
+     *
+     * 서버는 누가 이미 줬는지(npc.gave)만 알려 주고 **무엇을 줬는지는 다시 안 준다** —
+     * 그 대사를 다시 보여 주려면 받은 순간에 여기 적어 둬야 한다 (#applyEvent).
+     */
+    this.rewardLines = new Map();
   }
 
   create() {
@@ -746,6 +753,19 @@ export class MansionScene extends Phaser.Scene {
 
   /** 선택지 "대화하기" — 자유 입력을 연다. */
   #talk(npc) {
+    // 이미 정보를 준 동료 — 자유 대화를 다시 열지 않고 그때 한 말을 되풀이한다
+    // (2026-08-08 기획). 서버도 두 번은 안 주므로(gave), 입력칸을 열어 두면 아무리
+    // 말을 붙여도 같은 자리를 맴도는 잡담만 남는다. 무엇을 얻었는지 다시 확인하는
+    // 창구로 쓰는 편이 낫다 — 열쇠 위치도 단서도 이 대사 안에 있다.
+    const reward = this.rewardLines.get(npc.id);
+    if (npc.gave && reward) {
+      this.dialogue.hideChoices();
+      this.dialogue.hideInput();
+      this.dialogue.show(npc.name, reward, { portrait: npc.id });
+      this.dialogue.setHint('[Space] 다음 · [Esc] 닫기');
+      return;
+    }
+
     if (npc.halted) {
       this.dialogue.show(
         npc.name,
@@ -802,7 +822,20 @@ export class MansionScene extends Phaser.Scene {
     }
 
     if (pending) await this.#applyEvent(pending);
-    this.dialogue.endStream('[Space] 다음 · [Esc] 닫기');
+    // 마지막 장을 넘겼을 때 무엇을 할지는 **대화가 이어지느냐**로 갈린다.
+    //  - 입력칸이 남아 있으면(평범한 답변) 초점을 되돌려 이어서 말하게 한다. 안 넣으면
+    //    advance() 가 창을 닫아 버려서, "[Space] 다음"이라 써 놓고 마지막 [Space] 에
+    //    대화가 끝난다 — 안내와 실제가 어긋난다.
+    //  - 입력칸이 접혔으면(정보를 줬거나·밀고·굳음) 더 할 말이 없으므로 그냥 닫는다.
+    //    null 을 넘기면 advance() 의 기본 동작(hide)이 그대로 산다.
+    const canGoOn = this.dialogue.inputVisible;
+    this.dialogue.endStream('[Space] 다음 · [Esc] 닫기', {
+      onPagesDone: canGoOn ? () => this.dialogue.focusInput() : null,
+    });
+    // 페이지가 남았으면 초점을 입력칸에서 뗀다 — 초점이 거기 있으면 [Space] 가
+    // 페이지가 아니라 글자가 되어 뒷장을 볼 수 없다(2026-08-08 피드백). 접지 않고
+    // 초점만 비키므로, 다 읽고 나면 위의 onPagesDone 이 그대로 대화를 이어 준다.
+    if (this.dialogue.hasMore) this.dialogue.blurInput();
     // 밀고는 즉시 끝내지 않는다 — 즉시 ended 를 세우면 update() 가 멈춰 [Space] 페이지
     // 넘김이 죽고, 플레이어가 진 이유를 읽기 전에 결과 화면이 덮는다.
     // 창이 닫히는 순간(다 읽고 넘겼든, Esc 로 닫았든, 대기 중 이미 닫아 뒀든) 끝낸다.
@@ -852,6 +885,15 @@ export class MansionScene extends Phaser.Scene {
       return;
     }
     if (event === 'key' || event === 'hint') {
+      // 여기서 대화가 끝난다 — **입력칸을 먼저 접는다.** 접기 전에는 [Space] 가
+      // 페이지 넘김이 아니라 입력칸의 글자가 되어서, 뒤에 이어 붙는 정보 대사를
+      // 읽을 방법이 아예 없었다(2026-08-08 피드백). 이 사건이 나온 뒤로 이 동료와
+      // 더 나눌 말은 없으므로(서버도 gave 를 세워 두 번은 안 준다) 접는 것이 맞다.
+      this.dialogue.hideInput();
+
+      // 받은 대사는 그대로 적어 둔다 — 다시 말을 걸면 이걸 되풀이한다 (#talk).
+      const rewardOwner = this.currentNpcId;
+
       if (revealLine) {
         await this.#beat(400);
         this.dialogue.append(`\n\n"${revealLine}"`);
@@ -867,12 +909,20 @@ export class MansionScene extends Phaser.Scene {
       this.uiCam?.flash(...flash, false);
       await this.#beat(event === 'key' ? 300 : 200);
       // 보상 문구는 서버가 쥔 원문 그대로 붙인다 — 모델이 고쳐 말하면 단서가 흐려진다.
-      this.dialogue.append(`\n\n"${line}"`);
-      this.dialogue.append(
+      const notice =
         event === 'key'
-          ? '\n\n[세드릭에게서 저택의 마스터 키를 건네받았다. 하인 통로 끝의 연구실 문을 열 수 있다.]'
-          : '\n\n[열쇠를 쥔 사람의 단서를 얻었다.]',
-      );
+          ? '[세드릭에게서 저택의 마스터 키를 건네받았다. 하인 통로 끝의 연구실 문을 열 수 있다.]'
+          : '[열쇠를 쥔 사람의 단서를 얻었다.]';
+      this.dialogue.append(`\n\n"${line}"`);
+      this.dialogue.append(`\n\n${notice}`);
+
+      // 되풀이할 때는 그때 흘러나온 LLM 답변은 빼고 **정해진 부분만** 남긴다 —
+      // 자유 대화 쪽은 매번 다른 말이라 "마지막 대사"로 다시 보여줄 것이 못 된다.
+      if (rewardOwner) {
+        const parts = revealLine ? [`"${revealLine}"`] : [];
+        parts.push(`"${line}"`, notice);
+        this.rewardLines.set(rewardOwner, parts.join('\n\n'));
+      }
     }
   }
 

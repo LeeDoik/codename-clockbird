@@ -348,6 +348,26 @@ export class DialogueBox {
     this.field.focus();
   }
 
+  /**
+   * 입력칸을 **접지 않고 초점만** 뗀다 / 되돌린다.
+   *
+   * 페이지가 남은 대사를 [Space] 로 넘기려면 초점이 입력칸에 있으면 안 된다 — 그
+   * 스페이스는 페이지가 아니라 글자가 된다(2026-08-08 피드백). 그렇다고 입력칸을
+   * 접어 버리면 대화가 거기서 끊기므로, 다 읽을 때까지만 초점을 비켜 둔다.
+   */
+  blurInput() {
+    this.field.blur();
+  }
+
+  focusInput() {
+    if (this.inputVisible) this.field.focus();
+  }
+
+  /** 입력칸이 펴져 있는가 — 대사를 다 읽은 뒤 대화를 이어갈 자리가 있는지 판단하는 데 쓴다. */
+  get inputVisible() {
+    return this.inputWrap.classList.contains('visible');
+  }
+
   hideInput() {
     this.inputWrap.classList.remove('visible');
     // 두 버튼은 입력창 바깥(패널 위 버튼 줄)에 있다 — 같이 접지 않으면 대화 중이
