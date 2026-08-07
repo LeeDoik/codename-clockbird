@@ -10,6 +10,7 @@ import {
   createPlayerVisual,
   applyMovement,
   setupCameras,
+  setWorldPaused,
   worldLabel,
   DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
@@ -596,6 +597,9 @@ export class MansionScene extends Phaser.Scene {
   // ── 루프 ────────────────────────────────────────────────────────
   update() {
     if (this.ended) return;
+
+    // 대화창이 열리는 순간 화면 전체가 얼어붙는다(2026-08-07 플레이테스트 피드백).
+    setWorldPaused(this, this.dialogue.isOpen);
 
     // 키 상태는 어떤 조기 return 보다 먼저 매 프레임 소비한다 — 단락 평가로 건너뛰면
     // 눌린 채 남은 플래그가 패널이 닫히거나 응답이 도착한 프레임에 뒤늦게 발동한다.

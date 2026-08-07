@@ -1,5 +1,5 @@
 /**
- * 신형 로봇 '꼬마'의 심문 — 스테이지 3 종반.
+ * 신형 로봇 '에바'의 심문 — 스테이지 3 종반.
  *
  * 네트워크는 이 모듈이 모른다 — 호출부가 넘겨준 네 함수만 부른다 (검문 2단
  * interrogation.js 와 같은 정책). 덕분에 UI 흐름과 서버 계약이 따로 논다.
@@ -11,10 +11,21 @@ import { DuelProgress } from '../ui/DuelProgress.js';
 const MAX_ANSWER_LEN = 120;
 
 /**
+ * 판정이 게임의 전환점을 만드는 순간의 대사는 LLM 이 아니라 고정 대본이다 — 매 턴의
+ * 잡담은 AI 가 즉흥으로 받아도 되지만, "여기서 이겼다/졌다"는 그 판 전체가 기억하는
+ * 한 줄이라 즉흥에 맡기지 않는다(2026-08-07 기획 대사).
+ */
+const LIE_WARN_LINE = '미세한 떨림, 신뢰도가 떨어지는 답변이네… 거짓말 할 생각은 안하는게 좋아!';
+const LIE_FATAL_LINE = '또 거짓말? 나는 당신한테 기회를 준건데 실망이야... 죽어!';
+const CONTRADICTION_FATAL_LINE = '이전 답변과 말이 맞지 않는걸? 죽어!';
+const EXPOSED_LINE = '이전 답변과 말이 맞지 않는걸? 죽어!';
+const WIN_LINE = '오... 제법인걸.. 흥미롭군.. 약속은 약속이니까! 가도 좋아.';
+
+/**
  * @param {import('../ui/MinigamePanel.js').MinigamePanel} panel
  * @param {object} io
- * @param {() => Promise<{state: object, child: object}>} io.fetchStart
- * @param {(child: object) => Promise<void>} io.showIntro 심문 전 반전 대사 연출 (DialogueBox 등) — 끝날 때까지 기다린다
+ * @param {() => Promise<{state: object}>} io.fetchStart
+ * @param {() => Promise<void>} io.showIntro 심문 전 반전 대사 연출 (DialogueBox 등) — 끝날 때까지 기다린다
  * @param {(identityId: string) => Promise<{state: object}>} io.pickIdentity
  * @param {() => Promise<{question: string}>} io.fetchQuestion
  * @param {(answer: string) => Promise<{npcReply: string, events: string[], declaration: object|null, state: object}>} io.submitAnswer
@@ -23,7 +34,7 @@ const MAX_ANSWER_LEN = 120;
 export async function runRobotInterrogation(panel, io) {
   const openPanel = () => panel.open({
     title: '심문',
-    subtitle: '아이가 고개를 들어 올려다본다.',
+    subtitle: '에바가 고개를 들어 올려다본다.',
     hint: '여기서는 걸어나갈 수 없다',
   });
 
@@ -39,7 +50,7 @@ export async function runRobotInterrogation(panel, io) {
   // 심문 패널이 먼저 떠 있으면 순서가 어색하고, 이 게임 전체의 반전이 작은 상태줄로
   // 흘러 무게가 죽는다. 대사 연출 자체는 호출부(DialogueBox 를 쥔 씬)가 한다 —
   // 이 모듈은 여전히 DialogueBox 도 fetch 도 모른다.
-  await io.showIntro(start.child);
+  await io.showIntro();
 
   openPanel();
   panel.setStatus('…');
@@ -64,7 +75,7 @@ export async function runRobotInterrogation(panel, io) {
 
   // ── 2. 문답 루프 ──
   for (;;) {
-    panel.setStatus('…아이가 생각한다.');
+    panel.setStatus('…에바가 생각한다.');
     let q;
     try {
       q = await io.fetchQuestion();
@@ -74,7 +85,7 @@ export async function runRobotInterrogation(panel, io) {
 
     const answer = await askAnswer(panel, q.question, chosen.word);
 
-    panel.setStatus('…아이가 당신을 본다.');
+    panel.setStatus('…에바가 당신을 본다.');
     let r;
     try {
       r = await io.submitAnswer(answer);
@@ -85,10 +96,10 @@ export async function runRobotInterrogation(panel, io) {
     // 대사가 나오는 동안 명판의 램프가 켜지고 게이지가 움직인다 — 판정이
     // 구석까지 갔다는 손맛은 말보다 그림이 먼저 준다.
     progress.record(r);
-    await showReply(panel, r, chosen.word);
+    await showReply(panel, r);
 
     if (r.state.outcome === 'win') {
-      panel.setStatus('"흥미롭네. 가도 좋아."');
+      panel.setStatus(`"${WIN_LINE}"`);
       panel.verdictEl.textContent = '통과';
       panel.verdictEl.className = 'ok';
       await sleep(2600);
@@ -109,7 +120,7 @@ export async function runRobotInterrogation(panel, io) {
 function askIdentity(panel, choices) {
   return panel.run({
     title: '신분을 고른다',
-    subtitle: '이 아이 앞에서 당신은 누구인가. 끝까지 그 사람을 연기해야 한다.',
+    subtitle: '에바 앞에서 당신은 누구인가. 끝까지 그 사람을 연기해야 한다.',
     hint: '고른 단어를 입 밖에 내면 그것도 위험하다',
     showVerdict: false,
     render: ({ content, finish }) => {
@@ -167,6 +178,7 @@ function askAnswer(panel, question, identityWord) {
           e.preventDefault();
           submit();
         }
+        e.stopPropagation(); // Phaser 키 입력과 충돌 방지 (DialogueBox 의 입력칸과 같은 규칙)
       });
 
       free.append(input, send);
@@ -176,26 +188,34 @@ function askAnswer(panel, question, identityWord) {
   });
 }
 
-/** 로봇의 대사와 이번 턴에 벌어진 일을 보여 준다. */
-async function showReply(panel, r, identityWord) {
+/**
+ * 로봇의 대사와 이번 턴에 벌어진 일을 보여 준다.
+ *
+ * 평범한 턴은 LLM 이 즉흥으로 받은 npcReply 를 그대로 보여준다. 하지만 거짓·모순·
+ * 정체 노출처럼 판이 끝나거나 끝날 뻔한 순간에는 그 즉흥 대사를 **고정 대본으로
+ * 덮어쓴다** — 이 게임의 전환점은 매번 같은 무게로 떨어져야 한다.
+ */
+async function showReply(panel, r) {
   const notes = [];
-  if (r.events.includes('contradiction-forgiven')) notes.push('아이가 앞뒤가 안 맞는다고 짚는다. 이번은 넘어간다.');
-  if (r.events.includes('contradiction')) notes.push('또 어긋났다.');
-  if (r.events.includes('lie')) notes.push(`「${identityWord}」답지 않은 말이었다.`);
+  let line = r.npcReply;
+
+  if (r.events.includes('lie-warned')) line = LIE_WARN_LINE;
+  else if (r.events.includes('lie-fatal')) line = LIE_FATAL_LINE;
+  if (r.events.includes('contradiction-fatal')) line = CONTRADICTION_FATAL_LINE;
   if (r.events.includes('reveal')) notes.push('신분을 그대로 말해 버렸다.');
   if (r.declaration) {
-    notes.push(
-      r.declaration.hit
-        ? `"당신은 ${r.declaration.word}이지." — 맞혔다.`
-        : `"당신은 ${r.declaration.word}이지?" — 빗나갔다.`,
-    );
+    if (r.declaration.hit) {
+      line = EXPOSED_LINE;
+    } else {
+      notes.push(`"당신은 ${r.declaration.word}이지?" — 빗나갔다.`);
+    }
   }
 
   // 에바의 대답은 **대화 상자 안**에 온다 (title/subtitle). 예전에는 본문 칸에
   // 넣었는데, 마주 선 배치에서는 상자에 아직 앞 질문이 걸려 있어 "묻고 답하는"
   // 순서가 어긋나 보였다. 상자가 곧 그 사람의 입이다.
   panel.titleEl.textContent = '에바';
-  panel.subtitleEl.textContent = r.npcReply;
+  panel.subtitleEl.textContent = line;
 
   // 이번 턴에 벌어진 일과 눈금은 상자 밖 — 대사가 아니라 기록이다.
   const box = document.createElement('div');

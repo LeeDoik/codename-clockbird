@@ -1,3 +1,5 @@
+import { playSfx } from '../audio/SoundManager.js';
+
 /**
  * 타이틀 화면 — index.html 의 #title 과 짝.
  *
@@ -64,15 +66,20 @@ export class TitleScreen {
       this.menuEl.append(btn);
       return btn;
     });
-    this.#select(0);
+    // 첫 렌더의 기본 선택은 플레이어가 고른 것이 아니다 — 소리 없이 세운다.
+    this.#select(0, { silent: true });
   }
 
-  #select(i) {
-    this.sel = i;
-    this.buttons.forEach((btn, j) => btn.classList.toggle('sel', j === i));
+  #select(i, { silent = false } = {}) {
+    if (silent || i !== this.sel) {
+      if (!silent) playSfx('switch');
+      this.sel = i;
+      this.buttons.forEach((btn, j) => btn.classList.toggle('sel', j === i));
+    }
   }
 
   #pick(i) {
+    playSfx('select');
     this.onPick?.(ITEMS[i].key);
   }
 

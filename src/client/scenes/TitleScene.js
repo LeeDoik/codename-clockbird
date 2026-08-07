@@ -7,6 +7,8 @@ import { playBgm } from '../audio/SoundManager.js';
 
 const W = 1920;
 const H = 1080;
+/** #title 의 CSS `transition: opacity` 와 같은 값이어야 한다 (index.html 참고). */
+const TITLE_FADE_MS = 450;
 
 /**
  * 타이틀 씬 — 오프닝(Intro) 다음에 서는 관문이다. 게임 입장은 여기의 [게임 시작]뿐.
@@ -34,13 +36,17 @@ export class TitleScene extends Phaser.Scene {
         this.registry.set('startPromise', startPromise);
         title.hide();
 
-        // 개발용(?notutorial) — 본부 훈련을 건너뛰고 곧장 거리로 간다. 이때는
-        // 훈련이 LLM 대기를 못 가리므로 로딩 화면이 덮는다.
-        if (new URLSearchParams(window.location.search).has('notutorial')) {
-          this.#waitAndStartStage(startPromise);
-          return;
-        }
-        this.scene.start('Tutorial');
+        // 타이틀은 DOM 오버레이라 카메라 페이드가 안 걸린다 — CSS 트랜지션(opacity)이
+        // 끝날 시간만큼 다음 씬 전환을 늦춰서 암전 없이 뚝 끊기지 않게 한다.
+        this.time.delayedCall(TITLE_FADE_MS, () => {
+          // 개발용(?notutorial) — 본부 훈련을 건너뛰고 곧장 거리로 간다. 이때는
+          // 훈련이 LLM 대기를 못 가리므로 로딩 화면이 덮는다.
+          if (new URLSearchParams(window.location.search).has('notutorial')) {
+            this.#waitAndStartStage(startPromise);
+            return;
+          }
+          this.scene.start('Tutorial');
+        });
       } else {
         window.close();
         title.setHint('창이 닫히지 않으면 브라우저 탭을 직접 닫아 주세요.');

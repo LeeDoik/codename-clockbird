@@ -95,7 +95,6 @@ export class IntroScene extends Phaser.Scene {
     }
     if (playing) {
       this.video.onEnded(() => this.#finish());
-      this.video.onSkip(() => this.#skip());
       return;
     }
 
@@ -123,7 +122,7 @@ export class IntroScene extends Phaser.Scene {
       .setDepth(11);
 
     this.add
-      .text(W - 28, 24, '[Space/Esc/클릭] 건너뛰기', {
+      .text(W - 28, 24, '[Space/Esc] 건너뛰기', {
         fontFamily: FONTS.body,
         fontSize: '22px',
         color: FAINT,
@@ -143,10 +142,11 @@ export class IntroScene extends Phaser.Scene {
   }
 
   #bindSkip() {
+    // 클릭으로는 건너뛰지 않는다 — 영상 위 소리 켜기/끄기 버튼을 누르려던 클릭이
+    // 오프닝 전체를 건너뛰어 버리는 사고를 막는다. Esc/Space 만 명시적 건너뛰기다.
     const skip = () => this.#skip();
     this.input.keyboard.once('keydown-SPACE', skip);
     this.input.keyboard.once('keydown-ESC', skip);
-    this.input.once('pointerdown', skip);
   }
 
   #playBeat(i) {

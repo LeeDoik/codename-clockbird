@@ -7,6 +7,7 @@ import {
   createPlayerVisual,
   applyMovement,
   setupCameras,
+  setWorldPaused,
   worldLabel,
   DEFAULT_CHAR_HEIGHT,
   WORLD_ZOOM,
@@ -114,6 +115,11 @@ export class TutorialScene extends Phaser.Scene {
     // 카메라가 플레이어를 따라다닌다 — 예전처럼 방 전체를 한 화면에 담지 않는다.
     setupCameras(this, hqData, this.player);
     this.interact = new InteractionManager(this, this.dialogue, PLAYER_HEIGHT);
+
+    // 거리·저택·수로와 같은 진입 연출 — 씬이 바뀔 때마다 암전에서 밝아 온다
+    // (2026-08-07 플레이테스트 피드백: 튜토리얼만 뚝 끊겨 나타났다).
+    this.cameras.main.fadeIn(700, 0, 0, 0);
+    this.uiCam?.fadeIn(700, 0, 0, 0);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -264,9 +270,12 @@ export class TutorialScene extends Phaser.Scene {
   update() {
     if (this.ended) return;
 
+    // 대화창이 열리는 순간 화면 전체가 얼어붙는다(2026-08-07 플레이테스트 피드백).
+    setWorldPaused(this, this.dialogue.isOpen);
+
     const typing = this.dialogue.isTyping;
     let moving = false;
-    if (typing) this.player.body.setVelocity(0, 0);
+    if (this.dialogue.isOpen) this.player.body.setVelocity(0, 0);
     else moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
     setLoop('walk', moving);
     this.playerVisual.update();

@@ -57,7 +57,7 @@ router.post('/interrogation/start', async (req, res, next) => {
       if (Number.isFinite(debug.asked)) session.asked = debug.asked;
       if (Number.isFinite(debug.confidence)) session.confidence = debug.confidence;
       if (Number.isFinite(debug.declaresLeft)) session.declaresLeft = debug.declaresLeft;
-      if (debug.forgiven === true) session.contradictionForgiven = true;
+      if (Number.isFinite(debug.lieCount)) session.lieCount = debug.lieCount;
       console.log(`[escape] 세션 ${sessionId.slice(0, 8)} — 개발 플래그 적용`);
     }
 
@@ -65,10 +65,10 @@ router.post('/interrogation/start', async (req, res, next) => {
       `[escape] 세션 ${sessionId.slice(0, 8)} 시작 — 카드: ` +
         session.choices.map((c) => c.word).join(', '),
     );
-    // 화이트리스트 — backstory/personality 는 클라이언트가 쓰지 않는다(showIntro 는 greet·reveal 만
-    // 읽는다, EscapeScene#showChildIntro). 정답(신분 단어)이 아니라 새어 나가도 게임이 깨지진
-    // 않지만, 응답에 안 쓰는 필드를 실을 이유가 없다.
-    res.json({ state: toEscapeView(session), child: { greet: data.child.greet, reveal: data.child.reveal } });
+    // backstory/personality 는 client 가 안 쓴다(judgeAsRobot 재료일 뿐) — 응답에 실을
+    // 이유가 없다. 도입 대사(EscapeScene#showChildIntro)는 이제 고정 대본이라 서버가
+    // 아무것도 안 내려도 된다.
+    res.json({ state: toEscapeView(session) });
   } catch (err) {
     next(err);
   }

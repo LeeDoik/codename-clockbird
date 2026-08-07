@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { EndingCurtain } from '../ui/EndingCurtain.js';
 import {
-  applyMovement,
   buildColliders,
   createPlayer,
   createPlayerVisual,
@@ -21,8 +20,6 @@ import {
   NPC_ORIGIN_Y,
   NPC_TEXTURE,
 } from '../entities/npcSprite.js';
-import { InteractionManager } from '../world/interact.js';
-import { setLoop } from '../audio/SoundManager.js';
 import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
 
@@ -32,7 +29,10 @@ import hqProps from '../assets/hq-props.json';
  * 시작한 곳으로 돌아와 끝난다. 새 아트가 한 장도 필요 없다는 점이 이 안을 고른
  * 이유다 (스펙 §2) — 튜토리얼의 맵·간부·대화 체계를 그대로 쓴다.
  *
- * 여기엔 규칙이 없다. 걸어가서 [E] 한 번이 전부다.
+ * 플레이어가 걸어가서 [E] 를 누르는 상호작용이 아니라, 씬에 들어서면 두 사람이
+ * 알아서 대화하는 연출이다(2026-08-07 플레이테스트 피드백 — 마지막까지 조작을
+ * 요구하지 않는다). EscapeScene#playIntro·MansionScene#alarm 과 같은 방식으로
+ * dialogue.show() 와 시간 지연(#beat)만으로 진행한다.
  */
 // 본부는 튜토리얼과 같은 맵·같은 규격이다 — 값이 갈라지면 두 씬의 화면이 달라진다.
 const TILE = hqData.tileSize;
@@ -58,10 +58,20 @@ const OFFICER_SCALE = PLAYER_HEIGHT / NPC_CONTENT_HEIGHT.officer;
  */
 const OFFICER = { id: 'officer', name: '브란트', role: '간부' };
 
-const LINES = [
-  '"…살아 돌아왔군."\n\n브란트가 서류를 받아 든다. 한 장 한 장, 말없이.',
-  '"자유 의지를 가진 로봇이라."\n\n그가 서류를 덮는다.\n\n"저쪽도 우리와 같은 것을 만들고 있었다는 뜻이다."',
-  '"쉬어라. 오래는 못 쉰다."\n\n창밖에서 첫 기적이 울린다. 반격의 서막이다.',
+/**
+ * 보고 연출 — 한 호흡(문단)씩 나눠 시간차로 보여준다. DialogueBox#paginate 에
+ * 맡기지 않는 이유: 페이지가 넘어가도 사용자가 넘기지 않는 한 다음 페이지가 안
+ * 뜨는데, 여기는 사용자 조작 없이 흘러야 하는 연출이라 문단 하나가 곧 한 비트다
+ * (MansionScene#alarm 과 같은 규칙).
+ */
+const REPORT_BEATS = [
+  { text: '"…살아 돌아왔군."', ms: 2200 },
+  { text: '브란트가 서류를 받아 든다. 한 장 한 장, 말없이.', ms: 2600 },
+  { text: '"자유 의지를 가진 로봇이라."', ms: 2200 },
+  { text: '그가 서류를 덮는다.', ms: 1800 },
+  { text: '"양날의 검이 될 수 있겠군...."', ms: 2800 },
+  { text: '"쉬어라. 오래는 못 쉰다."', ms: 2200 },
+  { text: '창밖에서 첫 기적이 울린다. 반격의 서막이다.', ms: 2800 },
 ];
 
 export class EndingScene extends Phaser.Scene {
@@ -70,7 +80,6 @@ export class EndingScene extends Phaser.Scene {
   }
 
   init() {
-    this.step = 0;
     this.done = false;
   }
 
@@ -100,35 +109,27 @@ export class EndingScene extends Phaser.Scene {
     // 월드를 다 깐 직후·UI 를 만들기 전. 줌·카메라 추적 모두 TutorialScene 과 같다.
     setupCameras(this, hqData, this.player);
 
-    // InteractionManager 는 대화창을 직접 부린다 — 생성자가 dialogue 를 받는다.
-    this.interact = new InteractionManager(this, this.dialogue, PLAYER_HEIGHT);
-    // onInteract 가 있으면 type 별 기본 동작을 제치고 이쪽이 불린다 (interact.js:129-132).
-    this.interact.register({
-      id: 'officer',
-      type: 'npc',
-      sprite: this.officerNode,
-      onInteract: () => this.#report(),
-    });
-
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd = this.input.keyboard.addKeys('W,A,S,D');
-    this.keyE = this.input.keyboard.addKey('E');
-    // 각 대사가 문단(\n\n)을 두세 개씩 품고 있어 DialogueBox#paginate 가 여러 페이지로
-    // 쪼갠다 — 힌트("[Space] 다음 · [Esc] 닫기")를 실제로 동작시키려면 튜토리얼·거리·
-    // 저택 씬과 같은 방식으로 Space/Esc 를 직접 받아 dialogue.advance()/hide() 에
-    // 연결해야 한다 (브리프 원문엔 이 두 키가 빠져 있었다 — task-13-report.md 참고).
-    this.keySpace = this.input.keyboard.addKey('SPACE');
-    this.keyEsc = this.input.keyboard.addKey('ESC');
+    // 플레이어 조작은 없다 — 씬에 들어서면 곧바로 보고 연출이 흐른다.
+    this.cameras.main.fadeIn(700, 0, 0, 0);
+    this.uiCam?.fadeIn(700, 0, 0, 0);
+    this.cameras.main.once('camerafadeincomplete', () => this.#playReport());
   }
 
-  /** [E] 한 번에 한 줄. 마지막 줄을 읽고 창을 닫으면 update() 가 막을 내린다. */
-  #report() {
-    if (this.done || this.step >= LINES.length) return;
-    this.dialogue.show(`${OFFICER.name} (${OFFICER.role})`, LINES[this.step], {
-      portrait: OFFICER.id,
-    });
-    this.dialogue.setHint('[Space] 다음 · [Esc] 닫기');
-    this.step += 1;
+  /** 씬 진입과 함께 자동으로 흐르는 보고 연출. 조작 없이 문단마다 시간차로 넘어간다. */
+  async #playReport() {
+    this.dialogue.setHint('');
+    for (const beat of REPORT_BEATS) {
+      this.dialogue.show(`${OFFICER.name} (${OFFICER.role})`, beat.text, { portrait: OFFICER.id });
+      await this.#beat(beat.ms);
+    }
+    this.dialogue.hide();
+    this.done = true;
+    this.#curtain();
+  }
+
+  /** 연출용 사이 — delayedCall 을 await 할 수 있게 감싼다 (다른 씬의 #beat 와 같은 모양). */
+  #beat(ms) {
+    return new Promise((resolve) => this.time.delayedCall(ms, resolve));
   }
 
   /**
@@ -144,39 +145,9 @@ export class EndingScene extends Phaser.Scene {
     this.cameras.main.once('camerafadeoutcomplete', () => new EndingCurtain().play());
   }
 
+  /** 조작이 없는 씬이다 — 플레이어는 그 자리에 서 있고, 연출(#playReport)이 전부 끈다. */
   update() {
-    if (this.done) {
-      this.player.body.setVelocity(0, 0);
-      this.playerVisual.update();
-      return;
-    }
-
-    // 마지막 줄까지 읽고 창을 닫은 순간이 끝이다.
-    if (this.step >= LINES.length && !this.dialogue.isOpen) {
-      this.done = true;
-      this.#curtain();
-      return;
-    }
-
-    // 대화 중에는 걷지 않는다.
-    let moving = false;
-    if (this.dialogue.isOpen) this.player.body.setVelocity(0, 0);
-    else moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd });
-    setLoop('walk', moving);
+    this.player.body.setVelocity(0, 0);
     this.playerVisual.update();
-
-    this.interact.update(this.player);
-    // 대화 중엔 E/Space 모두 "다음 페이지" (마지막 페이지에서는 dialogue.advance() 가
-    // onPagesDone 없이 알아서 닫는다) — 닫혀 있을 때만 E 가 간부와의 상호작용을 연다.
-    // 그래야 페이지가 남았는데 E 를 연타해 다음 대사로 건너뛰는 일이 없다.
-    const pressedE = Phaser.Input.Keyboard.JustDown(this.keyE);
-    const pressedSpace = Phaser.Input.Keyboard.JustDown(this.keySpace);
-    const pressedEsc = Phaser.Input.Keyboard.JustDown(this.keyEsc);
-    if (this.dialogue.isOpen) {
-      if (pressedE || pressedSpace) this.dialogue.advance();
-      if (pressedEsc) this.dialogue.hide();
-    } else if (pressedE) {
-      this.interact.trigger();
-    }
   }
 }
