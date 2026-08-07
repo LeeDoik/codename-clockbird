@@ -72,12 +72,19 @@ const LABEL_DY = -(PLAYER_HEIGHT + 8);
  * 안내인 에이던의 그림 규격 — 저택의 다른 열 명과 **다른 시트**를 쓴다.
  *
  * 열 명은 PixelLab 남향 정지 그림 한 장(npcSprite.js)인데, 에이던만 거리(스테이지 1)에서
- * 쓰던 예전 256×256 12프레임 아이들 시트다. 저택용으로 다시 굽지 않은 것은 오히려
- * 다행이다 — 브리핑을 하는 동안 숨을 쉬는 쪽이 정지 그림보다 낫다. 숫자는 StageScene 의
- * ALLY_SPRITE_* 와 같은 실측값이고(scripts/measure-sprite.js), 규칙도 같다:
+ * 쓰던 예전 256×256 12프레임 아이들 시트다. 숫자는 StageScene 의 ALLY_SPRITE_* 와 같은
+ * 실측값이고(scripts/measure-sprite.js), 규칙도 같다:
  * **발바닥이 좌표에 놓이고, 화면에 보일 키는 맵의 charHeight 다.**
+ *
+ * ⚠ 시트는 아이들 애니메이션이지만 **저택에서는 재생하지 않는다** — 첫 프레임 한 장을
+ * 정지 그림으로 쓴다(2026-08-08 기획). 저택에 선 열한 명 중 혼자만 숨을 쉬면 그 인물만
+ * 다른 규격으로 보여 눈이 그리로 간다. 거리(StageScene)는 그대로 재생한다 — 그쪽은
+ * 애초에 에이던이 유일한 동적 인물이라는 전제로 짜인 화면이다.
+ * 그래서 이름도 ANIM 이 아니라 TEXTURE 다. 애니메이션 키와 텍스처 키가 'watchmakerIdle'
+ * 로 같은 문자열이라(BootScene 이 둘 다 그 이름으로 등록한다) 헷갈리기 쉬운 자리다.
  */
-const ESCORT_ANIM = 'watchmakerIdle';
+const ESCORT_TEXTURE = 'watchmakerIdle';
+const ESCORT_FRAME = 0;
 const ESCORT_FRAME_SIZE = 256;
 const ESCORT_ORIGIN_Y = 218 / ESCORT_FRAME_SIZE;
 const ESCORT_CONTENT_HEIGHT = 196;
@@ -534,18 +541,21 @@ export class MansionScene extends Phaser.Scene {
    * 저택에 제자리로 서 있는 인물 하나. **발바닥이 (x, y)** 에 놓이고 화면에 보일 키는
    * 맵이 정한 charHeight 다 — 거리·본부와 같은 규칙이다 (StageScene#standingNpc 와 짝).
    *
-   * 그림은 두 갈래인데 규칙은 하나다: 에이던만 12프레임 아이들 시트(숨을 쉰다)이고
-   * 나머지 열은 PixelLab 남향 정지 그림이다. 정지 그림 쪽은 인물마다 그림 속 키가 달라
-   * 배율을 따로 잡는다 — 그래서 화면에서는 전원이 똑같은 키로 선다.
+   * 그림은 두 갈래인데 규칙은 하나다: 에이던만 다른 시트에서 프레임 하나를 떼어 쓰고
+   * 나머지 열은 PixelLab 남향 정지 그림이다. **양쪽 다 움직이지 않는다** — 에이던의
+   * 시트가 아이들 애니메이션이긴 해도 여기서는 재생하지 않는다(ESCORT_TEXTURE 주석).
+   * 인물마다 그림 속 키가 달라 배율을 따로 잡는다 — 그래서 화면에서는 전원이 똑같은
+   * 키로 선다.
    */
   #standingNpc(id, x, y) {
     if (id === this.state.escort.id) {
       const size = ESCORT_FRAME_SIZE * (PLAYER_HEIGHT / ESCORT_CONTENT_HEIGHT);
+      // sprite 가 아니라 image 다 — 재생할 것이 없으면 애니메이션을 물 수 있는 객체를
+      // 쓸 이유가 없고, image 로 두면 "여기서는 안 움직인다"가 코드로도 못박힌다.
       return this.add
-        .sprite(x, y, ESCORT_ANIM, 0)
+        .image(x, y, ESCORT_TEXTURE, ESCORT_FRAME)
         .setOrigin(0.5, ESCORT_ORIGIN_Y)
-        .setDisplaySize(size, size)
-        .play(ESCORT_ANIM);
+        .setDisplaySize(size, size);
     }
     const size = NPC_FRAME_SIZE * (PLAYER_HEIGHT / NPC_CONTENT_HEIGHT[id]);
     return this.add
