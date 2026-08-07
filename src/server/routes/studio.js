@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { generateOne, generateAssociations } from '../ai/wordGen.js';
 import { judgeDuplicates } from '../ai/judge.js';
 import { streamAllyReply, streamMansionReply } from '../ai/dialogue.js';
-import { judgeStance } from '../ai/stance.js';
+import { judgeDisposition } from '../ai/disposition.js';
 import { generateRobotQuestion, judgeAsRobot, judgeAsSystem } from '../ai/interrogation.js';
 import { templateNames, loadTemplate } from '../ai/promptStore.js';
 
@@ -37,7 +37,7 @@ const RECOMMENDED_VARS = {
   'wordgen-system': ['name', 'role', 'backstory', 'personality'],
   'dialogue-system': ['name', 'role', 'backstory', 'personality', 'word', 'alertLevel', 'arrestedCount'],
   'tutorial-dialogue': ['name', 'role', 'backstory', 'personality', 'word', 'reasonBlock'],
-  'mansion-stance': ['clueBlock'],
+  'mansion-disposition': ['name', 'backstory', 'personality', 'kindLabel', 'clueBlock'],
   'mansion-ally': ['mood'],
   'mansion-civ': ['mood'],
   'mansion-dialogue': ['backstory', 'personality'],
@@ -472,21 +472,21 @@ router.post('/preview/dialogue', async (req, res, next) => {
 
 /**
  * POST /api/studio/preview/mansion-dialogue
- * { npc, room, favor, suspicion, clueTopic?, message, promptOverride?, kindOverride? }
+ * { npc, room, gave?, clueTopic?, message, promptOverride?, kindOverride? }
  *
- * favor·suspicion 은 0~3 단계다. 수치 자체는 게임에서 화면에 안 나가지만(대사에 숫자가
- * 새면 이 스테이지가 깨진다) 연기의 온도를 정하므로 미리보기에서는 골라 볼 수 있어야 한다.
+ * gave(이미 마음을 정했는가)는 연기의 온도를 정하므로 미리보기에서 켜 볼 수 있어야
+ * 한다 — 실제 값 자체는 게임에서 화면에 안 나간다 (dialogue.js의 태도 말 참고).
  */
 router.post('/preview/mansion-dialogue', async (req, res, next) => {
   try {
-    const { npc, room = '홀', favor = 0, suspicion = 0, clueTopic = null, message, promptOverride, kindOverride } =
+    const { npc, room = '홀', gave = false, clueTopic = null, message, promptOverride, kindOverride } =
       req.body ?? {};
     if (!npc?.name || !npc?.kind || !message?.trim()) {
       return res.status(400).json({ error: 'npc(name·kind) 와 message 가 필요합니다.' });
     }
     const t0 = Date.now();
     const reply = await streamMansionReply({
-      npc: { ...npc, favor: Number(favor) || 0, suspicion: Number(suspicion) || 0 },
+      npc: { ...npc, gave: Boolean(gave) },
       room,
       clueTopic: clueTopic?.trim() || null,
       history: [],
@@ -502,16 +502,25 @@ router.post('/preview/mansion-dialogue', async (req, res, next) => {
 });
 
 /**
- * POST /api/studio/preview/mansion-stance  { message, clues?, promptOverride? }
- * clues 는 [{id, topic}] — 발언이 그중 한 화제를 실제로 꺼냈는지까지 본다.
+ * POST /api/studio/preview/mansion-disposition
+ * { npc(name·kind·backstory·personality), message, clues?, promptOverride? }
+ *
+ * clues 는 [{id, topic}] — 발언이 그중 한 화제를 실제로 꺼냈는지까지 본다. 실제
+ * judgeDisposition 은 대화 전체(history)를 보고 판단하지만, 여기는 세션 없는
+ * 단발 미리보기라 이 한 마디만 놓고 "지금 처음 듣는다면 어떻게 반응할지"를 본다.
  */
-router.post('/preview/mansion-stance', async (req, res, next) => {
+router.post('/preview/mansion-disposition', async (req, res, next) => {
   try {
-    const { message, clues = [], promptOverride } = req.body ?? {};
+    const { npc, message, clues = [], promptOverride } = req.body ?? {};
+    if (!npc?.name || (npc.kind !== 'ally' && npc.kind !== 'civ')) {
+      return res.status(400).json({ error: 'npc(name, kind: ally|civ) 가 필요합니다.' });
+    }
     if (!message?.trim()) return res.status(400).json({ error: 'message 가 필요합니다.' });
     const t0 = Date.now();
-    const verdict = await judgeStance({
-      message: message.trim(),
+    const verdict = await judgeDisposition({
+      npc,
+      history: [],
+      userMessage: message.trim(),
       clues: Array.isArray(clues) ? clues.filter((c) => c?.id && c?.topic) : [],
       promptOverride,
     });

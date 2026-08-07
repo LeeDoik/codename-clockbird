@@ -139,7 +139,7 @@
         <section id="sec-mansion">
           <h2>저택 인물 (스테이지 2) <span class="dirty" id="mansion-dirty" hidden>● 저장 안 됨</span></h2>
           <div class="legend">
-            성향 판정(<code>mansion-stance</code>)과 저택 대화(<code>mansion-dialogue</code>)에
+            행동 판정(<code>mansion-disposition</code>)과 저택 대화(<code>mansion-dialogue</code>)에
             <code>{{backstory}}</code> <code>{{personality}}</code> 로 주입됩니다.<br />
             <b>첫 문장</b>은 플레이어가 그 인물에게 처음 듣는 말입니다 — 동료는 여기에
             반브루주아 뉘앙스를 옅게 깔아 두는 것이 이 스테이지의 유일한 단서입니다.
@@ -260,19 +260,16 @@
         <section>
           <h2>저택 대화 미리보기 <span class="note" style="font-weight:400;font-size:12px;color:var(--faint)">— 위에서 선택한 저택 인물 초안으로 실행</span></h2>
           <div class="legend">
-            게임에서는 대화와 성향 판정이 <b>나란히</b> 돌지만 여기서는 갈라 놓았습니다 —
+            게임에서는 대화와 행동 판정이 <b>나란히</b> 돌지만 여기서는 갈라 놓았습니다 —
             대사가 이상한 건지 판정이 이상한 건지 가려야 하기 때문입니다.<br />
-            호감도·의심도 수치는 게임 화면에 <b>절대 안 나갑니다</b>(대사에 숫자가 새면 이
-            스테이지가 깨집니다). 연기의 온도만 정하므로 여기서 단계를 바꿔 보세요.
+            판정은 숫자 누적이 아니라 <b>매 턴 대화 전체를 보고 통째로 다시</b> 결정합니다
+            — 여기 미리보기는 세션이 없어 이 한 마디만 놓고 "지금 처음 듣는다면"을
+            판정합니다. 실제 게임은 그때까지의 대화 전부를 함께 봅니다.
           </div>
           <div class="row">
             <div style="flex:1">
-              <label>호감도 (동료일 때)</label>
-              <select id="pv-favor"><option>0</option><option>1</option><option>2</option><option>3</option></select>
-            </div>
-            <div style="flex:1">
-              <label>의심도 (민간인일 때)</label>
-              <select id="pv-susp"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+              <label>이미 마음을 정했는가 (동료일 때 — 대사 톤에만 영향)</label>
+              <select id="pv-gave"><option value="false">아직 (낯설다)</option><option value="true">이미 신뢰함</option></select>
             </div>
           </div>
           <label>플레이어가 찾아낸 단서 화제 (비워도 됩니다)</label>
@@ -281,7 +278,7 @@
           <input type="text" id="pv-mansion-msg" value="요즘 위에서 내려오는 지시가 좀 지나치지 않아요?" />
           <div class="row">
             <button class="action" id="pv-mansion-talk">대화 미리보기</button>
-            <button class="action" id="pv-mansion-stance">성향 판정만</button>
+            <button class="action" id="pv-mansion-disposition">행동 판정만</button>
             <span class="status" id="pv-mansion-status"></span>
           </div>
           <div class="out" id="pv-mansion-out">저택 인물 탭에서 사람을 고르고 실행해 보세요. ≈ 2~5초.</div>
@@ -385,12 +382,12 @@
             '"호감도 0/3" 을 넣었더니 모델이 그걸 그대로 대사에 출력한 적이 있습니다. ' +
             '수치는 말로 바꿔 표현하세요 — 모르는 것은 유출될 수 없습니다.',
         },
-        'mansion-stance': {
-          label: 'S2 · 성향 판정',
-          vars: ['clueBlock'],
+        'mansion-disposition': {
+          label: 'S2 · 행동 판정',
+          vars: ['name', 'backstory', 'personality', 'kindLabel', 'clueBlock'],
           note:
-            '애매하면 <b>neutral</b> 로 판정하도록 유지하세요. 오판으로 민간인의 의심도가 올라 ' +
-            '밀고까지 가면 판이 그대로 끝납니다 — 놓치는 쪽이 훨씬 쌉니다.',
+            '애매하면 <b>wait</b>(아직 지켜본다)로 판정하도록 유지하세요. 오판으로 민간인이 ' +
+            '신고(distrust)까지 가면 판이 그대로 끝납니다 — 놓치는 쪽이 훨씬 쌉니다.',
         },
         'mansion-ally': { label: 'S2 · 동료 태도', vars: ['mood'] },
         'mansion-civ': { label: 'S2 · 민간인 태도', vars: ['mood'] },
@@ -846,7 +843,7 @@
         const npc = currentMansion();
         const message = $('pv-mansion-msg').value.trim();
         if (!message) return setStatus('pv-mansion-status', '플레이어의 말을 입력하세요.', 'err');
-        busy(['pv-mansion-talk', 'pv-mansion-stance'], true);
+        busy(['pv-mansion-talk', 'pv-mansion-disposition'], true);
         setStatus('pv-mansion-status', `${npc.name} 이(가) 대답하는 중…`);
         try {
           const r = await api('/preview/mansion-dialogue', {
@@ -854,8 +851,7 @@
             body: JSON.stringify({
               npc,
               room: npc.room,
-              favor: $('pv-favor').value,
-              suspicion: $('pv-susp').value,
+              gave: $('pv-gave').value === 'true',
               clueTopic: $('pv-clue').value.trim() || null,
               message,
               promptOverride: state.prompts['mansion-dialogue'],
@@ -868,32 +864,38 @@
             `\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
           setStatus('pv-mansion-status', '완료', 'ok');
         } catch (e) { setStatus('pv-mansion-status', e.message, 'err'); }
-        busy(['pv-mansion-talk', 'pv-mansion-stance'], false);
+        busy(['pv-mansion-talk', 'pv-mansion-disposition'], false);
       };
 
-      $('pv-mansion-stance').onclick = async () => {
+      $('pv-mansion-disposition').onclick = async () => {
+        collectMansionFields();
+        const npc = currentMansion();
         const message = $('pv-mansion-msg').value.trim();
         if (!message) return setStatus('pv-mansion-status', '플레이어의 말을 입력하세요.', 'err');
-        busy(['pv-mansion-talk', 'pv-mansion-stance'], true);
+        busy(['pv-mansion-talk', 'pv-mansion-disposition'], true);
         setStatus('pv-mansion-status', '판정 중…');
         try {
-          const r = await api('/preview/mansion-stance', {
+          const r = await api('/preview/mansion-disposition', {
             method: 'POST',
             body: JSON.stringify({
+              npc,
               message,
               clues: clueList(),
-              promptOverride: state.prompts['mansion-stance'],
+              promptOverride: state.prompts['mansion-disposition'],
             }),
           });
-          // anti = 동료의 호감이 오르고 민간인의 의심도 같이 오른다. 이 한 판정이 양쪽을 움직인다.
-          const label = { anti: '반체제(anti)', pro: '체제 옹호(pro)', neutral: '중립(neutral)' }[r.stance] ?? r.stance;
+          const label =
+            r.decision === 'wait'
+              ? '지켜본다 (wait)'
+              : r.direction === 'trust'
+                ? '신뢰하기로 함 (act/trust)'
+                : '경계하기로 함 (act/distrust)';
           $('pv-mansion-out').innerHTML =
-            `<b>판정</b>: ${label}\n<b>이유</b>: ${r.reason}\n` +
-            `<b>꺼낸 단서</b>: ${r.usedClueId ?? '없음'}` +
+            `<b>판정</b>: ${label}\n<b>이유</b>: ${r.reason}` +
             `\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;
           setStatus('pv-mansion-status', '완료', 'ok');
         } catch (e) { setStatus('pv-mansion-status', e.message, 'err'); }
-        busy(['pv-mansion-talk', 'pv-mansion-stance'], false);
+        busy(['pv-mansion-talk', 'pv-mansion-disposition'], false);
       };
 
       // ── 스테이지 3 미리보기 ───────────────────────────────────

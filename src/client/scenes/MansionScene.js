@@ -770,10 +770,6 @@ export class MansionScene extends Phaser.Scene {
           ? '\n\n[연구실 열쇠를 손에 넣었다. 하인 통로 끝의 문을 열 수 있다.]'
           : '\n\n[열쇠를 쥔 사람의 단서를 얻었다.]',
       );
-      return;
-    }
-    if (event === 'warn') {
-      this.dialogue.append('\n\n…그의 눈이 잠깐 굳는다. 한 번만 더 삐끗하면 위험하다.');
     }
   }
 
