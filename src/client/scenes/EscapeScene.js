@@ -541,23 +541,47 @@ export class EscapeScene extends Phaser.Scene {
       this.#toEnding();
       return;
     }
-    // 패배·오류는 심문 직전으로 되돌린다 — 여기서 결과 화면을 덮으면 마지막 장면이
-    // 통째로 날아간다. 탈출을 다시 걷게 하지도 않는다 (마지막 체크포인트에서 시작).
-    //
-    // #respawn() 끝의 fadeIn 은 #caught() 가 먼저 fadeOut 한 뒤 부르는 것을 전제로
-    // 한다 — 화면이 이미 검게 죽어 있어야 다시 밝아지는 연출이 자연스럽다. 이 경로는
-    // fadeOut 없이 밝은 화면 그대로 들어오므로, fadeOut 없이 바로 #respawn() 을 부르면
-    // 멀쩡한 화면이 느닷없이 검게 깜빡였다 돌아온다. #caught() 와 같은 순서(먼저
-    // fadeOut, 완료되면 #respawn())로 맞춘다.
-    //
-    // respawning 을 fadeOut 시작 전에 세운다 — update() 는 ended || respawning 일 때만
-    // 이동을 얼린다. ended 를 먼저 false 로 내리면 fadeOut 이 끝나는 400ms 동안 둘 다
-    // false 인 틈이 생겨, 화면이 검은 채로 캐릭터가 움직여 버린다.
+    // 'error'(서버·네트워크 사고)는 **진 것이 아니다** — 같은 자리로 되돌리되
+    // 「탐지」 명판을 세우지 않는다. 재시도 횟수도 세지 않는다.
+    this.#evaCaught(outcome === 'lose');
+  }
+
+  /**
+   * 심문에 졌다 — 로봇에게 잡힌 것과 **같은 연출 규약**으로 되돌린다.
+   *
+   * 예전에는 여기가 달랐다: 결과 화면도 연출도 없이 화면이 400ms 어두워졌다가
+   * 시작 지점에서 밝아졌다. 진 것인지 버그인지 구분이 안 갔고, 되돌리는 일을
+   * 카메라 페이드 완료 이벤트(camerafadeoutcomplete)에 매달아 두어서 판을 다시
+   * 세우는 순간이 그 이벤트에 걸려 있었다 (2026-08-08 피드백 — 게임오버 뒤에
+   * 에바를 다시 찾아가도 아무 일이 없다).
+   *
+   * 그래서 **이미 도는 길**을 그대로 쓴다 — #caught() 와 한 글자만 다르다(연출 변형).
+   * 붉은 번쩍임 → 연출(화면을 다 덮은 채 끝난다) → 그 뒤에서 판을 되돌리고 걷어낸다.
+   * 되돌리는 것이 연출의 resolve 뒤에 오므로 페이드 이벤트에 매달릴 일이 없고,
+   * 덮개가 곧 암전이라 캐릭터가 순간이동하는 것도 안 보인다.
+   *
+   * ⚠ ended 를 여기서 내려야 심문이 다시 열린다 — update() 의 발동 구역 검사는
+   *   `!this.ended` 를 본다. #respawn() 은 respawning 만 내린다.
+   */
+  #evaCaught(lost) {
     this.respawning = true;
-    this.cameras.main.fadeOut(400, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
+    this.player.body.setVelocity(0, 0);
+
+    // 사고로 끊긴 판은 연출 없이 조용히 되돌린다 — 「탐지」를 세우면 서버가 잠깐
+    // 흔들린 것을 플레이어가 자기 실수로 읽는다.
+    if (!lost) {
       this.ended = false;
       this.#respawn();
+      return;
+    }
+
+    this.retries += 1;
+    this.cameras.main.flash(220, 194, 37, 26);
+    this.time.delayedCall(400, async () => {
+      await this.gameover.show(this.retries, 'eva');
+      this.ended = false;
+      this.#respawn();
+      this.gameover.hide();
     });
   }
 

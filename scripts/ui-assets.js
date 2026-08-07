@@ -881,6 +881,56 @@ export const ASSETS = [
       'no text, no letters, no numbers, no ui, no frame, no border',
     opts: {},
   },
+  // ── 게임오버 — 스테이지 3 심문 실패 (에바에게 들켰을 때) ──────
+  //
+  // 같은 스테이지의 두 번째 패배다. 순찰 로봇에게 잡히는 것(gameover-catch)과 나란히
+  // 서지만 **성질이 정반대라 그림도 반대로 간다**: 로봇은 힘으로 붙잡고 뜨거운 앰버
+  // 서치라이트가 소년을 몰아세우는데, 에바는 힘을 쓰지 않는다 — 거짓말을 알아본
+  // 것뿐이고, 그 앎이 차가운 푸른빛으로 새어 나온다. 앰버 대 청백, 포위 대 응시.
+  //
+  // 인물 묘사는 두 곳에서 그대로 가져온다. 소년은 gameover-catch 의 문장을 한 자도
+  // 안 바꾸고(같은 인물이 다른 장면에 다시 서는 것이라 낱말이 갈리면 사람이 갈린다),
+  // 에바는 설정 일러스트(public/portraits/eva.png)를 옮겨 적었다 — 짧은 흰 곱슬머리,
+  // 목까지 오는 크림색 빅토리아 드레스에 레이스, 옅은 청회색 주름 앞치마, 진홍 구두.
+  // ⚠ 손은 반드시 기계 관절이 드러나야 한다. 이 장면에서 "사람이 아니다"를 말하는
+  //   것은 눈빛과 그 손뿐이고, 그게 없으면 그냥 소녀 둘이 서 있는 그림이 된다.
+  //
+  // Pro 는 negative 도 팔레트도 안 받으므로 금지 사항을 전부 문장 안에 적었다
+  // (gameover-catch 와 같은 규약). 배경도 같은 이유로 순검정을 못박는다.
+  {
+    id: 'gameover-eva',
+    label: '심문 실패 장면 — 거짓말을 꿰뚫어 본 에바와 붙잡힌 소년',
+    model: 'pro',
+    // ⚠ gameover-catch 와 달리 **배경을 벗긴다**(opaque 를 안 붙인다).
+    //
+    // 그쪽은 서치라이트 광선과 안개가 배경에 녹아 있어 벗기면 연출이 통째로 날아가지만,
+    // 이 장면은 인물 둘이 전부다 — 벗겨서 무대의 어둠(#gameover-scene 의 배경색) 위에
+    // 바로 세우는 편이 낫다. 실제로 Pro 가 "순검정 배경"을 무시하고 **흰 바탕**을 깔아
+    // 보냈는데(gameover-catch 2차 굴림과 같은 함정), 벗기면 그 사고가 그대로 무해해진다.
+    // 소년의 미색 셔츠는 어두운 외곽선에 둘러싸여 있어 flood fill 이 못 들어간다.
+    size: { width: 416, height: 256 },
+    target: '#gameover-scene (에바 변형 — #gameover.eva 가 바꿔 끼운다)',
+    description:
+      'a dramatic pixel art game over scene seen from the side like a side-scrolling game, ' +
+      'on the right a pale young woman standing perfectly still and facing left, ' +
+      'short tousled snow-white curly hair, calm expressionless face, ' +
+      'her eyes glowing with a cold pale blue-white light, ' +
+      'a high-collared cream Victorian dress with lace ruffles at the throat and shoulders, ' +
+      'a pale blue-grey pleated apron panel down the skirt, dark red shoes, ' +
+      'one bare arm reached out gripping the boy by the wrist, ' +
+      'her hand and wrist are exposed clockwork — brass finger joints, ' +
+      'polished metal knuckles and a seam of tiny gears at the wrist, the only part of her that is not human, ' +
+      'on the left a small ragged young boy pulled off balance towards her, leaning back and away, ' +
+      'messy dark curly hair, brass goggles on his forehead, long red scarf, off-white shirt with rolled ' +
+      'sleeves, leather satchel, worn trousers and boots, his free hand raised, alarmed, ' +
+      'a plain solid pure black background behind them, ' +
+      'the cold blue glow of her eyes falling on the boy is the only light in the frame, ' +
+      'no searchlight, no beam, no lamp, no robot, no machinery around them, ' +
+      'dim gaslit Victorian steampunk mood, ' +
+      'chunky pixel art, limited palette, crisp hard edges, dark warm-brown outlines, ' +
+      'no text, no letters, no numbers, no ui, no frame, no border',
+    opts: {},
+  },
   {
     id: 'gameover-bars',
     label: '감옥 창살 — 검거 순간 화면 위에서 내리꽂힌다',

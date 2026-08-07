@@ -2512,6 +2512,14 @@
         pointer-events: none;
       }
       @keyframes go-beam { 50% { opacity: 0.72; } } /* 가스등이 그렇듯 숨을 쉰다 */
+      /* 에바 변형 — 같은 무대 액자에 다른 장면을 건다 (ui/GameOverOverlay.js 의 VARIANTS).
+         스테이지 3 에는 패배가 둘인데 성질이 정반대다: 로봇은 힘으로 붙잡고, 에바는
+         거짓말을 알아본 것뿐이다. 그래서 **서치라이트 쐐기를 끈다** — 저 광선은 로봇
+         렌즈에서 나오는 것이라 이 그림에는 나올 곳이 없다.
+         배경을 벗긴 그림이라(scripts/ui-assets.js 의 gameover-eva 주석) 액자의 어둠
+         위에 인물 둘만 선다. 액자보다 세로로 긴 비율이라 contain 이 높이에 맞춘다. */
+      #gameover.eva #gameover-scene { background-image: url('/ui/gameover-eva.png'); }
+      #gameover.eva #gameover-scene::after { display: none; }
       /* 명판 — 도장 찍히듯 내려앉는다. 실패의 색(봉랍)은 글자가 말한다. */
       #gameover-plate {
         position: relative;
