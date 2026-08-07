@@ -210,8 +210,12 @@ export function raiseAlert(session, amount = 1) {
  * 실수했다고 11~20초짜리 새 판을 다시 받아야 하니, 지는 순간보다 다시 시작하는 쪽이
  * 더 아팠다. 이제 대가는 시간이다 — 창살 안에서 잠금장치를 따야 거리로 돌아간다.
  *
- * 경계 레벨은 건드리지 않는다. 탈출 퍼즐 실패에도 페널티가 없다 (기획 확정) — 감옥은
- * 벌이 아니라 지연이고, 판을 끝내는 것은 경계 3 에서의 발각(setGameOver 'spotted')뿐이다.
+ * 감옥행 자체는 게임오버가 아니지만, 그 원인(수류탄 빗나감)은 경계 레벨을 올린다 —
+ * 호출부(routes/stage.js #checkpoint/qte)가 이 함수와 나란히 raiseAlert 를 부른다
+ * (2026-08-07). 감옥은 벌이 아니라 지연이지만, 반복해서 잡히기만 하면 대가 없이
+ * 무한히 재시도할 수 있어 경계 3 의 즉시 구속(setGameOver 'spotted')에 절대 닿지
+ * 않는 사각지대가 생겼던 것을 막는다. 감옥 안 탈출 자물쇠 실패도 같은 이유로
+ * `POST /alarm { reason: 'jailpick' }` 을 통해 경계를 올린다.
  */
 export function jailPlayer(session) {
   if (session.cleared || session.gameOver) return false;

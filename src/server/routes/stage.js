@@ -185,18 +185,24 @@ router.post('/checkpoint/start', (req, res) => {
  *
  * 자석 수류탄 투척 결과 보고 — **검문은 여기서 끝난다**.
  *   - 명중(pass): 로봇이 굳고 빠져나간다. 경계는 오르지 않고 쿨다운만 걸린다.
- *   - 빗나감(fail): 붙잡혀 임시 감옥에 갇힌다 — **게임오버가 아니다** (/jail/escape 로 이어진다).
+ *   - 빗나감(fail): 붙잡혀 임시 감옥에 갇힌다 — **게임오버가 아니다**, 경계만 오른다
+ *     (/jail/escape 로 이어진다).
  *
  * ⚠ 2026-08-05 에 그 사이에 있던 **LLM 심문 단계를 걷어냈다** (기획 판단). 실패하면
  * 로봇이 질문을 던지고 /checkpoint/answer 가 답을 심사한 뒤, 거기서도 걸려야 비로소
  * 수류탄을 쓰는 3단 구조였다. 그때는 적발이 경계 +1 로 끝났지만 — 발각은 반복되는
  * 사건이라 한 번 걸렸다고 판이 끝나면 반복 플레이가 성립하지 않는다는 이유였다.
  *
- * ⚠ 같은 날 늦게, **빗나감이 게임오버이던 것을 감옥행으로 바꿨다** (기획 확정). 그
- * 사이에는 소모품이 완충이었다 — 조우마다 수류탄이 한 개씩 나가고 다 쓰면 다음 발각이
- * 즉사(스토리보드 p16 "게임오버 = 자석 수류탄 소진"). 지금은 수류탄이 없어도 죽지 않고
- * 감옥에 갇힐 뿐이라, 수류탄은 **감옥에 안 가는 수단**이지 목숨이 아니다.
- * 판을 끝내는 것은 경계 3 에서의 발각(/checkpoint/start 의 spotted)뿐이다.
+ * ⚠ 같은 날 늦게, **빗나감이 게임오버이던 것을 감옥행으로 바꿨다**. 그 사이에는 소모품이
+ * 완충이었다 — 조우마다 수류탄이 한 개씩 나가고 다 쓰면 다음 발각이 즉사(스토리보드
+ * p16 "게임오버 = 자석 수류탄 소진"). 지금은 수류탄이 없어도 죽지 않고 감옥에 갇힐
+ * 뿐이라, 수류탄은 **감옥에 안 가는 수단**이지 목숨이 아니다.
+ *
+ * ⚠ 그런데 그때 함께 "경계 레벨도 건드리지 않는다"로 정했던 것은 2026-08-07 에 다시
+ * 뒤집었다 — 감옥행이 아무 대가가 없으니 실패를 반복해도 게임오버(경계 3 의 즉시
+ * 구속, /checkpoint/start 의 spotted)에 절대 닿지 않는 사각지대가 됐다. 이제 빗나가면
+ * jailPlayer 와 나란히 raiseAlert 도 부른다 — 다른 미니게임 실패(락픽·/alarm)와 같은
+ * 대가 구조로 맞춘다.
  *
  * 라우트 이름은 qte 그대로 둔다 — 클라이언트·세션·쿨다운이 같은 이름을 물고 있고,
  * 바꿔 봐야 "검문 중 한 판"이라는 뜻은 같다.
@@ -211,9 +217,15 @@ router.post('/checkpoint/qte', (req, res) => {
   const passed = req.body?.result === 'pass';
   session.checkpoint = null;
   session.checkpointCooldownUntil = Date.now() + CHECKPOINT_COOLDOWN_MS;
-  if (!passed) jailPlayer(session);
+  if (!passed) {
+    jailPlayer(session);
+    raiseAlert(session);
+  }
 
-  console.log(`[checkpoint] 세션 ${session.id.slice(0, 8)} — 수류탄 ${passed ? '명중' : '빗나감 → 수감'}`);
+  console.log(
+    `[checkpoint] 세션 ${session.id.slice(0, 8)} — 수류탄 ${passed ? '명중' : '빗나감 → 수감'}` +
+      (passed ? '' : ` (경계 ${session.alertLevel})`),
+  );
   res.json({ outcome: passed ? 'pass' : 'jailed', state: toClientView(session) });
 });
 
@@ -221,9 +233,11 @@ router.post('/checkpoint/qte', (req, res) => {
  * POST /api/stage/jail/escape  { sessionId }
  * 감옥 탈출 — 창살 잠금장치를 풀었다.
  *
- * **성공만 보고한다.** 탈출 퍼즐은 실패해도 대가가 없고(경계도 오르지 않는다) 몇 번이든
- * 다시 딸 수 있어서, 실패는 서버가 알 필요가 없는 사건이다. 알릴 것이 없는 왕복을 만들면
- * 그 왕복이 실패했을 때 창살이 도로 잠기는 사고만 생긴다.
+ * **성공만 여기로 보고한다.** 몇 번이든 다시 딸 수 있어서, 실패해도 창살이 도로 잠기는
+ * 것 같은 상태 변화는 없다 — 이 라우트가 알 것이 없다. 다만 실패 자체가 공짜는 아니다
+ * (2026-08-07) — 클라이언트가 실패마다 `POST /alarm { reason: 'jailpick' }` 을 따로
+ * 불러 경계를 올린다. 왕복이 갈리는 이유는 "상태가 바뀌는 사건(탈출)"과 "대가만 치르는
+ * 사건(실패)"의 통로가 이 파일에서 원래도 다르기 때문이다 — /alarm 문서 참고.
  *
  * 나오는 순간 재검문 쿨다운을 다시 건다 — 갇혀 있는 동안 처음 걸어 둔 쿨다운은 이미
  * 지났고, 창살 앞에 로봇이 서 있으면 나오자마자 도로 잡혀 감옥이 무한 반복된다.
@@ -246,8 +260,11 @@ router.post('/jail/escape', (req, res) => {
  * 미니게임처럼 판정이 클라이언트에서 끝나는 사건이 대가를 치르는 통로다. 판정은
  * 브라우저가 내리지만 그 대가(경계 레벨)의 소유권은 서버가 갖는다. reason 을
  * 화이트리스트로 묶어 임의의 사유로 경계를 올리지 못하게 한다.
+ *
+ * 'jailpick' — 감옥 안 탈출 자물쇠 실패(2026-08-07 추가). /jail/escape 는 성공만
+ * 보고하므로, 실패의 대가는 이 통로로 낸다.
  */
-const ALARM_REASONS = new Set(['lockpick']);
+const ALARM_REASONS = new Set(['lockpick', 'jailpick']);
 
 router.post('/alarm', (req, res) => {
   const { sessionId, reason } = req.body ?? {};
