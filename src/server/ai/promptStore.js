@@ -17,7 +17,7 @@ const TEMPLATES = [
   'dialogue-system',
   'tutorial-dialogue',
   'mansion-dialogue',
-  'mansion-stance',
+  'mansion-disposition',
   'mansion-ally',
   'mansion-civ',
   'escape-question',

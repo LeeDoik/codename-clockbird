@@ -96,30 +96,25 @@ export async function streamAllyReply({
  * 그 사실이 이 스테이지의 정답이고, 플레이어는 말투와 반응만으로 그걸 알아내야 한다.
  * 그래서 프롬프트가 "먼저 밝히지 마라"를 규칙으로 못박는다. 여기가 뚫리면 게임이 없다.
  *
- * 호감도·의심도 수치를 프롬프트에 넣는 이유는 연기의 온도를 맞추기 위해서다.
- * 수치 자체는 클라이언트로 나가지 않는다 (mansionSession.toMansionView 참고).
+ * 태도(마음을 정했는지)를 프롬프트에 넣는 이유는 연기의 온도를 맞추기 위해서다.
+ * 그 상태 자체는 클라이언트로 나가지 않는다 (mansionSession.toMansionView 참고).
  */
 /**
- * 호감도·의심도를 **말로** 바꾼다.
+ * 태도를 **말로** 바꾼다.
  *
- * 프롬프트에 "0 / 3" 같은 숫자를 넣었더니 모델이 그걸 대사에 적어 화면에 내보냈다
- * (`*마음 열림도: 0 / 3*`). 수치 비노출은 이 스테이지의 규칙이라 그 순간 게임이 깨진다.
- * "말하지 마라"로 막는 대신 아예 숫자를 주지 않는다 — 모르는 것은 유출될 수 없다.
- * 이제 모델이 제 상태를 흘려도 "아직 낯설다" 정도라 그건 연기의 일부다.
+ * 예전엔 호감도·의심도가 0~3 으로 누적돼 그 수치를 말로 옮겼다(숫자를 그대로 주면
+ * 모델이 대사에 적어 화면에 새 버렸다 — 수치 비노출은 이 스테이지의 규칙). 지금은
+ * 판정이 매 턴 통째로 다시 도는 홀리스틱 방식이라(mansionSession.applyDisposition)
+ * 누적 수치 자체가 없다 — 이 인물이 이미 마음을 정했는지(halted/gave)만 남는다.
+ * 아직 정하지 않았다면 "아직 낯설다" 하나뿐이고, 정한 뒤에도 대화가 이어지는
+ * 경우(동료가 신뢰를 준 뒤)에만 그 결과를 말투에 반영한다.
  */
-const FAVOR_WORDS = [
-  '아직 완전히 낯설다. 그저 지나가는 외부인이다',
-  '조금 경계가 풀렸다. 말이 통하는 구석이 있는 것 같다',
-  '꽤 마음이 놓인다. 어쩌면 같은 편일지도 모른다',
-  '이 사람은 믿어도 될 것 같다',
-];
-const SUSPICION_WORDS = [
-  '별로 신경 쓰지 않는다',
-  '뭔가 거슬리는 말을 한다',
-  '꽤 수상하다. 저 사람 조심해야겠다',
-  '더는 못 참겠다',
-];
-const pick = (words, n) => words[Math.min(n, words.length - 1)];
+const FAVOR_WORDS = {
+  undecided: '아직 완전히 낯설다. 그저 지나가는 외부인이다',
+  trusted: '이 사람은 믿어도 될 것 같다',
+};
+/** 민간인은 신고(over='reported')로 그 자리에서 대화가 끝나 — 이어질 "의심 뒤" 말투가 없다. */
+const SUSPICION_WORD = '별로 신경 쓰지 않는다';
 
 export async function streamMansionReply({
   npc,
@@ -135,7 +130,7 @@ export async function streamMansionReply({
 }) {
   const kindBlock = await renderPrompt(
     npc.kind === 'ally' ? 'mansion-ally' : 'mansion-civ',
-    { mood: npc.kind === 'ally' ? pick(FAVOR_WORDS, npc.favor) : pick(SUSPICION_WORDS, npc.suspicion) },
+    { mood: npc.kind === 'ally' ? (npc.gave ? FAVOR_WORDS.trusted : FAVOR_WORDS.undecided) : SUSPICION_WORD },
     kindOverride,
   );
 
