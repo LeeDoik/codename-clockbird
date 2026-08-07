@@ -1,10 +1,20 @@
 import Phaser from 'phaser';
 import { CSS, FONTS } from '../ui/theme.js';
 import { IntroVideo } from '../ui/IntroVideo.js';
+import { playSfx } from '../audio/SoundManager.js';
 
 /**
  * 오프닝 시네마틱 — "HEART OF STEEL" 스토리보드 10컷을 재생하고 타이틀로 넘긴다.
  * 다 보거나 건너뛰거나 행선지는 같다 — 게임 입장은 타이틀의 [게임 시작]이 맡는다.
+ *
+ * ── 오프닝의 소리 ──
+ * 오프닝에는 배경음을 깔지 않는다. 영상이 오프닝일 때는 **영상 자체의 오디오가 전부**고,
+ * 그 위에 곡을 얹으면 영상의 소리와 겹쳐 둘 다 뭉갠다. 배경음은 다음 화면인 타이틀에서
+ * 처음 흐른다(TitleScene 의 playBgm('title')).
+ *
+ * 영상이 없어 패널 컷으로 떨어졌을 때도 배경음은 없다 — 컷 몇 개에 얹히는 효과음만
+ * SoundManager 의 공용 SFX 로 낸다. 이 씬이 자기 사운드를 직접 쥐고 있으면 SoundManager
+ * 의 stopBgm() 이 닿지 않는 사각지대가 생기므로, 소리는 전부 SoundManager 를 지난다.
  *
  * 스테이지 시작 fetch(LLM, 11~20초)는 이 씬과 무관하다 — 타이틀에서 [게임 시작]을
  * 누른 순간 쏘고(TitleScene), 그 대기는 본부 훈련(LLM 없이 시작한다)이 가린다.
@@ -25,10 +35,10 @@ const FAINT = CSS.paperDim;
 /**
  * 스토리보드 컷. dur = 표시 시간(ms), 스토리보드의 초 구간에서 그대로 옮겼다.
  * type: image = 아트 패널(+하단 자막) / title·subtitle·bridge = 엔진 렌더(아트 불필요).
- * image 컷의 sfx 는 있으면 재생, 없으면 무음.
+ * sfx 는 SoundManager 의 공용 효과음 키다 — BootScene 이 이미 실어 둔 것을 그대로 쓴다.
  */
 const BEATS = [
-  { type: 'image', image: 'intro1', dur: 3000, text: '', sfx: 'intro_steam' }, // 1. 증기 도시의 평화
+  { type: 'image', image: 'intro1', dur: 3000, text: '', sfx: 'steam' }, // 1. 증기 도시의 평화
   { type: 'image', image: 'intro2', dur: 3000, text: '강철처럼 차가운 심장을 가진 그들은' }, // 2. 강철 로봇 군단 습격
   { type: 'image', image: 'intro3', dur: 4000, text: '너무나 쉽게 사람들의 마음을 무너뜨렸다.' }, // 3. 학살
   { type: 'image', image: 'intro4', dur: 4000, text: '강철을 가진 자가 권력을 가졌다.' }, // 4. 브루주아
@@ -36,7 +46,7 @@ const BEATS = [
   { type: 'image', image: 'intro6', dur: 4000, text: '강철보다 단단한 신념으로.' }, // 6. 은밀히 연결
   { type: 'image', image: 'intro7', dur: 2000, text: '그 고철덩어리와 주인을 노린다.' }, // 7. 표적
   { type: 'image', image: 'intro8', dur: 1500, text: '우리는…' }, // 8. 우리는
-  { type: 'title', dur: 2200, sfx: 'intro_clang' }, // 9. 타이틀 등장
+  { type: 'title', dur: 2200, sfx: 'boom' }, // 9. 타이틀 등장
   { type: 'subtitle', dur: 2600, text: 'Steel cannot understand the human heart.\n(강철은 인간의 마음을 이해할 수 없다.)' }, // 10.
   // 튜토리얼 전환 — 접선책이 규칙을 일러준다. 그대로 첫 퍼즐로 넘어간다.
   {
@@ -59,9 +69,7 @@ export class IntroScene extends Phaser.Scene {
       this.load.image(`intro${i}`, `/intro/${String(i).padStart(2, '0')}.png`);
     }
     // 선택 에셋 — 있으면 분위기를 더하고, 없으면 조용히 건너뛴다.
-    this.load.audio('intro_music', '/intro/music.mp3');
-    this.load.audio('intro_steam', '/intro/steam.mp3');
-    this.load.audio('intro_clang', '/intro/clang.mp3');
+    // (소리는 여기서 싣지 않는다 — BGM·SFX 는 BootScene 이 전역으로 한 번에 싣는다.)
     this.load.image('intro_handler', '/intro/handler.png');
   }
 
@@ -131,15 +139,7 @@ export class IntroScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(20);
 
-    this.#playMusic();
     this.#playBeat(0);
-  }
-
-  #playMusic() {
-    if (this.cache.audio.exists('intro_music')) {
-      this.music = this.sound.add('intro_music', { volume: 0.45, loop: true });
-      this.music.play();
-    }
   }
 
   #bindSkip() {
@@ -164,7 +164,7 @@ export class IntroScene extends Phaser.Scene {
 
     // 하단 자막은 아트 컷에서만 쓴다 — 타이틀/자막/브릿지는 자기 텍스트를 중앙에 직접 그린다.
     this.#setNarration(beat.type === 'image' ? beat.text : '');
-    if (beat.sfx && this.cache.audio.exists(beat.sfx)) this.sound.play(beat.sfx, { volume: 0.6 });
+    if (beat.sfx) playSfx(beat.sfx, { volume: 0.6 });
 
     this.beatTimer = this.time.delayedCall(beat.dur, () => this.#playBeat(i + 1));
   }
@@ -336,8 +336,8 @@ export class IntroScene extends Phaser.Scene {
       this.beatTimer.remove(false);
       this.beatTimer = null;
     }
-    if (this.music) this.music.stop();
     // 영상은 캔버스 위에 있으므로 먼저 걷어야 아래의 암전이 보인다.
+    // (영상을 걷으면 그 오디오도 같이 멈춘다 — 오프닝이 남기는 소리는 없다.)
     this.video?.hide();
 
     // 자체 검은 오버레이로 덮는다(카메라 페이드는 이후 추가한 대기 문구까지 가려 버린다).

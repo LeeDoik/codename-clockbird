@@ -22,7 +22,7 @@ import {
   NPC_TEXTURE,
 } from '../entities/npcSprite.js';
 import { InteractionManager } from '../world/interact.js';
-import { setLoop } from '../audio/SoundManager.js';
+import { playBgm, setLoop, GAMEPLAY_BGM_VOLUME } from '../audio/SoundManager.js';
 import hqData from '../assets/hq.json';
 import hqProps from '../assets/hq-props.json';
 
@@ -75,6 +75,10 @@ export class EndingScene extends Phaser.Scene {
   }
 
   create() {
+    // 막이 내리는 자리에 타이틀 곡을 다시 올린다 — 오프닝·타이틀에서 들었던 그 곡으로
+    // 돌아오며 한 바퀴가 닫힌다. 다만 볼륨은 타이틀(0.45)이 아니라 플레이 화면 기준이다.
+    // 이 씬에는 브란트의 대사 세 장이 흐르고, 그것이 엔딩의 본문이기 때문이다.
+    playBgm('title', { volume: GAMEPLAY_BGM_VOLUME });
     this.dialogue = new DialogueBox();
 
     this.add.image(0, 0, 'hq-bg').setOrigin(0, 0).setDepth(-100);

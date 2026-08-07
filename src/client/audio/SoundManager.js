@@ -41,8 +41,12 @@ const MENU_BGM_VOLUME = 0.45;
 /**
  * 실제 플레이 중(튜토리얼·스테이지 1~3·미니게임) 배경음 볼륨 — 대사·효과음을
  * 가리지 않도록 뒤에 낮게 깐다.
+ *
+ * 내보내는 이유: 엔딩처럼 **메뉴 곡을 플레이 화면에서 트는** 자리가 있다. 엔딩은
+ * 타이틀 곡을 다시 쓰지만(EndingScene) 그 위로 브란트의 대사가 흐르므로, 곡 자체가
+ * 아니라 그 화면의 성격에 볼륨을 맞춰야 한다 — 부르는 쪽이 이 값을 넘긴다.
  */
-const GAMEPLAY_BGM_VOLUME = 0.18;
+export const GAMEPLAY_BGM_VOLUME = 0.18;
 const GAMEPLAY_BGM_KEYS = new Set(['tutorial', 'stage1', 'stage2', 'stage3', 'minigame1', 'minigame2']);
 const SFX_VOLUME = 0.7;
 
@@ -78,7 +82,12 @@ export function playSfx(key, opts = {}) {
 export function playBgm(key, opts = {}) {
   if (!manager) return;
   const soundKey = `bgm-${key}`;
-  if (currentBgmKey === soundKey && currentBgmSound?.isPlaying) return;
+  if (currentBgmKey === soundKey && currentBgmSound?.isPlaying) {
+    // 같은 곡이어도 볼륨을 명시해 불렀다면 그건 들어준다 — 타이틀 곡을 엔딩에서 낮게
+    // 다시 트는 것처럼, 곡은 같고 화면의 성격만 다른 자리가 있다.
+    if (opts.volume !== undefined) currentBgmSound.setVolume(opts.volume);
+    return;
+  }
   currentBgmSound?.stop();
   const volume = GAMEPLAY_BGM_KEYS.has(key) ? GAMEPLAY_BGM_VOLUME : MENU_BGM_VOLUME;
   currentBgmSound = manager.add(soundKey, { loop: true, volume, ...opts });
