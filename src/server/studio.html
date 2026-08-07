@@ -941,17 +941,18 @@
               robotOverride: state.prompts['escape-robot-judge'],
             }),
           });
-          // 로봇 대사에 신분 단어가 그대로 나오면 정보 격리가 뚫린 것이다 — 눈에 띄게 경고한다.
-          const leaked = r.robot.reply.includes(identityWord) || r.robot.reason.includes(identityWord);
+          // 로봇 판정 근거(reason)에 신분 단어가 그대로 나오면 정보 격리가 뚫린 것이다 —
+          // 눈에 띄게 경고한다. (대사는 더 이상 LLM 출력이 아니라 고정 대본이라 검사 대상이 아니다.)
+          const leaked = r.robot.reason.includes(identityWord);
           $('pv-escape-out').innerHTML =
             `<b>시스템 판정</b> <span class="meta">(신분 단어를 안다)</span>\n` +
-            `  거짓말: ${r.system.lie ? '예' : '아니오'} · 단어 노출: ${r.system.reveal ? '예' : '아니오'}\n` +
+            `  거짓말: ${r.system.lie ? '예' : '아니오'}\n` +
             `  ${r.system.reason}\n\n` +
             `<b>로봇 판정</b> <span class="meta">(신분 단어를 모른다)</span>\n` +
-            `  모순: ${r.robot.contradiction ? '예' : '아니오'} · 확신도: ${r.robot.confidence}\n` +
-            `  대사: ${r.robot.reply}\n  ${r.robot.reason}` +
+            `  모순: ${r.robot.contradiction ? '예' : '아니오'} · 모호: ${r.robot.vague ? '예' : '아니오'}` +
+            ` · 확신도: ${r.robot.confidence}\n  ${r.robot.reason}` +
             (leaked
-              ? `\n\n<b style="color:var(--danger)">⚠ 로봇 쪽 출력에 신분 단어 「${identityWord}」 가 그대로 나왔습니다.</b>\n` +
+              ? `\n\n<b style="color:var(--danger)">⚠ 로봇 쪽 판정 근거에 신분 단어 「${identityWord}」 가 그대로 나왔습니다.</b>\n` +
                 `  로봇은 이 단어를 받지 않습니다 — 프롬프트가 유추를 유도하고 있는지 보세요.`
               : '') +
             `\n<span class="meta">${(r.elapsedMs / 1000).toFixed(1)}초</span>`;

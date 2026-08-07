@@ -34,6 +34,7 @@ const SFX_FILES = {
   gear: '/audio/sfx/gear.mp3',
   steam: '/audio/sfx/steam.mp3',
   warning: '/audio/sfx/warning.mp3',
+  select: '/audio/sfx/select.mp3',
 };
 
 /** 타이틀(메뉴)에서만 쓰는 볼륨 — 대사·효과음과 겹칠 일이 없는 화면이라 또렷하게 튼다. */
@@ -194,9 +195,17 @@ export function playBgm(key, opts = {}) {
   }
   currentBgmSound?.stop();
   currentBgmBase = base;
-  currentBgmSound = manager.add(soundKey, { loop: true, ...opts, volume: base * volumes.bgm });
-  currentBgmSound.play();
+  // 곡별 기본 크기(base)에 사용자 설정(volumes.bgm)을 곱한다 — 설정 창 슬라이더가
+  // 곧바로 들리는 이유다. base 는 위에서 이미 opts.volume 과 메뉴/게임플레이 구분을
+  // 흡수했으므로 여기서 다시 고를 필요가 없다.
+  const sound = manager.add(soundKey, { loop: true, ...opts, volume: base * volumes.bgm });
+  currentBgmSound = sound;
   currentBgmKey = soundKey;
+  // 타이틀처럼 첫 화면부터 트는 곡은 사용자가 아직 아무것도 누르기 전이라 오디오
+  // 컨텍스트가 잠겨 있다 — 지금 play() 를 불러도 소리 없이 씹힌다. 잠겨 있으면
+  // Phaser 가 "unlock" 을 쏘는 순간(첫 클릭·키 입력)까지 기다렸다가 그때 튼다.
+  if (manager.locked) manager.once('unlocked', () => { if (currentBgmSound === sound) sound.play(); });
+  else sound.play();
 }
 
 export function stopBgm() {

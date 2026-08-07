@@ -127,14 +127,14 @@ router.post('/talk', async (req, res) => {
     pushMansionDialogue(session, npcId, 'assistant', reply);
 
     const { decision, direction, reason } = await dispositionPromise;
-    const { event, line } = applyDisposition(session, npc, decision, direction);
+    const { event, revealLine, line } = applyDisposition(session, npc, decision, direction);
     console.log(
       `[mansion] ${npc.name} ← ${decision}${direction ? `/${direction}` : ''} (${reason})` +
         `${event ? ` → ${event}` : ''}`,
     );
 
     // 수치는 싣지 않는다. 벌어진 사건과 화이트리스트 상태만 내려간다.
-    send({ type: 'event', event, line, state: toMansionView(session) });
+    send({ type: 'event', event, revealLine, line, state: toMansionView(session) });
     send({ type: 'done' });
   } catch (err) {
     console.error('[mansion/talk]', err);

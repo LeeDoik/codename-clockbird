@@ -84,13 +84,12 @@ export class DuelProgress {
 
 /**
  * 이번 턴의 사건들 → 램프 등급.
- * 감점이 하나라도 있으면 bad, 지적만 받고 넘어갔으면 warn, 아니면 ok.
- * exposed(추리 선언 적중)는 그 자체로 패배라 감점 없이도 bad 다 — 그 답이
- * 깨끗했어도 플레이어가 기억하는 것은 "여기서 들켰다"이기 때문이다.
+ * 감점 폭이 무거운 사건(두 번째 거짓·모순·정체 노출)이 하나라도 있으면 bad,
+ * 감점 폭이 가벼운 사건(첫 거짓·모호)만 있으면 warn, 아무 결함이 없으면 ok.
  * (이벤트 이름은 서버 escapeSession/routes 가 단일 출처다.)
  */
 function gradeOf(events) {
-  if (['lie', 'reveal', 'contradiction', 'exposed'].some((e) => events.includes(e))) return 'bad';
-  if (events.includes('contradiction-forgiven')) return 'warn';
+  if (['lie-fatal', 'contradiction', 'exposed'].some((e) => events.includes(e))) return 'bad';
+  if (['lie-warned', 'vague'].some((e) => events.includes(e))) return 'warn';
   return 'ok';
 }

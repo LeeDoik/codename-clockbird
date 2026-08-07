@@ -5,6 +5,7 @@ import {
   createPlayer,
   createPlayerVisual,
   setupCameras,
+  setWorldPaused,
   DEFAULT_CHAR_HEIGHT,
 } from '../world/worldParts.js';
 import {
@@ -99,12 +100,13 @@ const WARNING_MAX_VOLUME = 0.3;
 const EVA_DESCENT = TILE * 1.5;
 
 /**
- * 심문을 통과하고 혼자 남아 속으로 하는 말 (2026-08-06 기획 목업).
+ * 심문을 통과하고 혼자 남아 속으로 하는 말 (2026-08-07 대사 개정).
  *
  * 괄호로 묶은 것은 오타가 아니다 — **소리 내지 않은 말**이다. 이 장면에 남은
- * 사람은 자기 하나뿐이라 대사로 적으면 허공에 말하는 것이 된다.
+ * 사람은 자기 하나뿐이라 대사로 적으면 허공에 말하는 것이 된다. 두 문장이라
+ * 한 호흡씩 나눠 보여준다(#toEnding — MansionScene#alarm 과 같은 규칙).
  */
-const MONOLOGUE = '( 그냥 보내 주겠다고? 확실히 보통 로봇들과는 달라… )';
+const MONOLOGUE = ['(진짜로 로봇이 나를 놓아 준다고?!)', '(일단 본부로 돌아가자, 빨리 보고해야해)'];
 
 export class EscapeScene extends Phaser.Scene {
   constructor() {
@@ -258,6 +260,19 @@ export class EscapeScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // 대화창이 떠 있는 동안(독백·연출 대사 등)은 화면 전체가 멈춘다 — 대화에 손이
+    // 묶인 채 일방적으로 발각되는 것도 막고, 뒤에서 로봇이 계속 돌아다니는 것도
+    // 막는다(2026-08-07 플레이테스트 피드백: 딤 처리 아래는 완전히 정지해야 한다).
+    // ended/respawning/intro 는 다르다 — 그때는 로봇이 계속 걷되(다만 감지는 꺼서)
+    // 화면이 살아 있어야 리스폰 연출이 죽어 보이지 않는다.
+    setWorldPaused(this, this.dialogue.isOpen);
+    if (this.dialogue.isOpen) {
+      this.player.body.setVelocity(0, 0);
+      setLoop('walk', false);
+      this.playerVisual.update();
+      return;
+    }
+
     if (this.ended || this.respawning || this.intro) {
       this.player.body.setVelocity(0, 0);
       setLoop('walk', false);
@@ -485,7 +500,7 @@ export class EscapeScene extends Phaser.Scene {
         sessionId = r.state.sessionId;
         return r;
       },
-      showIntro: (child) => this.#showChildIntro(child),
+      showIntro: () => this.#showChildIntro(),
       pickIdentity: (identityId) => post('/interrogation/identity', { sessionId, identityId }),
       fetchQuestion: () => post('/interrogation/question', { sessionId }),
       submitAnswer: (answer) => post('/interrogation/answer', { sessionId, answer }),
@@ -563,8 +578,10 @@ export class EscapeScene extends Phaser.Scene {
     await this.#beat(400);
 
     // 혼잣말. 화자 칸을 비우면 이름표가 통째로 접힌다 (#dialogue-speaker:empty).
-    this.dialogue.show('', MONOLOGUE);
-    await this.#beat(4200);
+    for (const line of MONOLOGUE) {
+      this.dialogue.show('', line);
+      await this.#beat(2400);
+    }
     this.dialogue.hide();
     await this.#beat(500);
 
@@ -574,21 +591,38 @@ export class EscapeScene extends Phaser.Scene {
   }
 
   /**
-   * 심문 전 반전 대사 — "사실 나는 로봇이야." 이 게임 전체의 반전이라 심문 패널의
-   * 작은 상태줄이 아니라 DialogueBox 로 세운다 (StageScene#toMansion 과 같은 방식:
-   * 대사를 띄우고 시간을 두었다 다음 줄로 넘긴다, 입력 대기가 아니다).
+   * 심문 전 주고받는 대화 — 정체 반전("나는 로봇이야")부터 신분 질문("당신 뭐하는
+   * 사람이야?")까지, 신분 카드 패널이 뜨기 전에 둘이 말을 섞는 자리다(2026-08-07
+   * 기획 대사). StageScene#toMansion 과 같은 방식 — 대사를 띄우고 시간을 두었다
+   * 다음 줄로 넘긴다, 입력 대기가 아니다.
    *
-   * 정체를 밝히기 **전에는 '아이'** 다 — 플레이어가 보고 있는 것은 여덟 살쯤 된
-   * 아이지 안드로이드가 아니다. 밝힌 뒤에야 이름이 선다: **'에바'**.
-   * 이름을 처음부터 띄우면 반전이 대사보다 먼저 새어 나간다.
-   * portrait: 'eva' 는 아직 파일이 없어 안 뜨지만(DialogueBox 가 조용히 no-portrait
-   * 로 떨어진다), 아트가 들어오면 이 한 줄로 붙는다.
+   * 이름은 처음부터 '에바' 다 — 첫 마디부터 스스로 로봇이라 밝히므로 '아이'로
+   * 숨길 반전이 없다(2026-08-07 대사 개정 — 예전에는 인사만 하고 한 박자 뒤에
+   * 정체를 밝혔다).
    */
-  async #showChildIntro(child) {
-    this.dialogue.show('아이', child.greet, { portrait: 'eva' });
-    await this.#beat(2600);
-    this.dialogue.show('에바', child.reveal, { portrait: 'eva' });
-    await this.#beat(4200);
+  async #showChildIntro() {
+    this.dialogue.setHint('');
+    const eva = (text) => this.dialogue.show('에바', text, { portrait: 'eva' });
+    const me = (text) => this.dialogue.show('나', text, { portrait: 'player' });
+
+    eva('"안녕? 여기로 올 줄 알고 있었어."');
+    await this.#beat(2200);
+    me('(이런 곳에 왠 꼬마 아이가?)');
+    await this.#beat(2200);
+    eva('"지금 어린 아이라고 무시했지? 그렇지 않는게 좋아 나는 로봇이거든."');
+    await this.#beat(2800);
+    me('(아, 그 연구소에서 본… 진짜 사람이랑 똑같잖아? 것보다 이렇게 아이 모습일 줄이야…)');
+    await this.#beat(3000);
+    eva('"음… 여기서 뭐하고 있었는지 물어보면 사실 대로 대답 할꺼야?"');
+    await this.#beat(2800);
+    me('(어떻게 하지, 전투 로봇 보다 강하다는 연구 기록이 사실이라면 도망은 절대 무리야...)');
+    await this.#beat(3000);
+    eva('"아니야, 대답하지마 내가 맞춰 볼게!"');
+    await this.#beat(2200);
+    eva('"일단 직업 부터 시작하자. 당신 뭐하는 사람이야?"');
+    await this.#beat(2800);
+    me('(뭐지, 일단은 대화를 하면서 틈을 보자... 직업은 뭐라고 하지?)');
+    await this.#beat(2800);
     this.dialogue.hide();
   }
 

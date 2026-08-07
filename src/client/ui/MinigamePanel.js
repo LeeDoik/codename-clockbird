@@ -44,10 +44,13 @@ export class MinigamePanel {
     // Phaser 의 리스너보다 먼저 잡힌다 — 안 그러면 퍼즐을 푸는 동안 플레이어가 걸어다닌다.
     this.keyGuard = (e) => {
       if (!this.isOpen) return;
-      e.stopPropagation();
-      // 패널 안 입력칸에 글을 쓰는 중이라면 키는 그 입력칸 것이다. Space 를 막으면
-      // 띄어쓰기가 안 되고, 미니게임 단축키까지 얹으면 타이핑이 게임 조작이 된다.
+      // 패널 안 입력칸에 글을 쓰는 중이라면 키는 그 입력칸 것이다 — capture 단계에서
+      // stopPropagation 을 먼저 불러 버리면 이벤트가 실제 입력칸까지 내려가지도
+      // 못해서 그 안의 Enter-제출 핸들러가 영영 못 걸린다(안 막으면 Phaser 로 새는
+      // 문제는 입력칸 쪽 핸들러가 스스로 stopPropagation 해서 막는다). 그래서 입력칸
+      // 차례에서는 여기서 아무것도 하지 않고 그대로 흘려보낸다.
       if (e.target instanceof HTMLInputElement) return;
+      e.stopPropagation();
       // Space/방향키의 기본 동작(스크롤)까지 막는다. Esc 는 삼켜서 탈출을 봉쇄한다.
       if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape'].includes(e.key)) {
         e.preventDefault();

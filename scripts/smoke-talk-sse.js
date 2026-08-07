@@ -121,6 +121,9 @@ for (const message of ['거기 누구지?', '접선 코드를 말해라']) {
 console.log('\n규칙 정합 체크...');
 
 // 발각 → 수류탄 빗나감은 **게임오버가 아니라 감옥 수감**이다 (2026-08-05 기획).
+// 경계도 오른다(2026-08-07) — 감옥행이 공짜면 계속 잡혀도 경계 3(즉시 구속)에 절대
+// 안 닿는 사각지대가 되기 때문이다. 아래 오답 누적 체크는 이 +1 을 밑에 깔고 잰다.
+let expectAlert = 0;
 const jailStart = await post('/api/stage/checkpoint/start', { sessionId: state.sessionId });
 const jailStartBody = await jailStart.json();
 if (jailStartBody.outcome !== 'qte') {
@@ -129,6 +132,7 @@ if (jailStartBody.outcome !== 'qte') {
 }
 const miss = await post('/api/stage/checkpoint/qte', { sessionId: state.sessionId, result: 'fail' });
 const missBody = await miss.json();
+expectAlert = Math.min(3, expectAlert + 1);
 if (missBody.outcome !== 'jailed' || !missBody.state?.jailed || missBody.state?.gameOver) {
   console.error(
     `[!] 수류탄 빗나감이 수감이 아니다 — outcome: ${missBody.outcome}, ` +
@@ -136,11 +140,11 @@ if (missBody.outcome !== 'jailed' || !missBody.state?.jailed || missBody.state?.
   );
   process.exit(1);
 }
-if (missBody.state.alertLevel !== 0) {
-  console.error(`[!] 수감이 경계를 올렸다 — ${missBody.state.alertLevel} (0 이어야 한다)`);
+if (missBody.state.alertLevel !== expectAlert) {
+  console.error(`[!] 수감이 경계를 ${expectAlert} 로 올리지 않았다 — ${missBody.state.alertLevel}`);
   process.exit(1);
 }
-console.log('수류탄 빗나감 → 수감(게임오버 아님) · 경계 유지 — OK');
+console.log(`수류탄 빗나감 → 수감(게임오버 아님) · 경계 ${expectAlert} — OK`);
 
 // 갇힌 동안에는 검문이 다시 열리지 않는다
 const reCheck = await post('/api/stage/checkpoint/start', { sessionId: state.sessionId });
@@ -184,11 +188,13 @@ if (badTarget.status !== 400) {
 console.log('존재하지 않는 대상 코드 입력 거부(400) — OK');
 
 // 오답 → 경계 +1 (신뢰도 하락이 아니라) — 동료에게 제출해도 유효해야 한다 (Task 14)
+// expectAlert 는 위 감옥행 +1 을 이미 깔고 있다 — 처음부터 3 을 다 쓸 수 있는 게 아니다.
 const g1 = await post('/api/stage/guess', {
   sessionId: state.sessionId, targetId: target.id, guess: '전혀상관없는말',
 });
 const g1body = await g1.json();
-if (g1body.correct !== false || g1body.alertLevel !== 1) {
+expectAlert = Math.min(3, expectAlert + 1);
+if (g1body.correct !== false || g1body.alertLevel !== expectAlert) {
   console.error('[!] 오답이 경계 +1 이 아니다:', JSON.stringify(g1body).slice(0, 200));
   process.exit(1);
 }
@@ -196,7 +202,7 @@ if (JSON.stringify(g1body).includes('"trust"') || JSON.stringify(g1body).include
   console.error('[!] guess 응답에 신뢰도/밀고 필드가 남아 있다');
   process.exit(1);
 }
-console.log('동료 대상 오답 → 경계 1 — OK');
+console.log(`동료 대상 오답 → 경계 ${expectAlert} — OK`);
 
 // 오답을 반복해 경계 3(상한)까지 올린다
 for (const n of [2, 3]) {
@@ -204,8 +210,9 @@ for (const n of [2, 3]) {
     sessionId: state.sessionId, targetId: target.id, guess: `전혀상관없는말${n}`,
   });
   const body = await g.json();
-  if (body.alertLevel !== n) {
-    console.error(`[!] 오답 ${n}회째 경계가 ${body.alertLevel} — ${n} 이어야 한다`);
+  expectAlert = Math.min(3, expectAlert + 1);
+  if (body.alertLevel !== expectAlert) {
+    console.error(`[!] 오답 ${n}회째 경계가 ${body.alertLevel} — ${expectAlert} 이어야 한다`);
     process.exit(1);
   }
 }

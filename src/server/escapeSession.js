@@ -9,7 +9,8 @@ import { randomUUID } from 'node:crypto';
  * 이 파일이 쥐고 클라이언트로 내보내지 않는 것:
  *   - `confidence` — 로봇이 얼마나 좁혔는가. 보이면 플레이어가 추리 선언 타이밍을
  *     정확히 읽어, 그 직전에만 말을 아끼는 최적해가 생긴다
- *   - `contradictionForgiven` — 첫 모순 사면을 이미 썼는가
+ *   - `lieCount` — 몇 번째 거짓인지. 수치가 보이면 "한 번은 더 봐준다"는 계산이 서서
+ *     오히려 대담해진다
  *   - `history` — 심문 이력 원문 (프롬프트 재료)
  *
  * `DECLARE_THRESHOLD` 와 `declaresLeft` 는 이 파일에서는 아직 쓰이지 않는다 — 확신도가
@@ -21,12 +22,21 @@ const sessions = new Map();
 export const QUESTION_MAX = 8;
 /** 탐지 게이지는 100 에서 시작해 내려가고 0 에서 터진다 (탈출의 발각 게이지와 방향이 반대다) */
 export const DETECTION_START = 100;
-/** 선택 단어와 어긋난 거짓 진술 */
-export const PENALTY_LIE = 20;
-/** 선택 단어를 직접 노출 — 거짓도, 지나친 진실도 위험해야 한다 */
-export const PENALTY_REVEAL = 20;
-/** 이전 답변과 명시적으로 상충. 첫 회는 사면된다 */
-export const PENALTY_CONTRADICTION = 50;
+/**
+ * 판정 셋의 감점 폭 (2026-08-07 기획 — "거짓·모순·모호"세 결함만 남기고 나머지는 없앤다).
+ * 모순이 가장 무겁고(한 번에 게이지 전부), 거짓이 그다음, 모호가 가장 가볍다.
+ */
+export const PENALTY_LIE = 50;
+export const PENALTY_CONTRADICTION = 100;
+export const PENALTY_VAGUE = 25;
+/**
+ * 거짓 진술 허용 횟수 — 첫 번째는 경고만, 두 번째부터 그 자리에서 패배다
+ * (2026-08-07 기획: "봐주는 건 한 번뿐"이 명확한 규칙이어야 한다는 피드백 —
+ * 예전의 탐지 게이지 감점만으로는 몇 번까지 봐주는지 눈에 안 읽혔다). PENALTY_LIE 두 번이면
+ * 게이지 산수로도 이미 0 이 되지만, 그 산수에 기대지 않고 규칙을 여기 명시로 못박는다 —
+ * 나중에 감점 폭이 바뀌어도 "두 번째 거짓은 즉사"라는 규칙 자체는 안 흔들려야 한다.
+ */
+export const LIE_MAX = 2;
 /** 로봇이 정식 추리를 선언하는 확신도 */
 export const DECLARE_THRESHOLD = 70;
 /** 추리 선언 횟수 상한 */
@@ -55,8 +65,8 @@ export function createEscapeSession({ identities }) {
     asked: 0,
     /** [{ question, answer }] — 로봇 판정의 재료 */
     history: [],
-    /** 첫 모순 사면을 이미 썼는가 */
-    contradictionForgiven: false,
+    /** 지금까지의 거짓 진술 횟수 — LIE_MAX 에 닿으면 패배 (첫 회는 경고만) */
+    lieCount: 0,
     /** 로봇의 확신도. 매 턴 갱신하되 **최댓값을 유지**한다 (단조 증가) */
     confidence: 0,
     declaresLeft: DECLARE_MAX,
@@ -101,33 +111,33 @@ export function pushEscapeTurn(session, question, answer) {
 }
 
 /**
- * 두 판정 결과를 게이지에 반영한다.
+ * 세 판정 결과를 게이지에 반영한다 (2026-08-07 기획 — 거짓·모순·모호 셋뿐이다).
  *
- * @param {{lie: boolean, reveal: boolean, contradiction: boolean, confidence: number}} verdict
+ * 한 턴에 여러 결함이 같이 잡혀도 게이지는 **가장 무거운 것 하나만** 깎는다 —
+ * 거짓과 모호가 겹쳤다고 두 배로 깎이면 판정이 박하다는 인상만 준다(2026-08-07
+ * 피드백). 무게 순서는 모순 > 거짓 > 모호. 그 위에 두 규칙을 명시로 못박는다:
+ * 거짓 두 번째는 즉사, 모순은 한 번도 봐주지 않는다 — 감점 폭이 나중에 바뀌어도
+ * 이 두 규칙 자체는 흔들리면 안 되므로 게이지 산수에만 기대지 않는다.
+ *
+ * events 는 감점과 별개로 **이번 턴에 걸린 것 전부**를 담는다 — 램프 색이나
+ * 대사 우선순위(client/minigames/robotInterrogation.js)는 여러 결함 중 가장
+ * 무거운 것을 그대로 골라 쓰면 되므로, 여기서 미리 하나로 줄일 필요가 없다.
+ *
+ * @param {{lie: boolean, contradiction: boolean, vague: boolean, confidence: number}} verdict
  * @returns {{events: string[]}} 클라이언트가 연출할 사건 목록
  */
-export function applyVerdict(session, { lie, reveal, contradiction, confidence }) {
+export function applyVerdict(session, { lie, contradiction, vague, confidence }) {
   const events = [];
 
   if (lie) {
-    session.detection -= PENALTY_LIE;
-    events.push('lie');
+    session.lieCount += 1;
+    events.push(session.lieCount >= LIE_MAX ? 'lie-fatal' : 'lie-warned');
   }
-  if (reveal) {
-    session.detection -= PENALTY_REVEAL;
-    events.push('reveal');
-  }
-  if (contradiction) {
-    if (session.contradictionForgiven) {
-      session.detection -= PENALTY_CONTRADICTION;
-      events.push('contradiction');
-    } else {
-      // 첫 모순은 로봇이 지적하고 해명 기회를 준다 — LLM 오탐 1회를 규칙이 흡수하면서
-      // 동시에 긴장 연출이 된다 (계획서 §4.5).
-      session.contradictionForgiven = true;
-      events.push('contradiction-forgiven');
-    }
-  }
+  if (contradiction) events.push('contradiction');
+  if (vague) events.push('vague');
+
+  const penalty = contradiction ? PENALTY_CONTRADICTION : lie ? PENALTY_LIE : vague ? PENALTY_VAGUE : 0;
+  session.detection -= penalty;
 
   // 확신도는 최댓값을 유지한다. 턴마다 출렁이게 두면 선언 타이밍이 운에 좌우된다.
   if (Number.isFinite(confidence)) {
@@ -135,9 +145,8 @@ export function applyVerdict(session, { lie, reveal, contradiction, confidence }
   }
 
   session.detection = Math.max(0, session.detection);
-  if (session.detection === 0) {
+  if (!session.outcome && (session.detection <= 0 || session.lieCount >= LIE_MAX || contradiction)) {
     session.outcome = 'lose';
-    events.push('detected');
   }
 
   return { events };

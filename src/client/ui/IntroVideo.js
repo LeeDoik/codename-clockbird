@@ -13,12 +13,16 @@ export class IntroVideo {
     this.el = document.getElementById('intro-video-el');
     this.unmuteBtn = document.getElementById('intro-unmute');
 
-    // 건너뛰기 클릭과 겹치지 않게 버블링을 끊는다.
-    this.unmuteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.el.muted = false;
-      this.unmuteBtn.classList.remove('visible');
+    // 껐다 켰다 할 수 있는 토글이다 — 자동 재생이 막혀 음소거로 시작했든, 소리를
+    // 낸 채 시작했든, 재생 중에는 항상 눌러서 상태를 바꿀 수 있어야 한다.
+    this.unmuteBtn.addEventListener('click', () => {
+      this.el.muted = !this.el.muted;
+      this.#syncButton();
     });
+  }
+
+  #syncButton() {
+    this.unmuteBtn.textContent = this.el.muted ? '🔇 소리 켜기' : '🔊 소리 끄기';
   }
 
   /**
@@ -72,24 +76,17 @@ export class IntroVideo {
         this.root.classList.remove('visible');
         return false;
       }
-      this.unmuteBtn.classList.add('visible');
     }
+    // 자동 재생이 소리를 냈든 음소거로 시작했든, 재생 중에는 버튼을 항상 보여 둔다 —
+    // 꺼져 있으면 켤 방법이, 켜져 있으면 끌 방법이 늘 있어야 하는 토글이다.
+    this.#syncButton();
+    this.unmuteBtn.classList.add('visible');
     return true;
   }
 
   /** 재생이 끝났을 때 한 번 부른다. */
   onEnded(handler) {
     this.el.addEventListener('ended', handler, { once: true });
-  }
-
-  /**
-   * 화면을 누르면 건너뛴다.
-   *
-   * Phaser 의 pointerdown 은 캔버스에서만 잡히는데 영상이 그 위를 덮고 있어 닿지 않는다.
-   * 키보드는 Phaser 가 window 에서 듣고 있어 그대로 통한다 — 클릭만 여기서 받는다.
-   */
-  onSkip(handler) {
-    this.root.addEventListener('pointerdown', handler, { once: true });
   }
 
   hide() {

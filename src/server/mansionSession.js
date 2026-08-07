@@ -143,9 +143,14 @@ export function scoreDisposition(kind, decision, direction, gave) {
  * 판정 결과를 상태에 반영한다. 보상 구조는 그대로다 — 열쇠 보유자(keyHolder)는
  * 열쇠를, 나머지 동료는 보유자와 그 문을 가리키는 힌트를 준다.
  *
+ * `revealLine` 은 `line`(열쇠 위치·단서)과 다른 것이다 — 정보가 아니라 "이제 서로
+ * 확인됐다"는 그 순간의 반응 한마디로, 클라이언트가 실질 정보(line)보다 먼저 보여준다
+ * (2026-08-07 — 동료를 확인해도 아무 일도 안 일어나는 것처럼 느껴진다는 피드백).
+ *
  * @param {'act'|'wait'} decision
  * @param {'trust'|'distrust'|null} direction
- * @returns {{event: string|null, line: string|null}} 클라이언트가 연출할 사건과 그때 붙일 대사
+ * @returns {{event: string|null, revealLine: string|null, line: string|null}} 클라이언트가
+ *   연출할 사건과 그때 붙일 대사
  */
 export function applyDisposition(session, npc, decision, direction) {
   // 다른 NPC 와 대화했으니 굳어 있던 동료들이 풀린다 (수정안 p.22 [확정]).
@@ -157,19 +162,20 @@ export function applyDisposition(session, npc, decision, direction) {
 
   if (scored.event === 'reported') {
     session.over = 'reported';
-    return { event: 'reported', line: null };
+    return { event: 'reported', revealLine: null, line: null };
   }
   if (scored.event === 'halted') {
     npc.halted = true;
-    return { event: 'halted', line: null };
+    return { event: 'halted', revealLine: null, line: null };
   }
   if (scored.event === 'reveal') {
     npc.gave = true;
     const reward = session.rewards[npc.id] ?? {};
+    const revealLine = reward.revealLine ?? null;
 
     if (npc.id === session.keyHolder) {
       session.hasKey = true;
-      return { event: 'key', line: reward.key ?? '' };
+      return { event: 'key', revealLine, line: reward.key ?? '' };
     }
 
     // 보유자가 아닌 동료는 **누가 쥐었는지**를 가리킨다. 가리키는 말(pointer)은 보유자
@@ -177,10 +183,10 @@ export function applyDisposition(session, npc, decision, direction) {
     const pointer = session.rewards[session.keyHolder]?.pointer ?? '누군가';
     const line = (reward.hint ?? '').replace('{target}', pointer);
     session.hints.push(line);
-    return { event: 'hint', line };
+    return { event: 'hint', revealLine, line };
   }
 
-  return { event: null, line: null };
+  return { event: null, revealLine: null, line: null };
 }
 
 /** 대화 이력에 한 턴 추가 */

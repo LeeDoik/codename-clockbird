@@ -247,7 +247,7 @@
         text-shadow: 0 2px 6px #000;
         pointer-events: none;
       }
-      /* 소리 있는 자동 재생이 막혔을 때만 뜬다 (IntroVideo.start 참고). */
+      /* 영상이 재생되는 동안 항상 뜨는 소리 켜기/끄기 토글 (IntroVideo.start 참고). */
       #intro-unmute {
         position: absolute;
         left: calc(28 * var(--s));
@@ -273,12 +273,17 @@
       #title {
         position: absolute;
         inset: 0;
-        display: none;
         overflow: hidden;
         background: linear-gradient(180deg, var(--ink) 0%, var(--leather) 58%, var(--ink) 100%);
         font-family: 'Galmuri11', var(--font-head);
+        /* display 는 트랜지션이 안 걸린다 — 오프닝·튜토리얼처럼 암전으로 오가도록
+           opacity 로 여닫는다(2026-08-07 플레이테스트 피드백: 타이틀만 뚝 끊겼다).
+           TITLE_FADE_MS(TitleScene.js)와 같은 값이어야 한다. */
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 450ms ease;
       }
-      #title.visible { display: block; }
+      #title.visible { opacity: 1; pointer-events: auto; }
       /* 배경 그림 — public/title/title-city.png (원본은 클로드 디자인 프로젝트의
          assets/title-city.png, 2752×1536 — public/title/README.md 참고).
          56% 지점을 보는 이유: 시계탑 무리가 그림 오른쪽에 있어, 왼쪽 글자 기둥과
@@ -726,6 +731,21 @@
         0%, 100% { opacity: 0.78; }
         50% { opacity: 1; }
       }
+
+      /* 대화창 딤 — 화면 전체를 살짝 덮어 "지금 세계가 멈췄다"를 보여준다.
+         #dialogue 와 같은 opacity 트랜지션 속도로 같이 여닫혀야 어색하지 않다. */
+      #dialogue-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(4, 3, 2, 0.5);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 200ms ease;
+        /* z-index 를 안 준다 — #dialogue 도 안 쓰고 있어서, DOM 순서(이 요소가 먼저)로만
+           쌓기 맥락을 맞춘다. z-index 를 섣불리 넣으면 오히려 #dialogue 위로 올라온다
+           (auto 인 형제보다 양수 z-index 가 항상 위에 쌓인다). */
+      }
+      #dialogue-backdrop.visible { opacity: 1; }
 
       /* ── 대화창 ──────────────────────────────────────────
          DOM 오버레이인 이유는 한글 IME 와 스트리밍 표시. 배치는 인물과 글을 좌우로
@@ -1906,7 +1926,11 @@
       #minigame-card.duel #minigame-hint {
         margin: 0 0 calc(26 * var(--s));
         font-size: calc(17 * var(--s));
-        color: var(--paper-dim);
+        /* 다른 배치의 힌트는 부차적인 안내라 --paper-dim 이 맞지만, 여기 한 줄
+           ("지금 당신은 누구다")은 답을 틀리게 하는 핵심 정보라 옅게 두면 안 된다
+           (2026-08-07 플레이테스트 피드백 — 바닥 배경 위에서 거의 안 보였다). */
+        color: var(--paper);
+        text-shadow: 0 calc(2 * var(--s)) calc(6 * var(--s)) rgba(0, 0, 0, 0.8);
       }
       #minigame-card.duel #minigame-verdict {
         position: absolute;
@@ -2044,6 +2068,8 @@
         font-family: inherit;
         font-size: 0.95rem;
       }
+      /* 지정 안 해두면 브라우저 기본 옅은 회색이 되어 어두운 배경에서 거의 안 보인다. */
+      .mg-free input::placeholder { color: var(--paper-dim); opacity: 1; }
       .mg-free .mg-btn {
         background: linear-gradient(180deg, var(--brass-hi) 0%, var(--brass) 45%, var(--brass-lo) 100%);
         color: var(--ink);
@@ -2674,9 +2700,14 @@
       <!-- 오프닝 영상. 파일이 없으면 IntroScene 이 패널 오프닝으로 돌아간다. -->
       <div id="intro-video">
         <video id="intro-video-el" playsinline preload="auto"></video>
-        <div id="intro-skip">[Space / Esc / 클릭] 건너뛰기</div>
+        <div id="intro-skip">[Space / Esc] 건너뛰기</div>
         <button id="intro-unmute">🔇 소리 켜기</button>
       </div>
+      <!-- 대화창이 뜨는 동안 화면 전체를 살짝 덮는 딤 — 그 아래는 얼어붙어 있다는
+           것을 한눈에 보여준다(2026-08-07 플레이테스트 피드백). #dialogue 보다 먼저
+           와야 패널이 그 위에 뜬다. 클릭은 그대로 지나가도 되므로(패널 스스로 닫기를
+           맡는다) pointer-events 는 항상 꺼 둔다. -->
+      <div id="dialogue-backdrop"></div>
       <!-- 초상은 패널 배경보다 앞에 와야 하므로 #dialogue 의 자식이다.
            누를 것(선택지·대화·코드·닫기)은 전부 #dialogue-actions 한 줄에 모여 패널 위로
            떠 있다 — 글 옆에 두면 본문 폭을 잘라먹는다. 대화·코드 버튼은 입력창이 열릴

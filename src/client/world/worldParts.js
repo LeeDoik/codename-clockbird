@@ -407,6 +407,23 @@ export function applyMovement(player, { cursors, wasd, speed = player.walkSpeed 
 }
 
 /**
+ * 대화창이 열리는 순간 화면 전체가 얼어붙게 한다 — 딤 처리 아래로 순찰·시야 애니메이션이
+ * 계속 흘러가면 "대화 중엔 안전하다"는 규칙이 눈에 안 읽힌다(2026-08-07 플레이테스트
+ * 피드백). `scene.anims` 는 씬이 아니라 게임 전체가 공유하는 매니저라 pauseAll 이
+ * 스프라이트 텍스처(걷는 그림 등)를 전부 멈춘다 — 위치 이동(Patrol#update 등)은 이걸로
+ * 안 멈추니, 부르는 쪽이 그 루프 자체를 건너뛰어야 한다.
+ *
+ * 매 프레임 불러도 안전하다 — 상태가 바뀌는 경계에서만 실제로 pauseAll/resumeAll 을
+ * 호출한다(같은 씬 인스턴스에 붙는 플래그로 기억한다).
+ */
+export function setWorldPaused(scene, paused) {
+  if (scene.__worldPaused === paused) return;
+  scene.__worldPaused = paused;
+  if (paused) scene.anims.pauseAll();
+  else scene.anims.resumeAll();
+}
+
+/**
  * 사거리 안에서 가장 가까운 대상을 집는다.
  *
  * "첫 번째"가 아니라 "가장 가까운" 쪽인 이유: 감옥 슬롯 간격(44px)이 접선 거리(48px)보다

@@ -1,3 +1,5 @@
+import { playSfx } from '../audio/SoundManager.js';
+
 /**
  * 단서 수첩 (DOM 오버레이) — index.html 의 #cluebook 과 짝.
  *
@@ -34,10 +36,16 @@ export class ClueBook {
   }
 
   open() {
+    // DocumentPanel 과 같은 종이 질감 효과음 — 여닫는 방향과 무관하게 한 소리다.
+    playSfx('close');
     this.root.classList.add('visible');
   }
 
   close() {
+    // 생성자가 새 판마다 조용히 닫아 리셋한다(위 주석) — 열려 있지도 않았는데
+    // 소리부터 나면 씬이 시작하자마자 책장 넘기는 소리가 울린다.
+    if (!this.isOpen) return;
+    playSfx('close');
     this.root.classList.remove('visible');
   }
 
