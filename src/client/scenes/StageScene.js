@@ -708,7 +708,16 @@ export class StageScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (this.ended) return;
+    // ⚠ 걸음 소리는 **매 프레임 setLoop('walk', moving) 로 유지되는 루프**다. 그래서
+    // 이 함수에서 조기 return 하는 갈래는 **전부** 먼저 소리를 꺼야 한다 — 안 끄면
+    // 마지막으로 참이었던 상태 그대로 계속 울린다. 걸어가다 [E] 로 대화창이나
+    // 미니게임을 열면 발소리가 끊기지 않던 것이 이것이었다(2026-08-08 피드백).
+    // 새 갈래를 더할 때도 같은 규칙을 지킬 것. (씬을 멈추는 설정 창은 ui/SettingsPanel
+    // 의 openPaused 가 같은 이유로 직접 끈다 — 멈춘 씬은 update 가 아예 안 돈다.)
+    if (this.ended) {
+      setLoop('walk', false);
+      return;
+    }
 
     // 대화창이 열리는 순간 화면 전체가 얼어붙는다 — 딤 처리 아래로 순찰이 계속
     // 돌아다니면 "대화 중엔 안전하다"가 눈에 안 읽힌다(2026-08-07 플레이테스트 피드백).
@@ -718,6 +727,7 @@ export class StageScene extends Phaser.Scene {
     // 새 입력을 못 받지만, 패널이 열리기 직전에 눌려 있던 키는 그대로 눌린 상태로 남는다.
     if (this.minigame.isOpen) {
       this.player.body.setVelocity(0, 0);
+      setLoop('walk', false);
       this.playerVisual.update();
       return;
     }
@@ -725,6 +735,7 @@ export class StageScene extends Phaser.Scene {
     // 감옥 — 창살 안에서 할 수 있는 일은 잠금장치를 만지는 것뿐이다.
     // 순찰도 감지도 여기서 멈춘다 (갇힌 사람을 다시 검문할 수는 없다).
     if (this.jailed) {
+      setLoop('walk', false); // 창살 안에서는 걷지 않는다 (머리말의 규칙)
       this.playerVisual.update();
       // 대사 말풍선이 창살 밖 동료를 가리키며 남아 있지 않게 한다.
       this.interact.update(this.player, { suppress: true });
@@ -750,6 +761,7 @@ export class StageScene extends Phaser.Scene {
 
     if (this.#updatePatrols(delta)) {
       this.player.body.setVelocity(0, 0);
+      setLoop('walk', false); // 검문에 걸린 순간 발이 멈춘다 (머리말의 규칙)
       this.playerVisual.update();
       this.#startCheckpoint();
       return;

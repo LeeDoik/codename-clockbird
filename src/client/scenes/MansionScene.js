@@ -652,7 +652,13 @@ export class MansionScene extends Phaser.Scene {
 
   // ── 루프 ────────────────────────────────────────────────────────
   update() {
-    if (this.ended) return;
+    // ⚠ 걸음 소리는 매 프레임 setLoop('walk', moving) 로 유지되는 루프라, 조기 return
+    // 하는 갈래는 전부 먼저 꺼야 한다 — 안 끄면 마지막 상태 그대로 계속 울린다
+    // (2026-08-08 피드백, StageScene#update 머리말에 같은 규칙을 적어 뒀다).
+    if (this.ended) {
+      setLoop('walk', false);
+      return;
+    }
 
     // 대화창이 열리는 순간 화면 전체가 얼어붙는다(2026-08-07 플레이테스트 피드백).
     setWorldPaused(this, this.dialogue.isOpen);
@@ -665,6 +671,7 @@ export class MansionScene extends Phaser.Scene {
 
     // 밀고 확정 후 창이 닫힌 순간 판을 끝낸다 (#chat 의 reportedPending 참고).
     if (this.reportedPending && !this.dialogue.isOpen) {
+      setLoop('walk', false); // 위 규칙 — 판이 끝나는 갈래도 발소리를 끄고 나간다
       this.#endGame('reported');
       return;
     }

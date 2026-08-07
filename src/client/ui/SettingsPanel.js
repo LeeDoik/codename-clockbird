@@ -1,4 +1,4 @@
-import { VOLUME_CHANNELS, getVolume, setVolume, playSfx } from '../audio/SoundManager.js';
+import { VOLUME_CHANNELS, getVolume, setVolume, playSfx, setLoop } from '../audio/SoundManager.js';
 
 /**
  * 설정 창 (DOM 오버레이) — index.html 의 #settings 와 짝.
@@ -66,6 +66,11 @@ export class SettingsPanel {
    * @param {() => void} [onResume] 씬이 깨어난 직후 — 씬이 묵은 키 상태를 턴다
    */
   openPaused(scene, onResume = null) {
+    // 걸음 소리는 씬의 update 가 매 프레임 유지하는 루프라(setLoop('walk', moving)),
+    // 걷는 중에 [Esc] 를 누르면 **씬이 멈춰 그 갱신이 아예 끊긴다** — 발소리만 남아
+    // 설정 창 위로 계속 울린다. 멈추는 쪽이 직접 끈다. 씬이 깨어나면 update 가 다시
+    // 돌면서 실제로 걷고 있을 때만 소리를 되살린다.
+    setLoop('walk', false);
     scene.scene.pause();
     this.open(() => {
       scene.scene.resume();
