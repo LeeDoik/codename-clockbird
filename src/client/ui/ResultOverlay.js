@@ -60,13 +60,17 @@ export class ResultOverlay {
    *   새 판을 여는 방법. 기본은 스테이지 1의 /start 다 — 저택(스테이지 2)처럼 시작
    *   조건이 다른 판은 자기 것을 넘긴다.
    * @param {string} [opts.waitText] 재시작을 기다리는 동안 띄울 문구
+   * @param {string} [opts.waitTitle]
+   *   그동안 뜨는 로딩 화면의 제목. 판마다 돌아가는 곳이 다르다 — 저택(스테이지 2)의
+   *   [다시 잠입한다]가 "거리로 이동 중"을 띄우면 어디로 가는 판인지 어긋난다.
    */
-  show({ outcome, codeWord, stats, onRestart, restart, waitText }) {
+  show({ outcome, codeWord, stats, onRestart, restart, waitText, waitTitle }) {
     playSfx(outcome === 'cleared' ? 'clear' : 'fail');
     const [title, line] = OUTCOMES[outcome] ?? OUTCOMES.caught;
     this.onRestart = onRestart;
     this.restartFn = restart ?? fetchStageStart;
     this.waitText = waitText ?? '동료들의 암호를 수신하는 중…';
+    this.waitTitle = waitTitle ?? '거리로 이동 중';
 
     this.titleEl.textContent = title;
     this.lineEl.textContent = line;
@@ -101,7 +105,7 @@ export class ResultOverlay {
     // 대기와 같은 것이므로 같은 화면을 써야 한다 (IntroScene·BootScene 과 한 규약).
     this.waitEl.textContent = this.waitText;
     const transition = new TransitionScreen();
-    transition.show('거리로 이동 중', this.waitText);
+    transition.show(this.waitTitle, this.waitText);
 
     const result = await this.restartFn();
 

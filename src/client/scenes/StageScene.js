@@ -5,7 +5,7 @@ import { Hud } from '../ui/Hud.js';
 import { ClueBook } from '../ui/ClueBook.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
 import { MinigamePanel } from '../ui/MinigamePanel.js';
-import { TransitionScreen } from '../ui/TransitionScreen.js';
+import { TransitionScreen, SCENE_TRANSITION_MS } from '../ui/TransitionScreen.js';
 import { runLockPuzzle } from '../minigames/lockPuzzle.js';
 import { runGrenadeThrow } from '../minigames/grenadeThrow.js';
 import { Patrol, PATROL_NAMES, PATROL_ROUTES, REINFORCE_AT } from '../entities/Patrol.js';
@@ -736,6 +736,10 @@ export class StageScene extends Phaser.Scene {
     let moving = false;
     if (dialogueOpen) {
       this.player.body.setVelocity(0, 0);
+      // 펴 둔 수첩을 들고 말을 걸었다면 여기서 접는다 — 대화 중에 수첩이 떠 있으면
+      // 안 되는 이유는 아래 [C] 갈래의 주석과 같다. 접어 두면 [Esc] 한 번이 대화창을
+      // 닫고, 그다음 [C] 로 다시 펴면 된다.
+      this.clueBook.close();
     } else {
       moving = applyMovement(this.player, { cursors: this.cursors, wasd: this.wasd, speed: SPEED });
     }
@@ -786,8 +790,11 @@ export class StageScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keyReveal)) {
       this.#toggleAnswer();
     }
-    // C — 단서 수첩 열람
-    if (!typing && pressedClues) {
+    // C — 단서 수첩 열람. **대화 중에는 열리지 않는다** (2026-08-07 기획 피드백).
+    // 수첩은 화면 절반을 덮는 DOM 이라 대화창 위에 겹치면 누가 말하는 중인지 사라지고,
+    // 대화 중에는 이동도 순찰도 멈춰 있어(setWorldPaused) 수첩을 펼 이유도 없다.
+    // 이미 펴 둔 채로 말을 걸었다면 그때 접는다 — 아래의 dialogueOpen 갈래가 맡는다.
+    if (!typing && !dialogueOpen && pressedClues) {
       this.#toggleClues();
     }
   }
@@ -952,8 +959,17 @@ export class StageScene extends Phaser.Scene {
       portrait: 'watchmaker',
     });
     await this.#beat(3000);
-
     this.dialogue.hide();
+
+    // 시간이 흐른다 — 여기서 저택까지는 걸어가는 거리이고, 시계 수리공의 보조공으로
+    // 위장해 들어가는 준비까지가 이 사이에 있다. 화면만 잠깐 검었다가 저택이 열리면
+    // 에이던이 같은 자리에서 말을 두 번 잇는 것처럼 보여서 이동이 사라진다
+    // (2026-08-07 기획 피드백). 본부 → 거리와 **같은 화면**을 쓴다 — 도는 회중시계가
+    // 이 게임에서 "시간이 지나는 중"을 뜻하는 그림이라, 여기서 다른 걸 쓰면 규약이 깨진다.
+    //
+    // 걷는 것은 도착한 씬(MansionScene)의 몫이다 (TransitionScreen 머리말).
+    new TransitionScreen().show('저택으로 향하는 중', '시계 수리공의 보조공으로 들어간다');
+    await this.#beat(SCENE_TRANSITION_MS);
     this.scene.start('Mansion');
   }
 
@@ -987,7 +1003,11 @@ export class StageScene extends Phaser.Scene {
     this.dialogue.show(
       '자석 수류탄',
       '팔이 뻗어 오는 순간, 충전을 끝낸 수류탄을 굴렸다.\n\n' +
-        '푸른 섬광. 로봇의 관절이 서로 들러붙어 굳는다. 그 틈에 골목으로 몸을 던졌다.\n\n' +
+        // ⚠ 문단(빈 줄)을 늘리지 말 것 — 빈 줄마다 페이지가 갈려 [Space] 를 한 번 더
+        // 받아야 한다. 굳는 동안 감지 원이 사라진다는 말(Patrol#detecting)은 한 줄로
+        // 앞 문단에 붙인다 — 화면에서 원이 없어지는 이유를 여기서 한 번은 말해야 한다.
+        '푸른 섬광. 로봇의 관절이 서로 들러붙어 굳는다. 그 틈에 골목으로 몸을 던졌다.\n' +
+        '한동안은 센서도 죽어 있다 — 붉은 감지 원이 사라진 사이에 거리를 벌려라.\n\n' +
         `경계 레벨 ${this.state.alertLevel}/3`,
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');

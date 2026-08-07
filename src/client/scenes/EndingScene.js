@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { EndingCurtain } from '../ui/EndingCurtain.js';
+import { TransitionScreen } from '../ui/TransitionScreen.js';
 import {
   buildColliders,
   createPlayer,
@@ -114,6 +115,12 @@ export class EndingScene extends Phaser.Scene {
 
     // 월드를 다 깐 직후·UI 를 만들기 전. 줌·카메라 추적 모두 TutorialScene 과 같다.
     setupCameras(this, hqData, this.player);
+
+    // 수로에서 세워 둔 로딩 화면을 걷는다 — **떠나는 쪽이 show, 도착한 쪽이 hide**
+    // (TransitionScreen 머리말). 커튼이 걷히는 400ms 는 아래 페이드 인(700ms)과 겹치고,
+    // 보고는 그 페이드가 다 끝난 뒤에 시작하므로 대사가 커튼에 가릴 일이 없다.
+    // 개발용 ?ending 처럼 커튼 없이 들어온 판에서는 hide 가 무해하다.
+    new TransitionScreen().hide();
 
     // 플레이어 조작은 없다 — 씬에 들어서면 곧바로 보고 연출이 흐른다.
     this.cameras.main.fadeIn(700, 0, 0, 0);

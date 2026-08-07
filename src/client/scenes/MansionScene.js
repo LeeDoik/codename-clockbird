@@ -4,7 +4,11 @@ import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { Hud } from '../ui/Hud.js';
 import { DocumentPanel } from '../ui/DocumentPanel.js';
 import { ResultOverlay } from '../ui/ResultOverlay.js';
-import { TransitionScreen } from '../ui/TransitionScreen.js';
+import {
+  TransitionScreen,
+  SCENE_TRANSITION_MS,
+  TRANSITION_FADE_MS,
+} from '../ui/TransitionScreen.js';
 import {
   buildColliders,
   createPlayer,
@@ -64,6 +68,20 @@ const PLAYER_HEIGHT = mansionData.charHeight ?? DEFAULT_CHAR_HEIGHT;
  */
 const LABEL_DY = -(PLAYER_HEIGHT + 8);
 
+/**
+ * 안내인 에이던의 그림 규격 — 저택의 다른 열 명과 **다른 시트**를 쓴다.
+ *
+ * 열 명은 PixelLab 남향 정지 그림 한 장(npcSprite.js)인데, 에이던만 거리(스테이지 1)에서
+ * 쓰던 예전 256×256 12프레임 아이들 시트다. 저택용으로 다시 굽지 않은 것은 오히려
+ * 다행이다 — 브리핑을 하는 동안 숨을 쉬는 쪽이 정지 그림보다 낫다. 숫자는 StageScene 의
+ * ALLY_SPRITE_* 와 같은 실측값이고(scripts/measure-sprite.js), 규칙도 같다:
+ * **발바닥이 좌표에 놓이고, 화면에 보일 키는 맵의 charHeight 다.**
+ */
+const ESCORT_ANIM = 'watchmakerIdle';
+const ESCORT_FRAME_SIZE = 256;
+const ESCORT_ORIGIN_Y = 218 / ESCORT_FRAME_SIZE;
+const ESCORT_CONTENT_HEIGHT = 196;
+
 
 /**
  * 인물 이름표. 본부와 같은 규칙이다 — 흐린 종이색 11px 은 밝은 마루 위에서 회색으로
@@ -91,8 +109,13 @@ const SHROUD_DIM = 0.68;
 const SHROUD_LOCKED = 0.85;
 const SHROUD_COLOR = 0x05040a;
 /**
- * 늘 밝은 방. 로비는 들어온 자리이자 모든 길이 갈라지는 곳이다 —
+ * 늘 밝은 방. 로비는 저택 남쪽에서 모든 길이 갈라지는 곳이다 —
  * 여기까지 어두워지면 돌아올 자리가 없어 방향 감각이 통째로 사라진다.
+ *
+ * (2026-08-07 부터 시작 지점은 로비가 아니라 북쪽 괘종시계 아래 중앙 복도다 —
+ *  mansion.json spawns 주석. 복도는 덮개가 걷히는 방이지만, 시계가 있는 서재(위)의
+ *  **위쪽 가장자리**는 덮개의 풀림(SHROUD_FEATHER) 안이라 첫 화면에서도 시계가 보인다.
+ *  이 자리를 옮길 때는 그 점을 같이 확인해야 한다.)
  */
 const ALWAYS_LIT = new Set(['lobby']);
 
@@ -167,11 +190,9 @@ export class MansionScene extends Phaser.Scene {
     this.docPanel = new DocumentPanel();
     this.result = new ResultOverlay();
     this.result.hide(); // 재시작으로 다시 들어온 경우 이전 판의 결과 화면을 걷어낸다
-    // 로딩 화면도 같이 걷는다 — **떠나는 쪽이 show, 도착한 쪽이 hide** 라는
-    // TransitionScreen 의 규약이다. 결과창의 [다시 잠입한다]가 그 화면을 세우고
-    // 넘기므로(ui/ResultOverlay.js#restart), 여기서 안 걷으면 저택으로 되돌아온
-    // 판이 로딩 판에 덮인 채 멈춘다. 안 떠 있어도 무해하다.
-    new TransitionScreen().hide();
+    // ⚠ 로딩 화면(TransitionScreen)은 여기서 걷지 않는다 — 저택이 다 지어지고
+    // /start 응답까지 온 뒤, #start() 끝에서 걷는다. 커튼이 먼저 올라가면 텅 빈
+    // 저택이 잠깐 보였다가 인물들이 뒤늦게 하나씩 나타난다.
 
     // 그림은 구운 배경 한 장, 충돌은 따로. 배경은 무엇보다 뒤에 깔린다.
     this.add.image(0, 0, 'mansion-bg').setOrigin(0, 0).setDepth(-100);
@@ -210,6 +231,9 @@ export class MansionScene extends Phaser.Scene {
     this.#buildHud();
 
     // 거리에서 암전으로 넘어온다 — 받는 쪽도 밝아지며 열려야 한 장면으로 이어진다.
+    // 로딩 화면이 위를 덮고 있는 판에서는 이 페이드가 커튼 뒤에서 도는데, 그래도
+    // create 에서 거는 이유는 커튼 없이 들어오는 판(개발용 ?stage2)이 첫 프레임부터
+    // 검은 화면에서 열려야 하기 때문이다 — fadeIn 은 progress 0 이 곧 암전이다.
     this.cameras.main.fadeIn(700, 0, 0, 0);
     this.uiCam?.fadeIn(700, 0, 0, 0);
     this.hud.fadeIn(700); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
@@ -430,6 +454,9 @@ export class MansionScene extends Phaser.Scene {
       this.state = data;
       this.startFailed = false;
     } catch (err) {
+      // 오류는 커튼을 걷고 읽힌다 — 로딩 화면이 위를 덮은 채로 띄우면 [Space] 재시도
+      // 안내가 그 아래 깔려 무엇이 잘못됐는지조차 보이지 않는다.
+      new TransitionScreen().hide();
       this.startFailed = true;
       this.dialogue.show('오류', `저택에 들어갈 수 없습니다.\n${err.message}\n\n[Space] 로 다시 시도한다.`);
       return;
@@ -446,23 +473,26 @@ export class MansionScene extends Phaser.Scene {
     this.#registerLabDoor();
     this.#registerObjects();
     this.#updateHud();
-    this.#showEscortBriefing();
+
+    // 저택이 다 지어졌다 — 이제 커튼을 걷는다 (**떠나는 쪽이 show, 도착한 쪽이 hide**
+    // 라는 TransitionScreen 의 규약). 거리에서 넘어온 판은 이 400ms 가 곧 도착 연출이고,
+    // 결과창의 [다시 잠입한다]로 되돌아온 판(ui/ResultOverlay.js#restart)도 같은 문으로
+    // 들어온다. 안 떠 있었다면 hide 는 무해하다.
+    new TransitionScreen().hide();
+
+    // 에이던은 커튼이 다 걷힌 뒤에 말한다. 대화창도 DOM 이라 로딩 화면 **아래**에 깔려,
+    // 곧바로 띄우면 브리핑 첫 문장이 커튼 뒤에서 흘러간다 — 거리에서 암전 위로 듣던
+    // 그의 대사와 이어붙어 "장소를 옮겼다"가 사라지는 자리가 정확히 여기다.
+    this.time.delayedCall(TRANSITION_FADE_MS, () => this.#showEscortBriefing());
   }
 
   #spawnNpcs() {
     const place = (npc) => {
-      // 자리가 없는 인물은 세우지 않는다 — 지금은 안내인(에이던)이 그렇다.
-      // 저택용 그림이 아직 없어 브리핑 대사만 나온다 (src/data/mansion.json 주석).
+      // 자리가 없는 인물은 세우지 않는다 — 좌표를 비워 두는 것이 그 표시다.
       if (npc.col == null || npc.row == null) return;
       const x = npc.col * TILE + TILE / 2;
       const y = npc.row * TILE + TILE / 2;
-      // PixelLab 남향 정지 그림. 인물마다 그림 속 키가 달라 배율을 따로 잡는다 —
-      // 그래서 화면에서는 전원이 맵의 charHeight 로 똑같이 선다.
-      const scale = PLAYER_HEIGHT / NPC_CONTENT_HEIGHT[npc.id];
-      const sprite = this.add
-        .image(x, y, NPC_TEXTURE[npc.id])
-        .setOrigin(0.5, NPC_ORIGIN_Y)
-        .setDisplaySize(NPC_FRAME_SIZE * scale, NPC_FRAME_SIZE * scale);
+      const sprite = this.#standingNpc(npc.id, x, y);
       const label = worldLabel(this, x, y + LABEL_DY, npc.name, LABEL_STYLE);
       this.asWorld(sprite, label);
       this.nodes.push({ npc, sprite, label });
@@ -498,6 +528,30 @@ export class MansionScene extends Phaser.Scene {
 
     place(this.state.escort);
     for (const npc of this.state.npcs) place(npc);
+  }
+
+  /**
+   * 저택에 제자리로 서 있는 인물 하나. **발바닥이 (x, y)** 에 놓이고 화면에 보일 키는
+   * 맵이 정한 charHeight 다 — 거리·본부와 같은 규칙이다 (StageScene#standingNpc 와 짝).
+   *
+   * 그림은 두 갈래인데 규칙은 하나다: 에이던만 12프레임 아이들 시트(숨을 쉰다)이고
+   * 나머지 열은 PixelLab 남향 정지 그림이다. 정지 그림 쪽은 인물마다 그림 속 키가 달라
+   * 배율을 따로 잡는다 — 그래서 화면에서는 전원이 똑같은 키로 선다.
+   */
+  #standingNpc(id, x, y) {
+    if (id === this.state.escort.id) {
+      const size = ESCORT_FRAME_SIZE * (PLAYER_HEIGHT / ESCORT_CONTENT_HEIGHT);
+      return this.add
+        .sprite(x, y, ESCORT_ANIM, 0)
+        .setOrigin(0.5, ESCORT_ORIGIN_Y)
+        .setDisplaySize(size, size)
+        .play(ESCORT_ANIM);
+    }
+    const size = NPC_FRAME_SIZE * (PLAYER_HEIGHT / NPC_CONTENT_HEIGHT[id]);
+    return this.add
+      .image(x, y, NPC_TEXTURE[id])
+      .setOrigin(0.5, NPC_ORIGIN_Y)
+      .setDisplaySize(size, size);
   }
 
   /** 조사 오브젝트 — [E] 조사 → 단서 열람 (종이 패널). 위치는 서버 뷰가 준다. */
@@ -889,7 +943,14 @@ export class MansionScene extends Phaser.Scene {
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
     this.hud.fadeOut(900); // HUD 는 DOM 이라 카메라 페이드가 안 걸린다
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Escape'));
+    this.cameras.main.once('camerafadeoutcomplete', async () => {
+      // 저택 연구실에서 지하 수로까지는 **도망친 거리**가 있다 — 경보가 울리는 방에서
+      // 곧바로 수로 바닥으로 이어지면 그 사이가 통째로 사라진다. 스테이지 1 → 2 와
+      // 같은 화면으로 그 사이를 채운다 (TransitionScreen.SCENE_TRANSITION_MS 주석).
+      new TransitionScreen().show('저택을 빠져나가는 중', '경보가 등 뒤로 멀어진다');
+      await this.#beat(SCENE_TRANSITION_MS);
+      this.scene.start('Escape');
+    });
   }
 
   /** 연출용 사이 — delayedCall 을 await 할 수 있게 감싼다 (StageScene#beat 과 같은 모양). */
@@ -918,7 +979,8 @@ export class MansionScene extends Phaser.Scene {
         ],
         // 저택은 시작에 LLM 대기가 없다 — 스테이지 1의 /start 를 부르면 안 된다.
         restart: async () => ({ state: null }),
-        waitText: '저택으로 돌아가는 중…',
+        waitTitle: '저택으로 돌아가는 중',
+        waitText: '괘종시계 앞에서 다시 시작한다',
         onRestart: () => this.scene.restart(),
       });
     });

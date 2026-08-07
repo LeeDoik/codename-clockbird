@@ -40,6 +40,11 @@ import { MinigamePanel } from '../ui/MinigamePanel.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { SettingsPanel } from '../ui/SettingsPanel.js';
 import { GameOverOverlay } from '../ui/GameOverOverlay.js';
+import {
+  TransitionScreen,
+  SCENE_TRANSITION_MS,
+  TRANSITION_FADE_MS,
+} from '../ui/TransitionScreen.js';
 import { runRobotInterrogation } from '../minigames/robotInterrogation.js';
 import { FONTS } from '../ui/theme.js';
 import { playBgm, setLoop, setLoopVolume, playSfx } from '../audio/SoundManager.js';
@@ -244,6 +249,12 @@ export class EscapeScene extends Phaser.Scene {
 
     const dim = this.add.rectangle(960, 540, 1920, 1080, 0x000000, 0.55);
     this.asUi(dim);
+
+    // 저택에서 세워 둔 로딩 화면을 여기서 걷는다 — **떠나는 쪽이 show, 도착한 쪽이
+    // hide** (TransitionScreen 머리말). 커튼이 다 걷힐 때까지 첫 독백을 미룬다:
+    // 대화창은 DOM 이라 이 화면 아래에 깔려, 먼저 띄우면 커튼 뒤에서 흘러간다.
+    new TransitionScreen().hide();
+    await this.#beat(TRANSITION_FADE_MS);
 
     // 두 문장을 한 번에 넣으면 대화창이 페이지를 나눠 둘째 문장이 ▼ 뒤에 숨는다 —
     // 도입 중에는 update 가 멈춰 있어 [Space] 로 넘길 수도 없다. 한 박자씩 보여 준다.
@@ -587,7 +598,14 @@ export class EscapeScene extends Phaser.Scene {
 
     this.cameras.main.fadeOut(900, 0, 0, 0);
     this.uiCam?.fadeOut(900, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Ending'));
+    this.cameras.main.once('camerafadeoutcomplete', async () => {
+      // 수로 출구에서 본부까지는 도시를 가로지르는 거리다 — 곧바로 본부가 열리면
+      // 브란트의 보고가 배수구 앞에서 이어지는 것처럼 보인다. 앞의 두 전환과 같은
+      // 화면으로 그 사이를 채운다 (TransitionScreen.SCENE_TRANSITION_MS 주석).
+      new TransitionScreen().show('본부로 돌아가는 중', '가져온 기록을 품에 안고 걷는다');
+      await this.#beat(SCENE_TRANSITION_MS);
+      this.scene.start('Ending');
+    });
   }
 
   /**

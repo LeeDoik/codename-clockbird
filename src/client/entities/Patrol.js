@@ -124,6 +124,19 @@ export class Patrol {
   }
 
   /**
+   * 지금 이 로봇이 사람을 알아볼 수 있는가.
+   *
+   * 판정(update)과 그림(#drawCone)이 **같은 이 하나를 본다**. 예전에는 감지만 꺼지고
+   * 붉은 원은 그대로 떠 있어서, 검문을 통과한 직후 원 한가운데를 지나가도 아무 일이
+   * 없다가 유예가 끝나는 순간 갑자기 붙잡혔다 — 플레이어에게는 게임이 고장 난 것으로
+   * 읽힌다(2026-08-07 플레이테스트 피드백). 원이 없으면 안 걸린다, 로 규칙을 눈에
+   * 보이게 못박는다.
+   */
+  get detecting() {
+    return !this.halted && this.scene.time.now >= this.graceUntil;
+  }
+
+  /**
    * 다시 돌기 시작한다.
    * graceMs 동안은 감지하지 않는다 — 검문을 막 통과했는데 같은 자리에서 곧바로
    * 다시 잡히면 빠져나갈 방법이 없다. (서버의 통과 쿨다운이 이중 안전망이다.)
@@ -149,7 +162,7 @@ export class Patrol {
     this.#drawCone(alertLevel);
     this.#syncLabel();
 
-    if (!target || this.halted || this.scene.time.now < this.graceUntil) return false;
+    if (!target || !this.detecting) return false;
     return this.sees(target, alertLevel);
   }
 
@@ -186,11 +199,15 @@ export class Patrol {
   }
 
   #drawCone(alertLevel) {
+    this.cone.clear();
+    // 감지가 꺼져 있으면 원도 없다 (detecting 주석 참고). 검문을 막 통과했거나, 자석
+    // 수류탄에 굳었거나, 감옥에서 막 나온 사이가 여기다 — 그 시간이 "지금은 안전하다"로
+    // 읽혀야 유예가 선물이 된다.
+    if (!this.detecting) return;
+
     const r = this.radius(alertLevel);
     // 경계가 오를수록 진해진다 — 위험도가 숫자가 아니라 화면으로 보여야 한다.
-    const alpha = 0.1 + 0.05 * clampLevel(alertLevel);
-    const a = this.halted ? alpha * 0.4 : alpha;
-    this.cone.clear();
+    const a = 0.1 + 0.05 * clampLevel(alertLevel);
     // 감지 원 — 안쪽을 옅게 채우고 가장자리를 한 겹 진하게 둘러, 경계가 어디까지인지
     // 눈으로 재게 한다. 채우기만 하면 어디서부터 걸리는지 알 수 없다.
     this.cone.fillStyle(0xc25b4a, a);
