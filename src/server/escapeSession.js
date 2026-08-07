@@ -22,12 +22,19 @@ const sessions = new Map();
 export const QUESTION_MAX = 8;
 /** 탐지 게이지는 100 에서 시작해 내려가고 0 에서 터진다 (탈출의 발각 게이지와 방향이 반대다) */
 export const DETECTION_START = 100;
-/** 선택 단어를 직접 노출 — 거짓도, 지나친 진실도 위험해야 한다 */
-export const PENALTY_REVEAL = 20;
+/**
+ * 판정 셋의 감점 폭 (2026-08-07 기획 — "거짓·모순·모호"세 결함만 남기고 나머지는 없앤다).
+ * 모순이 가장 무겁고(한 번에 게이지 전부), 거짓이 그다음, 모호가 가장 가볍다.
+ */
+export const PENALTY_LIE = 50;
+export const PENALTY_CONTRADICTION = 100;
+export const PENALTY_VAGUE = 25;
 /**
  * 거짓 진술 허용 횟수 — 첫 번째는 경고만, 두 번째부터 그 자리에서 패배다
  * (2026-08-07 기획: "봐주는 건 한 번뿐"이 명확한 규칙이어야 한다는 피드백 —
- * 예전의 탐지 게이지 감점만으로는 몇 번까지 봐주는지 눈에 안 읽혔다).
+ * 예전의 탐지 게이지 감점만으로는 몇 번까지 봐주는지 눈에 안 읽혔다). PENALTY_LIE 두 번이면
+ * 게이지 산수로도 이미 0 이 되지만, 그 산수에 기대지 않고 규칙을 여기 명시로 못박는다 —
+ * 나중에 감점 폭이 바뀌어도 "두 번째 거짓은 즉사"라는 규칙 자체는 안 흔들려야 한다.
  */
 export const LIE_MAX = 2;
 /** 로봇이 정식 추리를 선언하는 확신도 */
@@ -104,35 +111,32 @@ export function pushEscapeTurn(session, question, answer) {
 }
 
 /**
- * 두 판정 결과를 게이지에 반영한다.
+ * 세 판정 결과를 게이지에 반영한다 (2026-08-07 기획 — 거짓·모순·모호 셋뿐이다).
  *
- * 거짓·모순은 이제 게이지가 아니라 **횟수/즉시 패배**로 정해진다(2026-08-07 기획):
- *   - 거짓은 첫 번째까지 경고, 두 번째부터 그 자리에서 패배.
- *   - 모순은 한 번이라도 나오면 그 자리에서 패배 — 사면 없음.
- * 탐지 게이지는 이제 노출(reveal)만의 몫이다(연출용 — 여러 번 노출하면 위험해진다).
+ * 셋 다 탐지 게이지를 깎는다 — 감점 폭이 곧 결함의 무게다. 그 위에 두 규칙을
+ * 명시로 못박는다: 거짓 두 번째는 즉사, 모순은 한 번도 봐주지 않는다. 이 둘은
+ * PENALTY_LIE·PENALTY_CONTRADICTION 산수로도 이미 게이지가 0 이 되지만, 감점
+ * 폭이 나중에 바뀌어도 이 두 규칙 자체는 흔들리면 안 되므로 게이지에만 기대지
+ * 않는다.
  *
- * @param {{lie: boolean, reveal: boolean, contradiction: boolean, confidence: number}} verdict
+ * @param {{lie: boolean, contradiction: boolean, vague: boolean, confidence: number}} verdict
  * @returns {{events: string[]}} 클라이언트가 연출할 사건 목록
  */
-export function applyVerdict(session, { lie, reveal, contradiction, confidence }) {
+export function applyVerdict(session, { lie, contradiction, vague, confidence }) {
   const events = [];
 
   if (lie) {
     session.lieCount += 1;
-    if (session.lieCount >= LIE_MAX) {
-      session.outcome = 'lose';
-      events.push('lie-fatal');
-    } else {
-      events.push('lie-warned');
-    }
-  }
-  if (reveal) {
-    session.detection -= PENALTY_REVEAL;
-    events.push('reveal');
+    session.detection -= PENALTY_LIE;
+    events.push(session.lieCount >= LIE_MAX ? 'lie-fatal' : 'lie-warned');
   }
   if (contradiction) {
-    session.outcome = 'lose';
-    events.push('contradiction-fatal');
+    session.detection -= PENALTY_CONTRADICTION;
+    events.push('contradiction');
+  }
+  if (vague) {
+    session.detection -= PENALTY_VAGUE;
+    events.push('vague');
   }
 
   // 확신도는 최댓값을 유지한다. 턴마다 출렁이게 두면 선언 타이밍이 운에 좌우된다.
@@ -141,9 +145,8 @@ export function applyVerdict(session, { lie, reveal, contradiction, confidence }
   }
 
   session.detection = Math.max(0, session.detection);
-  if (!session.outcome && session.detection === 0) {
+  if (!session.outcome && (session.detection <= 0 || session.lieCount >= LIE_MAX || contradiction)) {
     session.outcome = 'lose';
-    events.push('detected');
   }
 
   return { events };

@@ -84,12 +84,12 @@ export class DuelProgress {
 
 /**
  * 이번 턴의 사건들 → 램프 등급.
- * 패배로 이어지는 사건(두 번째 거짓·모순·정체 노출·정답 적중)이 하나라도 있으면
- * bad, 첫 거짓 경고만 받았으면 warn, 아니면 ok.
+ * 감점 폭이 무거운 사건(두 번째 거짓·모순·정체 노출)이 하나라도 있으면 bad,
+ * 감점 폭이 가벼운 사건(첫 거짓·모호)만 있으면 warn, 아무 결함이 없으면 ok.
  * (이벤트 이름은 서버 escapeSession/routes 가 단일 출처다.)
  */
 function gradeOf(events) {
-  if (['lie-fatal', 'reveal', 'contradiction-fatal', 'exposed'].some((e) => events.includes(e))) return 'bad';
-  if (events.includes('lie-warned')) return 'warn';
+  if (['lie-fatal', 'contradiction', 'exposed'].some((e) => events.includes(e))) return 'bad';
+  if (['lie-warned', 'vague'].some((e) => events.includes(e))) return 'warn';
   return 'ok';
 }

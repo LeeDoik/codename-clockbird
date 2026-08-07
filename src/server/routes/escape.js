@@ -171,8 +171,8 @@ router.post('/interrogation/answer', async (req, res, next) => {
 
     const { events } = applyVerdict(session, {
       lie: sys.lie,
-      reveal: sys.reveal,
       contradiction: bot.contradiction,
+      vague: bot.vague,
       confidence: bot.confidence,
     });
 
@@ -223,12 +223,12 @@ router.post('/interrogation/answer', async (req, res, next) => {
     }
 
     console.log(
-      `[escape] ${session.asked}/${QUESTION_MAX} — 거짓 ${sys.lie} 노출 ${sys.reveal}` +
-        ` 모순 ${bot.contradiction} 확신 ${session.confidence} · 탐지 ${session.detection}` +
+      `[escape] ${session.asked}/${QUESTION_MAX} — 거짓 ${sys.lie} 모순 ${bot.contradiction}` +
+        ` 모호 ${bot.vague} 확신 ${session.confidence} · 탐지 ${session.detection}` +
         (events.length ? ` → ${events.join(',')}` : ''),
     );
 
-    res.json({ npcReply: bot.reply, events, declaration, state: toEscapeView(session) });
+    res.json({ events, declaration, state: toEscapeView(session) });
   } catch (err) {
     next(err);
   }

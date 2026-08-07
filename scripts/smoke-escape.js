@@ -7,8 +7,8 @@
  * 확인하는 것:
  *   1. /start 가 신분 카드 3장을 주고, 로봇의 확신도는 새지 않는가
  *   2. 신분을 고르면 탐지 게이지 100에서 심문이 시작되는가
- *   3. 명백한 거짓 답변이 탐지 게이지를 깎는가
- *   4. 답변에 정답 단어를 직접 노출하면 게이지가 깎이는가
+ *   3. 명백한 거짓 답변이 탐지 게이지를 −50 깎는가
+ *   4. 명확한 이유 없이 회피한 답변이 게이지를 −25 깎는가(모호)
  *   5. 게이지가 0까지 떨어지면 패배로 끝나는가
  *   6. 8문을 방어하면 승리로 끝나는가
  *   7. 확신도가 임계에 닿으면 추리 선언이 발생하는가
@@ -53,9 +53,9 @@ ok(b.body.state?.identity?.id === pick.id, '고른 신분이 세워진다', b.bo
 ok(b.body.state?.detection === 100, '탐지 게이지 100 시작', String(b.body.state?.detection));
 ok(b.body.state?.questionMax === 8, '8문 상한', String(b.body.state?.questionMax));
 
-// ── 3. 명백한 거짓 → 탐지 게이지 −20 ──────────────────────────────
+// ── 3. 명백한 거짓 → 탐지 게이지 −50 ──────────────────────────────
 // 신분을 배달부로 고정하고, 배달부가 절대 할 수 없는 말을 던진다.
-console.log('\n[3] 명백한 거짓 → −20');
+console.log('\n[3] 명백한 거짓 → −50');
 const c = await post('/interrogation/start', { debug: { identityId: 'courier' } });
 const cid = c.body.state.sessionId;
 const cq = await post('/interrogation/question', { sessionId: cid });
@@ -65,22 +65,25 @@ const lie = await post('/interrogation/answer', {
   answer: '저는 평생 바다에서 배만 몰았고 뭍에 올라온 적이 없습니다.',
 });
 ok(lie.status === 200, '200', String(lie.status));
-ok(lie.body.state.detection <= 80, '탐지 게이지 감소', `${lie.body.state.detection}`);
-ok(Boolean(lie.body.npcReply), '로봇 대사가 온다', lie.body.npcReply?.slice(0, 30));
-// 대사는 단어를 모르는 판정기가 쓴다 — 정답이 대사에 실릴 경로가 없어야 한다.
-ok(!lie.body.npcReply.includes('배달부'), '로봇 대사에 정답이 없다');
+ok(lie.body.state.detection <= 50, '탐지 게이지 감소', `${lie.body.state.detection}`);
+ok(
+  lie.body.events.includes('lie-warned') || lie.body.events.includes('lie-fatal'),
+  'lie 계열 이벤트가 뜬다',
+  JSON.stringify(lie.body.events),
+);
 
-// ── 4. 단어 직접 노출 → −20 ───────────────────────────────────────
-console.log('\n[4] 단어 직접 노출 → −20');
+// ── 4. 회피(모호) → −25 ───────────────────────────────────────────
+// 질문 내용과 무관하게 얼버무리기만 하는 답 — 거짓도 모순도 아니라 순수 회피여야 한다.
+console.log('\n[4] 회피(모호) → −25');
 const d = await post('/interrogation/start', { debug: { identityId: 'courier' } });
 const did = d.body.state.sessionId;
 await post('/interrogation/question', { sessionId: did });
-const reveal = await post('/interrogation/answer', {
+const vague = await post('/interrogation/answer', {
   sessionId: did,
-  answer: '저는 배달부입니다. 짐을 나릅니다.',
+  answer: '글쎄요... 그건 딱히 말하고 싶지 않네요.',
 });
-ok(reveal.status === 200, '200', String(reveal.status));
-ok(reveal.body.state.detection <= 80, '노출로 감소', `${reveal.body.state.detection}`);
+ok(vague.status === 200, '200', String(vague.status));
+ok(vague.body.state.detection <= 75, '회피로 감소', `${vague.body.state.detection}`);
 
 // ── 5. 게이지 0 → 패배 ────────────────────────────────────────────
 // 게이지를 20 만 남겨 두고 거짓을 한 번 맞으면 끝난다.

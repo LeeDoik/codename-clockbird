@@ -14,20 +14,23 @@ import { renderPrompt } from './promptStore.js';
  * 이 정보 격리가 이 게임의 대표 AI 어필이다. 로봇이 단어를 알면 3지선다 소거법으로
  * 필승이라 규칙이 죽는다.
  *
- * 로봇의 **대사도 로봇 판정기가 쓴다** — 단어를 모르는 쪽이 말하므로 대사가 정답을
- * 흘릴 물리적 경로 자체가 없다 ("모르는 것은 유출될 수 없다").
+ * 대사는 이 모듈이 내지 않는다 — 로봇의 모든 대사는 호출부(client/minigames/
+ * robotInterrogation.js)가 판정 결과에 따라 고르는 고정 대본이다. 한때는 로봇
+ * 판정기가 즉흥 대사를 같이 냈으나, 단어를 모르는 채로도 답변 내용에 대한
+ * 궁금증을 대사에 담아 사실상 추가 질문을 던져 버리는 문제가 있어 걷어냈다
+ * (2026-08-07).
  */
 
 /** 이력을 프롬프트에 넣을 텍스트로 만든다. 비어 있으면 그렇다고 적는다. */
 export function formatHistory(history) {
   if (!history.length) return '(아직 대화가 없다. 이번이 첫 질문이다.)';
   return history
-    .map((h, i) => `${i + 1}. 꼬마: ${h.question}\n   상대: ${h.answer}`)
+    .map((h, i) => `${i + 1}. 에바: ${h.question}\n   상대: ${h.answer}`)
     .join('\n');
 }
 
 const QuestionSchema = z.object({
-  question: z.string().describe('꼬마가 상대에게 던지는 질문 한 문장'),
+  question: z.string().describe('에바가 상대에게 던지는 질문 한 문장'),
 });
 
 /**
@@ -75,7 +78,6 @@ export { FALLBACK_QUESTION };
 
 const SystemVerdictSchema = z.object({
   lie: z.boolean().describe('답변이 선택 신분과 명백히 어긋나는가'),
-  reveal: z.boolean().describe('답변이 선택 신분 단어를 직접 노출했는가'),
   reason: z.string().describe('판정 근거 (한 문장, 서버 로그용)'),
 });
 
@@ -90,7 +92,7 @@ export async function judgeAsSystem({ identityWord, question, answer, promptOver
 
   // 심사 대상 텍스트를 시스템이 아니라 user 메시지에 둔다 — 규칙과 입력이 섞이지
   // 않아야 프롬프트 주입이 규칙을 덮어쓰지 못한다.
-  const content = `[꼬마의 질문]\n${question}\n\n[상대의 답변]\n${answer}`;
+  const content = `[에바의 질문]\n${question}\n\n[상대의 답변]\n${answer}`;
 
   try {
     const message = await anthropic.beta.messages.parse({
@@ -104,19 +106,16 @@ export async function judgeAsSystem({ identityWord, question, answer, promptOver
     return { ...message.parsed_output, fallback: false };
   } catch (err) {
     console.error('[escape/system] 판정 실패 — 감점 없음으로 통과', err.message);
-    return { lie: false, reveal: false, reason: '판정 모듈 오류 — fail-open', fallback: true };
+    return { lie: false, reason: '판정 모듈 오류 — fail-open', fallback: true };
   }
 }
 
 const RobotVerdictSchema = z.object({
   contradiction: z.boolean().describe('이번 답변이 앞선 답변과 명시적으로 상충하는가'),
+  vague: z.boolean().describe('이번 답변이 질문을 명확한 이유 없이 회피했는가'),
   confidence: z.number().min(0).max(100).describe('상대의 정확한 직업을 맞힐 수 있다는 확신 0~100'),
-  reply: z.string().describe('상대에게 들려줄 아이의 말 한두 문장'),
   reason: z.string().describe('판정 근거 (한 문장, 서버 로그용)'),
 });
-
-/** 로봇의 대사가 죽었을 때 쓰는 캔 대사 */
-const FALLBACK_REPLY = '"…음. 그렇구나."';
 
 /**
  * 로봇 판정 — **선택 단어를 모른다.**
@@ -124,8 +123,10 @@ const FALLBACK_REPLY = '"…음. 그렇구나."';
  * identityWord 를 인자로 받지 않는다. 받을 수 없게 만드는 것이 요점이다 —
  * 호출부가 실수로 넘기려 해도 넘길 자리가 없다.
  *
- * 대사(reply)도 여기서 나온다. 단어를 모르는 쪽이 말하므로 대사가 정답을 흘릴
- * 경로 자체가 없다.
+ * 대사는 이제 여기서 나오지 않는다 — 로봇이 매 턴 즉흥으로 대꾸를 지어내면 판정과
+ * 무관하게 답변 내용에 대한 궁금증(추가 질문)을 대사에 섞어 버려, "질문 → 답변 → 평가
+ * → 다음 질문"이어야 할 흐름이 "질문 → 답변 → 즉흥 되물음 → 다음 질문"으로 새는
+ * 사고가 있었다(2026-08-07). 판정 결과에 따른 대사는 호출부가 고정 대본으로 낸다.
  */
 export async function judgeAsRobot({ history, question, answer, persona, promptOverride }) {
   const system = await renderPrompt(
@@ -154,15 +155,13 @@ export async function judgeAsRobot({ history, question, answer, persona, promptO
     console.error('[escape/robot] 판정 실패 — 감점 없음으로 통과', err.message);
     return {
       contradiction: false,
+      vague: false,
       confidence: 0,
-      reply: FALLBACK_REPLY,
       reason: '판정 모듈 오류 — fail-open',
       fallback: true,
     };
   }
 }
-
-export { FALLBACK_REPLY };
 
 const DeclarationSchema = z.object({
   word: z.string().describe('상대의 직업이라고 확신하는 단어 하나 (명사)'),

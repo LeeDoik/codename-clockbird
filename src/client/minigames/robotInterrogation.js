@@ -11,15 +11,24 @@ import { DuelProgress } from '../ui/DuelProgress.js';
 const MAX_ANSWER_LEN = 120;
 
 /**
- * 판정이 게임의 전환점을 만드는 순간의 대사는 LLM 이 아니라 고정 대본이다 — 매 턴의
- * 잡담은 AI 가 즉흥으로 받아도 되지만, "여기서 이겼다/졌다"는 그 판 전체가 기억하는
- * 한 줄이라 즉흥에 맡기지 않는다(2026-08-07 기획 대사).
+ * 에바의 대사는 이제 전부 고정 대본이다 — LLM 대사(reply)를 없앤 이유(interrogation.js
+ * 주석 참조)와 같다. 판정마다 뜨는 대사도, 특이사항이 없는 평범한 턴에 뜨는 대사도
+ * 전부 여기 있는 것 중 하나다. 즉흥 잡담이 낄 자리가 없어야 "질문 → 답변 → 평가 →
+ * 다음 질문"이 안 새고 그대로 유지된다(2026-08-07 기획 대사).
  */
 const LIE_WARN_LINE = '미세한 떨림, 신뢰도가 떨어지는 답변이네… 거짓말 할 생각은 안하는게 좋아!';
 const LIE_FATAL_LINE = '또 거짓말? 나는 당신한테 기회를 준건데 실망이야... 죽어!';
-const CONTRADICTION_FATAL_LINE = '이전 답변과 말이 맞지 않는걸? 죽어!';
-const EXPOSED_LINE = '이전 답변과 말이 맞지 않는걸? 죽어!';
+const CONTRADICTION_LINE = '이전 답변과 말이 맞지 않는걸? 죽어!';
+const VAGUE_LINE = '대답 똑바로 하는게 좋을거야. 내가 당신에게 기회를 준 것이란 거 잊지마!';
+const EXPOSED_LINE = '시시하네... 죽어!';
 const WIN_LINE = '오... 제법인걸.. 흥미롭군.. 약속은 약속이니까! 가도 좋아.';
+/** 특이사항 없이 넘어갈 때 — 매번 같은 말이면 티가 나므로 몇 개 중 하나를 고른다. */
+const NEXT_LINES = [
+  '음... 좋아, 일단 넘어가지.',
+  '좋아, 다음 질문.',
+  '흠, 알겠어. 다음으로 가지.',
+  '그렇군... 계속해 볼까.',
+];
 
 /**
  * @param {import('../ui/MinigamePanel.js').MinigamePanel} panel
@@ -28,7 +37,7 @@ const WIN_LINE = '오... 제법인걸.. 흥미롭군.. 약속은 약속이니까
  * @param {() => Promise<void>} io.showIntro 심문 전 반전 대사 연출 (DialogueBox 등) — 끝날 때까지 기다린다
  * @param {(identityId: string) => Promise<{state: object}>} io.pickIdentity
  * @param {() => Promise<{question: string}>} io.fetchQuestion
- * @param {(answer: string) => Promise<{npcReply: string, events: string[], declaration: object|null, state: object}>} io.submitAnswer
+ * @param {(answer: string) => Promise<{events: string[], declaration: object|null, state: object}>} io.submitAnswer
  * @returns {Promise<'win'|'lose'|'error'>}
  */
 export async function runRobotInterrogation(panel, io) {
@@ -191,18 +200,21 @@ function askAnswer(panel, question, identityWord) {
 /**
  * 로봇의 대사와 이번 턴에 벌어진 일을 보여 준다.
  *
- * 평범한 턴은 LLM 이 즉흥으로 받은 npcReply 를 그대로 보여준다. 하지만 거짓·모순·
- * 정체 노출처럼 판이 끝나거나 끝날 뻔한 순간에는 그 즉흥 대사를 **고정 대본으로
- * 덮어쓴다** — 이 게임의 전환점은 매번 같은 무게로 떨어져야 한다.
+ * 대사는 전부 고정 대본이다(NEXT_LINES 위 주석 참조) — 판정에 걸린 게 없으면
+ * NEXT_LINES 중 하나로 그냥 다음 질문으로 넘어간다. 여러 결함이 한 턴에 같이
+ * 잡혀도 상자에는 한 줄만 걸리므로, 가장 무거운 것부터 우선순위를 매긴다:
+ * 모순 > 거짓(2회째) > 거짓(1회째) > 모호.
  */
 async function showReply(panel, r) {
   const notes = [];
-  let line = r.npcReply;
+  let line;
 
-  if (r.events.includes('lie-warned')) line = LIE_WARN_LINE;
+  if (r.events.includes('contradiction')) line = CONTRADICTION_LINE;
   else if (r.events.includes('lie-fatal')) line = LIE_FATAL_LINE;
-  if (r.events.includes('contradiction-fatal')) line = CONTRADICTION_FATAL_LINE;
-  if (r.events.includes('reveal')) notes.push('신분을 그대로 말해 버렸다.');
+  else if (r.events.includes('lie-warned')) line = LIE_WARN_LINE;
+  else if (r.events.includes('vague')) line = VAGUE_LINE;
+  else line = NEXT_LINES[Math.floor(Math.random() * NEXT_LINES.length)];
+
   if (r.declaration) {
     if (r.declaration.hit) {
       line = EXPOSED_LINE;
