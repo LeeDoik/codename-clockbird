@@ -21,7 +21,19 @@ const LIE_FATAL_LINE = '또 거짓말? 나는 당신한테 기회를 준건데 �
 const CONTRADICTION_LINE = '이전 답변과 말이 맞지 않는걸? 죽어!';
 const VAGUE_LINE = '대답 똑바로 하는게 좋을거야. 내가 당신에게 기회를 준 것이란 거 잊지마!';
 const EXPOSED_LINE = '시시하네... 죽어!';
-const WIN_LINE = '오... 제법인걸.. 흥미롭군.. 약속은 약속이니까! 가도 좋아.';
+/**
+ * 통과했을 때 **패널이 하는 일은 판정뿐이다** — 말은 패널 밖에서 한다.
+ *
+ * 예전에는 여기서 "오... 제법인걸.. 흥미롭군.. 약속은 약속이니까! 가도 좋아." 를
+ * 띄웠는데, 패널이 닫힌 직후 필드에서 에바가 또 보내 주는 말을 하게 되면서 3초
+ * 안에 같은 말을 두 번 듣게 됐다 (2026-08-08). 그 대사는 필드 쪽(EscapeScene 의
+ * EVA_FAREWELL)으로 옮겼다 — 마주 선 채 얼굴을 보고 듣는 편이 낫고, 판정 도장은
+ * 「통과」 두 글자로 충분하다.
+ *
+ * 그래서 여기 남는 것은 대사가 아니라 **지문**이다. 본문 칸을 비워 두면 직전의
+ * "…에바가 당신을 본다." 가 그대로 남아 판정이 난 줄 모른다.
+ */
+const WIN_STAGE = '…에바가 한 걸음 물러선다.';
 /** 특이사항 없이 넘어갈 때 — 매번 같은 말이면 티가 나므로 몇 개 중 하나를 고른다. */
 const NEXT_LINES = [
   '음... 좋아, 일단 넘어가지.',
@@ -108,10 +120,12 @@ export async function runRobotInterrogation(panel, io) {
     await showReply(panel, r);
 
     if (r.state.outcome === 'win') {
-      panel.setStatus(`"${WIN_LINE}"`);
+      panel.setStatus(WIN_STAGE);
       panel.verdictEl.textContent = '통과';
       panel.verdictEl.className = 'ok';
-      await sleep(2600);
+      // 읽을 것이 도장 두 글자와 지문 한 줄뿐이라 짧게 잡는다 — 진짜 대사는 패널이
+      // 닫힌 뒤 필드에서 나온다. 패배(2600ms)와 달라도 되는 이유가 그것이다.
+      await sleep(1600);
       panel.close();
       return 'win';
     }
