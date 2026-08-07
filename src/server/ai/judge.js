@@ -87,21 +87,39 @@ export async function judgeDuplicates({ associations }) {
   return { arrestedIds: [...new Set(groups.flatMap((g) => g.npcIds))], groups, usage };
 }
 
+/**
+ * 오답이 정답에서 얼마나 떨어져 있는가.
+ *
+ * ⚠ **이 세 값만 클라이언트로 나간다 — reason 은 절대 내보내지 말 것.** reason 은
+ * 심판이 개발자에게 쓰는 문장이라 "석탄은 증기와 관련은 있으나 다른 사물이다" 처럼
+ * **정답을 그대로 적어 버린다**. 등급은 열거값이라 그럴 여지가 없다.
+ */
+const PROXIMITY = ['near', 'related', 'far'];
+
 const GuessSchema = z.object({
   correct: z.boolean().describe('플레이어의 답이 접선 코드와 사실상 같은 단어인가'),
+  proximity: z
+    .enum(PROXIMITY)
+    .describe('오답이 정답에서 얼마나 떨어져 있는가 (정답이면 near)'),
   reason: z.string().describe('판정 이유 (한 문장)'),
 });
 
 /**
  * 접선 코드 정답 판정.
  * 표기 일치는 LLM 없이 즉시 통과시키고, 경계 사례만 LLM 에 묻는다 (지연·비용 절약).
+ *
+ * @returns {Promise<{correct: boolean, proximity: 'near'|'related'|'far'|null, reason: string, usage: object|null}>}
+ *   proximity 가 null 이면 **판정을 못 했다**는 뜻이다 (파싱 실패). 부르는 쪽은 그때
+ *   근접도 문구를 띄우지 않아야 한다 — 모르는 것을 'far' 로 뭉개면 "전혀 다르다"는
+ *   거짓말을 하게 되고, 그건 아깝게 빗나간 판에서 가장 나쁜 거짓말이다.
  */
 export async function judgeGuess({ codeWord, guess }) {
   if (isSameWord(codeWord, guess)) {
-    return { correct: true, reason: '표기 일치', usage: null };
+    return { correct: true, proximity: 'near', reason: '표기 일치', usage: null };
   }
   if (!normalize(guess)) {
-    return { correct: false, reason: '빈 입력', usage: null };
+    // 빈 입력에는 등급을 매기지 않는다 — 답을 낸 것이 아니라 아무것도 안 낸 것이다.
+    return { correct: false, proximity: null, reason: '빈 입력', usage: null };
   }
 
   const message = await anthropic.beta.messages.parse({
@@ -121,7 +139,19 @@ export async function judgeGuess({ codeWord, guess }) {
 - 정답에 가깝지만 명백히 다른 사물을 가리키는 단어
 
 같은 사물이 분명하면 인정하라. 다른 사물이 분명하면 오답이다.
-정말 어느 쪽인지 가릴 수 없을 때만, 플레이어에게 유리하게 정답으로 본다.`,
+정말 어느 쪽인지 가릴 수 없을 때만, 플레이어에게 유리하게 정답으로 본다.
+
+판정과 별개로, 플레이어의 답이 정답에서 **얼마나 떨어져 있는지**를 proximity 로 매겨라.
+플레이어는 이 등급만 보고 다음 답을 고른다 (정답 단어도, 네 판정 이유도 보지 못한다).
+
+- near: 같은 사물을 가리키려 한 것이 분명한데 표현이 어긋나 인정할 수 없는 답.
+        상위/하위 개념(예: 정답 "톱니바퀴" 에 "기계"), 부분과 전체, 그 사물을 설명한 말.
+- related: 다른 사물이지만 같은 범주이거나 곧바로 이어지는 개념
+        (예: 정답 "톱니바퀴" 에 "태엽", "증기", "공장"). 방향은 잡았다.
+- far: 정답과 아무 관련이 없다. 범주도 맥락도 겹치지 않는다.
+
+애매하면 **먼 쪽으로** 매겨라. near 를 남발하면 플레이어가 다 왔다고 믿고 같은 자리를
+맴돈다. 정답(correct: true)일 때는 near 로 둔다.`,
     output_format: betaZodOutputFormat(GuessSchema),
     messages: [
       { role: 'user', content: `정답 단어: "${codeWord}"\n플레이어의 답: "${guess}"` },
@@ -131,6 +161,8 @@ export async function judgeGuess({ codeWord, guess }) {
   const parsed = message.parsed_output;
   return {
     correct: parsed?.correct ?? false,
+    // 파싱이 실패했으면 등급도 모른다 — 머리말대로 null 이다.
+    proximity: parsed ? parsed.proximity : null,
     reason: parsed?.reason ?? '판정 실패',
     usage: message.usage,
   };

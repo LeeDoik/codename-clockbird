@@ -327,6 +327,10 @@ router.post('/guess', async (req, res, next) => {
 
     res.json({
       correct: false,
+      // 얼마나 빗나갔는지만 알린다 (near/related/far 또는 판정 실패 시 null).
+      // ⚠ verdict.reason 은 **절대 실어 보내지 말 것** — 심판이 개발자에게 쓴 문장이라
+      //   "석탄은 증기와 관련은 있으나" 처럼 정답을 그대로 적어 놓는다 (judge.js PROXIMITY).
+      proximity: verdict.proximity ?? null,
       alertLevel,
       state: toClientView(session),
     });

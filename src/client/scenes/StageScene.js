@@ -72,6 +72,34 @@ const TILE = mapData.tileSize; // 32
 const KEY_HINTS = '[E] 대화    [R] 구출    [C] 단서 수첩';
 
 /**
+ * 오답을 받은 동료의 반응 — 서버가 매긴 근접도(/guess 의 proximity)마다 다르다.
+ * `[고갯짓, 대사]` 이고, 대사가 빈 문자열이면 그 줄은 아예 안 나온다.
+ *
+ * 예전에는 정답과의 거리에 상관없이 한 문장뿐이었다 — "기어" 정답에 「톱니바퀴」를
+ * 냈든 「빵」을 냈든 화면이 똑같아서, 진 판에서 왜 틀렸는지를 끝내 모른 채 끝났다
+ * (2026-08-07 기획 피드백).
+ *
+ * ⚠ **정답을 역으로 알려 주는 말은 넣지 말 것.** 여기 문장은 전부 고정 문자열이라
+ * 안전하지만, 서버의 판정 이유(judge.js 의 reason)를 그대로 띄우고 싶어지는 순간
+ * "석탄은 증기와 관련은 있으나…" 같은 문장이 정답을 적어 버린다. 서버가 등급만
+ * 내려보내는 것이 그 방벽이다.
+ *
+ * unknown 은 판정을 못 받았을 때다 — 그때는 반응 줄 없이 예전 문구 그대로 간다.
+ */
+const MISS_REACTION = {
+  near: [
+    '눈을 크게 떴다가, 이내 고개를 젓는다.',
+    '"…거의 닿았어. 하지만 비슷한 말로는 안 돼 — 코드는 그 단어 하나여야 해."',
+  ],
+  related: [
+    '잠깐 뜸을 들이다 고개를 젓는다.',
+    '"…근처까지는 왔어. 아직 그건 아니야, 한 걸음만 더 좁혀 봐."',
+  ],
+  far: ['말없이 고개를 젓는다.', '"…전혀 다른 얘기야. 수첩을 다시 보고 와."'],
+  unknown: ['말없이 고개를 젓는다.', ''],
+};
+
+/**
  * [대화하기]의 기본 대사 — 페르소나(personas.json)의 말투를 따른 한 마디씩이다.
  *
  * 단서(연상 단어)는 여기서 나오지 않는다 (2026-08-06 기획: 말을 걸자마자 접선 코드
@@ -1471,9 +1499,15 @@ export class StageScene extends Phaser.Scene {
 
       const target = this.state.allies.find((a) => a.id === this.codeTargetId);
       const maxed = this.state.alertLevel >= 3;
+      // 얼마나 빗나갔는지를 동료의 반응으로 돌려준다 (서버 /guess 의 proximity).
+      // 등급을 못 받았으면(판정 실패·빈 입력) 반응 줄 없이 예전 문구 그대로 간다 —
+      // 모르는 것을 "전혀 다르다"로 뭉개면 아깝게 빗나간 판에서 거짓말이 된다.
+      const [nod, line] = MISS_REACTION[result.proximity] ?? MISS_REACTION.unknown;
       this.dialogue.reply(
         '접선 실패',
-        `틀렸다. ${target.name}이(가) 말없이 고개를 젓는다.\n거리에 소문이 샌다 — 경계 레벨 ${this.state.alertLevel}/3.` +
+        `틀렸다. ${target.name}이(가) ${nod}` +
+          (line ? `\n${line}` : '') +
+          `\n거리에 소문이 샌다 — 경계 레벨 ${this.state.alertLevel}/3.` +
           (maxed ? '\n\n거리가 끓고 있다. 이제 발각되면 검문도 없이 끝난다.' : ''),
         '',
         { portrait: target.id },
