@@ -49,6 +49,22 @@ const MENU_BGM_VOLUME = 0.45;
 export const GAMEPLAY_BGM_VOLUME = 0.18;
 const GAMEPLAY_BGM_KEYS = new Set(['tutorial', 'stage1', 'stage2', 'stage3', 'minigame1', 'minigame2']);
 const SFX_VOLUME = 0.7;
+/**
+ * 효과음별 볼륨 예외.
+ *
+ * 걸음 소리는 다른 효과음과 성격이 다르다 — 문 여닫이나 성공음처럼 한 번 나고 마는
+ * 것이 아니라 플레이어가 움직이는 **내내** 끊이지 않고 도는 루프다. 공용 볼륨으로
+ * 두면 게임 시간의 대부분을 이 소리가 차지해 대사도 배경음도 그 위에 얹힌다.
+ * 그래서 절반으로 깐다.
+ */
+const SFX_VOLUME_OVERRIDE = {
+  walk: 0.35,
+};
+
+/** 이 효과음이 기본으로 쓸 볼륨 — 예외 표에 없으면 공용 값이다. */
+function sfxVolume(key) {
+  return SFX_VOLUME_OVERRIDE[key] ?? SFX_VOLUME;
+}
 
 let manager = null; // Phaser.Sound.BaseSoundManager
 let currentBgmKey = null;
@@ -69,7 +85,7 @@ export function initSoundManager(scene) {
 
 /** 루프 없는 단발 효과음. */
 export function playSfx(key, opts = {}) {
-  manager?.play(`sfx-${key}`, { volume: SFX_VOLUME, ...opts });
+  manager?.play(`sfx-${key}`, { volume: sfxVolume(key), ...opts });
 }
 
 /**
@@ -110,7 +126,7 @@ export function setLoop(key, active, opts = {}) {
   const playing = loops.get(key);
   if (active) {
     if (playing) return;
-    const sound = manager.add(`sfx-${key}`, { loop: true, volume: SFX_VOLUME, ...opts });
+    const sound = manager.add(`sfx-${key}`, { loop: true, volume: sfxVolume(key), ...opts });
     sound.play();
     loops.set(key, sound);
   } else if (playing) {
