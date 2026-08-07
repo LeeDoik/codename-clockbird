@@ -113,6 +113,15 @@ const EVA_DESCENT = TILE * 1.5;
  */
 const MONOLOGUE = ['(진짜로 로봇이 나를 놓아 준다고?!)', '(일단 본부로 돌아가자, 빨리 보고해야해)'];
 
+/**
+ * 심문을 통과한 순간 에바가 보내 주며 하는 말 (기획 대사).
+ *
+ * 이 한마디가 없으면 에바는 판정이 뜨자마자 말없이 돌아서서 사라진다 — 놓아 준
+ * 것인지 흥미를 잃은 것인지 플레이어가 알 수 없고, 뒤따르는 독백 "(진짜로 로봇이
+ * 나를 놓아 준다고?!)" 도 받을 말이 없어 허공에 뜬다 (2026-08-08 피드백).
+ */
+const EVA_FAREWELL = '"흠… 흥미롭군, 그냥 가봐도 좋아."';
+
 export class EscapeScene extends Phaser.Scene {
   constructor() {
     super('Escape');
@@ -271,15 +280,25 @@ export class EscapeScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    // 대화창이 떠 있는 동안(독백·연출 대사 등)은 화면 전체가 멈춘다 — 대화에 손이
+    // 대화창이나 **심문 패널**이 떠 있는 동안은 화면 전체가 멈춘다 — 대화에 손이
     // 묶인 채 일방적으로 발각되는 것도 막고, 뒤에서 로봇이 계속 돌아다니는 것도
     // 막는다(2026-08-07 플레이테스트 피드백: 딤 처리 아래는 완전히 정지해야 한다).
-    // ended/respawning/intro 는 다르다 — 그때는 로봇이 계속 걷되(다만 감지는 꺼서)
-    // 화면이 살아 있어야 리스폰 연출이 죽어 보이지 않는다.
-    setWorldPaused(this, this.dialogue.isOpen);
-    if (this.dialogue.isOpen) {
+    //
+    // 심문 패널을 여기 같이 묶은 것은 2026-08-08 이다. 심문은 #startInterrogation 이
+    // ended 를 세우고 도는데, 아래의 ended 갈래는 **로봇을 계속 걷게 한다** — 리스폰
+    // 연출이 죽어 보이지 않게 일부러 그렇게 둔 것이라, 심문이 그 성질을 그대로 물려받아
+    // "대화 중에는 다 멈추는데 심문 중에는 뒤에서 돌아다닌다"가 됐다. 심문은 연출이
+    // 아니라 **판이 멈춘 채 말을 주고받는 자리**이므로 대화창과 같은 쪽이 맞다.
+    //
+    // ended/respawning/intro 는 여전히 다르다 — 리스폰 연출과 도입은 화면이 살아 있어야 한다.
+    const frozen = this.dialogue.isOpen || this.panel.isOpen;
+    setWorldPaused(this, frozen);
+    if (frozen) {
       this.player.body.setVelocity(0, 0);
       setLoop('walk', false);
+      // 심문은 발각 게이지가 찬 상태에서 시작될 수도 있다 — 경고음을 물고 들어오면
+      // 심문 내내 최대 볼륨으로 남는다 (아래 ended 갈래와 같은 이유).
+      setLoop('warning', false);
       this.playerVisual.update();
       return;
     }
@@ -560,8 +579,16 @@ export class EscapeScene extends Phaser.Scene {
    * 이미 화면에 있는 스프라이트가 하고 있다.
    */
   async #toEnding() {
-    // 곧장 돌아서면 매정하다 — 패널이 닫히고 한 박자 마주 선 뒤 걸음을 뗀다.
+    // 곧장 돌아서면 매정하다 — 패널이 닫히고 한 박자 마주 선 뒤 말을 건넨다.
     await this.#beat(500);
+
+    // 보내 주는 쪽이 먼저 말한다. 걸음을 떼기 **전**이어야 한다 — 등을 보이며 던지는
+    // 말이 아니라, 마주 선 채로 판정을 내려 주는 말이다 (EVA_FAREWELL 주석).
+    this.dialogue.setHint('');
+    this.dialogue.show('에바', EVA_FAREWELL, { portrait: 'eva' });
+    await this.#beat(2600);
+    this.dialogue.hide();
+    await this.#beat(400);
 
     // 왔던 길의 역순 (#evaApproach 가 남긴 evaRetreat): 가로획 → 꺾임 → 세로획.
     const [corner, origin] = this.evaRetreat.length === 2

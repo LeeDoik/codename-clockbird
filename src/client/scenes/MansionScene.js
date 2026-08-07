@@ -416,7 +416,7 @@ export class MansionScene extends Phaser.Scene {
   #updateHud() {
     this.hud.status(
       this.state?.hasKey
-        ? '저택 잠입 — 연구실 열쇠 ✔'
+        ? '저택 잠입 — 마스터 키 ✔'
         : '저택 잠입 — 열쇠를 쥔 동료를 찾는다',
     );
   }
@@ -841,16 +841,19 @@ export class MansionScene extends Phaser.Scene {
         await this.#beat(1800);
       }
       playSfx('clear');
-      if (event === 'key') {
-        this.cameras.main.flash(400, 255, 255, 255, false);
-        this.uiCam?.flash(400, 255, 255, 255, false);
-        await this.#beat(300);
-      }
+      // 플래시는 **확인된 모든 동료**에게 건다 (2026-08-08 피드백 — 열쇠 보유자에게만
+      // 걸려 있어서, 클라라·오스카를 확인했을 때는 소리만 나고 아무 일도 안 일어난
+      // 것처럼 보였다). 다만 세기로 위계를 남긴다: 열쇠를 건네받는 순간은 이 판에서
+      // 가장 큰 사건이라 더 밝고 길게, 단서는 짧고 옅게 — 둘이 같으면 열쇠의 무게가 죽는다.
+      const flash = event === 'key' ? [400, 255, 255, 255] : [260, 210, 190, 140];
+      this.cameras.main.flash(...flash, false);
+      this.uiCam?.flash(...flash, false);
+      await this.#beat(event === 'key' ? 300 : 200);
       // 보상 문구는 서버가 쥔 원문 그대로 붙인다 — 모델이 고쳐 말하면 단서가 흐려진다.
       this.dialogue.append(`\n\n"${line}"`);
       this.dialogue.append(
         event === 'key'
-          ? '\n\n[세드릭에게서 연구실 열쇠를 건네받았다. 하인 통로 끝의 문을 열 수 있다.]'
+          ? '\n\n[세드릭에게서 저택의 마스터 키를 건네받았다. 하인 통로 끝의 연구실 문을 열 수 있다.]'
           : '\n\n[열쇠를 쥔 사람의 단서를 얻었다.]',
       );
     }
