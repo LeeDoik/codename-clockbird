@@ -18,3 +18,9 @@ cloudflared.exe
 # 개발 과정 산출물(스펙·계획·리뷰 기록) — 런타임이 안 읽는다.
 .superpowers/
 .claude/
+
+# .gitignore 에도 있지만 여기 다시 적는다 — .railwayignore 가 있을 때 .gitignore 를
+# 함께 보는지가 CLI 버전마다 달라서, 210MB 를 그 동작에 걸지 않는다.
+# 서버(nixpacks)가 npm ci 로 리눅스용을 새로 받는다 — 윈도우에서 빌드된 네이티브
+# 모듈을 올리면 오히려 깨진다.
+node_modules/
