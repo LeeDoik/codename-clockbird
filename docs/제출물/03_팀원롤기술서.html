@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>팀원 롤 기술서 — 태엽새 / HEART OF STEEL</title>
+<link rel="stylesheet" href="_style.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">NAN 2026 · NHN GAME × AI 해커톤 사전과제 제출물 ⑤</div>
+  <h1>팀원 롤 기술서</h1>
+  <p class="sub">태엽새 / HEART OF STEEL · 2인 팀 · 2026-07-17 ~ 08-08 · 219 커밋</p>
+</div>
+
+<div class="blank-block">
+  <strong>[작성 중 — 팀원 합의 후 확정]</strong><br>
+  아래 §1·§2는 두 사람이 합의한 내용으로 채워야 합니다.
+  §3은 git 기록에서 기계적으로 추출한 <strong>참고 자료</strong>이며 확정된 분담이 아닙니다.
+</div>
+
+<h2>1. 팀원별 역할</h2>
+
+<table>
+  <tr><th style="width:18%">이름</th><th style="width:24%">담당 역할</th><th>실제로 맡아 구현한 영역</th></tr>
+  <tr>
+    <td class="blank">이름</td>
+    <td class="blank">기획 / 개발 / 아트 / AI 활용 중</td>
+    <td class="blank">구체적으로 무엇을 설계·구현했는지</td>
+  </tr>
+  <tr>
+    <td class="blank">이름</td>
+    <td class="blank">기획 / 개발 / 아트 / AI 활용 중</td>
+    <td class="blank">구체적으로 무엇을 설계·구현했는지</td>
+  </tr>
+</table>
+
+<div class="note">
+  <strong>작성 시 유의.</strong> 계획서 §8은 "누가 어떤 <strong>AI 활용 파트</strong>를 설계·구현했는지를
+  구체적으로 기재"할 것을 채용 연계 심사 포인트로 지목하고 있습니다.
+  "서버 담당" 같은 뭉뚱그린 표현보다 "심문 이중 판정의 정보 격리 설계와 3종 판정 축 재설계"처럼
+  <strong>산출물 단위로</strong> 적는 편이 유리합니다.
+</div>
+
+<h2>2. 협업 · 분업 방식</h2>
+
+<div class="blank-block">
+  <strong>[채울 것]</strong> 아래와 같은 항목을 서술합니다.<br>
+  · 작업을 어떻게 나눴는지 (기능 단위 / 레이어 단위 / 스테이지 단위)<br>
+  · 의사결정을 어떻게 했는지 (예: 스테이지 3 존치 결정은 두 사람 논의로 확정)<br>
+  · 코드 통합 방식 (master 직접 커밋 · 원격 브랜치 병합 등)<br>
+  · 비개발 영역의 협업 도구 (프롬프트 스튜디오로 코드 없이 프롬프트를 튜닝한 흐름 등)
+</div>
+
+<h2 class="pagebreak">3. 참고 — git 기록에서 본 작업 분포</h2>
+
+<p style="color:#57534e;font-size:9.5pt">확정된 역할 분담이 아니라, §1·§2를 합의할 때 쓰라고 붙인 기계적 집계입니다.
+git은 <strong>코드에 남은 것만</strong> 보여줍니다 — 기획·회의·의사결정·테스트처럼 커밋으로 안 남는 기여는 잡히지 않으므로,
+이 표만으로 기여도를 판단하면 안 됩니다.</p>
+
+<table>
+  <tr><th style="width:26%">계정</th><th style="width:14%">커밋</th><th>주로 건드린 영역 (파일 변경 횟수)</th></tr>
+  <tr>
+    <td><code>LeeDoik</code><br><span style="font-size:9pt;color:#57534e">bluemint3014@naver.com</span></td>
+    <td>201</td>
+    <td>저장소 전 영역 — 서버·클라이언트·아트 파이프라인·검증 스크립트·배포</td>
+  </tr>
+  <tr>
+    <td><code>ilsimdotcom-ai</code><br><span style="font-size:9pt;color:#57534e">ilsimdotcom@gmail.com</span></td>
+    <td>27</td>
+    <td><code>src/client</code> 153 · <code>design/NPC</code> 52 · <code>src/data</code> 50 ·
+        <code>src/server</code> 36 · <code>public/audio</code> 20 · <code>design/characters</code> 18</td>
+  </tr>
+</table>
+
+<h3><code>ilsimdotcom-ai</code> 의 주요 커밋</h3>
+<p style="font-size:9.5pt;color:#57534e">커밋 수는 27이지만 판정 설계의 핵심 변경이 포함되어 있습니다.</p>
+<table>
+  <tr><th style="width:16%">커밋</th><th>내용</th></tr>
+  <tr><td><code>38ed40b</code></td><td>에바 심문의 즉흥 되물음 제거, <strong>거짓·모순·모호 3종 판정으로 재설계</strong></td></tr>
+  <tr><td><code>889ac88</code></td><td>저택 대화 판정을 <strong>숫자 카운터 → 홀리스틱 판단으로 교체</strong></td></tr>
+  <tr><td><code>57875a9</code></td><td>심문 판정에서 결함이 겹쳐도 가장 무거운 감점 하나만 반영</td></tr>
+  <tr><td><code>e296cc7</code> · <code>ea70152</code></td><td>모호·거짓 판정의 오탐 수정 — 질문 명확성·개연성 기준 추가</td></tr>
+  <tr><td><code>79cf3ca</code></td><td>오프닝 스킵·타이틀 BGM·씬 전환 페이드, 에바 심문 대사·판정 개정</td></tr>
+  <tr><td><code>4a4f037</code></td><td>저택 동료 확인 순간의 연출과 대사 톤 전환 추가</td></tr>
+  <tr><td><code>a4d0887</code></td><td>1스테이지 검문 실패가 경계 레벨을 안 올리던 사각지대 수정</td></tr>
+  <tr><td><code>89a1068</code> · <code>89394bc</code></td><td>대사 및 프롬프트 수정</td></tr>
+</table>
+
+<h3>프로젝트 규모</h3>
+<table>
+  <tr><th style="width:34%">항목</th><th>수치</th></tr>
+  <tr><td>개발 기간</td><td>2026-07-17 ~ 2026-08-08 (23일)</td></tr>
+  <tr><td>총 커밋</td><td>219</td></tr>
+  <tr><td>구현된 스테이지</td><td>4구간 (튜토리얼 · 거리 · 저택 · 지하 탈출)</td></tr>
+  <tr><td>LLM 호출 지점</td><td>7종 (모델 2종 분담)</td></tr>
+  <tr><td>프롬프트 템플릿</td><td>10종 (<code>src/data/prompts/</code>)</td></tr>
+  <tr><td>설계 문서</td><td>스펙 6종 · 계획 8종 (<code>docs/superpowers/</code>)</td></tr>
+</table>
+
+<footer>
+  NAN 2026 사전과제 제출물 ⑤ 팀원 롤 기술서 · 태엽새 / HEART OF STEEL
+</footer>
+
+</body>
+</html>
