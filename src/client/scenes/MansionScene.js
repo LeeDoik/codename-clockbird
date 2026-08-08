@@ -431,7 +431,7 @@ export class MansionScene extends Phaser.Scene {
     this.hud.status(
       this.state?.hasKey
         ? '저택 잠입 — 마스터 키 ✔'
-        : '저택 잠입 — 열쇠를 쥔 동료를 찾는다',
+        : '저택 잠입 — 저택의 동료를 찾아라',
     );
   }
 

@@ -201,8 +201,8 @@ export class TutorialScene extends Phaser.Scene {
       speaker: `${this.state.officer.name} (${this.state.officer.role})`,
       line:
         '"셋의 말을 다 들었나?\n\n' +
-        '하나는 색을 말하고, 하나는 그것이 무엇으로 분류되는지를 말하고,\n' +
-        '하나는 누구나 아는 이야기를 말한다.\n세 갈래가 한 점에서 만난다 — 거기가 코드다."',
+        '각자 하나의 단어에 대해 이야기하지만, 다른 이야기를 하지,' +
+        '세 갈래가 한 점에서 만난다 — 거기가 코드다.\n실전에서는 이렇게 친절하지 않겠지만"',
       portrait: this.state.officer.id,
       choices: [
         { label: '암호 말하기', key: 'F' },
@@ -257,13 +257,13 @@ export class TutorialScene extends Phaser.Scene {
       `${this.state.officer.name} (${this.state.officer.role})`,
       // 기획 설정서(2026-08-04 판) '캐릭터 대사' 시트의 브란트 — 튜토리얼 시작 대사.
       // 조작 안내 한 줄만 게임 쪽에서 덧붙였다(설정서에는 조작 설명이 없다).
-      '"이번 임무는 알드리치 폰 바이스 백작의 저택에 잠입해, 수상한 소문의 정체를 파악하는 일이다.\n\n' +
+      '"이번 임무는 알드리치 폰 바이스 백작의 저택에 잠입해, 백작을 괴롭히고 있다는 소문의 정체를 파악하는 일이다.\n\n' +
         '거리의 동료들이 잠입 경로를 확보하고 있으니, 합류할 수 있도록.\n' +
         '동료들과 접선하는 방식은 이미 알고 있겠지?\n\n' +
         '각자 동료들이 말하는 단서를 모아, 접선 암호가 무엇인지 유추한다.\n' +
         '고철 덩어리 놈들은 할 수 없는 방식이지!\n\n' +
         '준비되어 있는지 한번 확인해볼까?\n' +
-        '[WASD] 로 걷고, 동료 앞에서 [E]. 답을 찾으면 내 앞에서 [F]."',
+        '[WASD] 로 걷고, 동료들과 대화한 후, 암호를 알 것 같다면 내게 오도록"',
       { portrait: this.state.officer.id },
     );
     this.dialogue.setHint('[Space] / [Esc] 로 닫는다');
@@ -451,7 +451,7 @@ export class TutorialScene extends Phaser.Scene {
       `${this.state.officer.name} (${this.state.officer.role})`,
       '"틀렸다."\n\n동료들의 표정이 굳는다. 신뢰가 한 칸씩 깎였다.' +
         (opened
-          ? '\n\n다시 물어보면, 이번엔 왜 그 단어를 떠올렸는지까지 말해 줄 것이다.'
+          ? '\n\n암호를 유추하기 어렵다면, 이번엔 왜 그 단어를 떠올렸지 대화해 보는 것도 방법이다.'
           : '\n\n동료들에게 다시 물어보고 오너라.'),
       '[Space] / [Esc] 로 닫는다',
       { portrait: this.state.officer.id },
