@@ -10,3 +10,11 @@ dist/
 tools/
 *.bat
 .env
+
+# share.bat 이 팀원 공유 터널용으로 받아 두는 윈도우 바이너리(52MB). 게임과 무관하고
+# 리눅스 컨테이너에서는 실행조차 안 된다. .gitignore 에도 있어 저장소엔 없다.
+cloudflared.exe
+
+# 개발 과정 산출물(스펙·계획·리뷰 기록) — 런타임이 안 읽는다.
+.superpowers/
+.claude/
