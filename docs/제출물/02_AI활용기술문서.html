@@ -39,18 +39,14 @@
 
 <h2>2. 아키텍처</h2>
 
-<pre>브라우저 (Phaser 3)
-   │  ① 자유 입력 대화        ② 접선 코드 / 심문 답변
-   ▼
-Express 서버  ── 세션 권위(정답·호감도·탐지 게이지는 서버만 안다)
-   │
-   ├─ ai/dialogue.js      대화 스트리밍 (SSE) ····· Haiku
-   ├─ ai/wordGen.js       연상 단어 생성 ·········· Sonnet
-   ├─ ai/judge.js         중복 판정 · 정답 판정 ··· Sonnet
-   ├─ ai/disposition.js   저택 성향 판정 ·········· Haiku
-   ├─ ai/interrogation.js 질문 생성 ··············· Haiku
-   │                      이중 판정 · 신분 추리 ··· Sonnet
-   └─ ai/guardrail.js     코드 단어 유출 검사 (코드 기반)</pre>
+<figure style="margin:12px 0 6px;break-inside:avoid">
+  <img src="아키텍처.png" alt="태엽새 AI 파이프라인 아키텍처 — 플레이어 브라우저에서 Express 서버를 거쳐 Claude API 로 이어지는 구조. 서버 안에 대화·질문 생성(Haiku), 성향 판정(Haiku), 단어 생성·정답 판정(Sonnet), 심문 이중 판정(Sonnet)이 놓이고, 심문 이중 판정만 정보 격리 경계로 감싸여 있다." style="width:100%;height:auto;border:1px solid #d6d3d1;border-radius:4px">
+  <figcaption style="font-size:8.5pt;color:#57534e;margin-top:5px">
+    구현 위치 — 대화 <code>ai/dialogue.js</code> · 성향 판정 <code>ai/disposition.js</code> ·
+    단어 생성 <code>ai/wordGen.js</code> · 정답·중복 판정 <code>ai/judge.js</code> ·
+    심문 이중 판정 <code>ai/interrogation.js</code> · 유출 검사 <code>ai/guardrail.js</code>(코드 기반, LLM 미사용)
+  </figcaption>
+</figure>
 
 <p><strong>서버 권위.</strong> 접선 코드 정답, 열쇠 보유자, 심문의 탐지 게이지는 전부 서버 세션에만 존재합니다. 클라이언트는 결과만 받습니다. 개발 중 <code>?stage2&amp;key</code> 플래그가 클라이언트에만 열쇠를 세워 문은 열리는데 서버가 409로 거절한 사고가 있었고, 그 뒤로 <strong>서버 상태를 바꾸는 플래그는 반드시 시작 요청에 실어 보내는</strong> 규칙을 세웠습니다.</p>
 
