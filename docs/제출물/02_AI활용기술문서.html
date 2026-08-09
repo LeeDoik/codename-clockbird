@@ -42,7 +42,7 @@
 
 <figure style="margin:12px 0 6px;break-inside:avoid">
   <img src="아키텍처.png" alt="태엽새 AI 파이프라인 아키텍처 — 플레이어 브라우저에서 Express 서버를 거쳐 Claude API 로 이어지는 구조. 서버 안에 대화·질문 생성(Haiku), 성향 판정(Haiku), 단어 생성·정답 판정(Sonnet), 심문 이중 판정(Sonnet)이 놓이고, 심문 이중 판정만 정보 격리 경계로 감싸여 있다." style="width:100%;height:auto;border:1px solid #d6d3d1;border-radius:4px">
-  <figcaption style="font-size:8.5pt;color:#57534e;margin-top:5px">
+  <figcaption style="font-size:8.5pt;color:#737373;margin-top:5px">
     구현 위치 — 대화 <code>ai/dialogue.js</code> · 성향 판정 <code>ai/disposition.js</code> ·
     단어 생성 <code>ai/wordGen.js</code> · 정답·중복 판정 <code>ai/judge.js</code> ·
     심문 이중 판정 <code>ai/interrogation.js</code> · 유출 검사 <code>ai/guardrail.js</code>(코드 기반, LLM 미사용)

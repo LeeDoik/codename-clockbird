@@ -1,159 +1,205 @@
-/* NAN 2026 제출 문서 공통 스타일 — 인쇄(A4 PDF) 기준으로 짠다.
+/* NAN 2026 제출 문서 공통 스타일
  *
- * headless Chrome --print-to-pdf 로 굽는다. 화면용이 아니라 종이용이므로
- * 뷰포트 단위·다크모드·호버는 쓰지 않는다. 페이지가 잘리는 자리만 신경 쓴다. */
+ * build/AI활용기술문서.pptx 의 디자인 언어에 맞춘다 — 순수 모노크롬, 얇은 헤어라인,
+ * 고정폭 대문자 커커, 채움 없는 표. 강조색을 쓰지 않는 것이 이 언어의 핵심이라
+ * 예전의 놋쇠색(#8a5a2b) 계열을 전부 걷어냈다.
+ *
+ * headless Chrome --print-to-pdf 로 굽는다. 종이용이므로 뷰포트 단위·다크모드·호버는
+ * 쓰지 않고, 페이지가 잘리는 자리만 신경 쓴다. */
 
 @page {
   size: A4;
-  margin: 18mm 16mm 16mm 16mm;
+  margin: 17mm 15mm 15mm 15mm;
 }
 
 :root {
-  --ink: #1c1917;
-  --muted: #57534e;
-  --line: #d6d3d1;
-  --brass: #8a5a2b;
-  --brass-soft: #f5efe6;
-  --warn: #fde68a;
+  --bg: #fafafa;
+  --ink: #0a0a0a;      /* 제목·표 본문 */
+  --body: #1f1f1f;     /* 문단 */
+  --muted: #737373;    /* 라벨·커커·캡션 */
+  --faint: #a3a3a3;    /* 페이지 꼬리말 */
+  --line: #e5e5e5;     /* 헤어라인 */
+  --card: #ffffff;
+  --mark: #fdf6d8;     /* 빈칸 — 덱에 없는 유일한 색. 안 채운 자리를 놓치면 심사 제외라 기능이 우선이다 */
+  --mark-line: #d4b106;
 }
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  color: var(--ink);
-  font-size: 10.5pt;
-  line-height: 1.65;
+  font-family: 'Noto Sans KR', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--body);
+  font-size: 10pt;
+  line-height: 1.7;
+  letter-spacing: -0.005em;
   margin: 0;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
-/* ── 표지 ────────────────────────────────────────────── */
-.cover {
-  border-bottom: 3px solid var(--brass);
-  padding-bottom: 14px;
-  margin-bottom: 22px;
+code, pre, .mono {
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'D2Coding', monospace;
 }
+
+/* ── 표지 ─────────────────────────────────────────────
+   덱 1장과 같은 구성: 고정폭 커커 → 굵은 제목 → 리드 → 헤어라인 */
+.cover { margin-bottom: 26px; }
 .cover .kicker {
-  font-size: 9pt;
-  letter-spacing: 0.12em;
-  color: var(--brass);
-  font-weight: 700;
-  margin-bottom: 6px;
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 7.5pt;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  margin-bottom: 10px;
 }
 .cover h1 {
-  font-size: 21pt;
-  margin: 0 0 6px;
-  letter-spacing: -0.01em;
+  font-size: 27pt;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--ink);
+  margin: 0 0 10px;
 }
-.cover .sub { color: var(--muted); font-size: 10pt; margin: 0; }
+.cover .sub {
+  color: var(--muted);
+  font-size: 9.5pt;
+  margin: 0 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
 
-/* ── 제목 ────────────────────────────────────────────── */
+/* ── 제목 ───────────────────────────────────────────── */
 h2 {
-  font-size: 13pt;
-  margin: 26px 0 10px;
-  padding-bottom: 5px;
-  border-bottom: 1.5px solid var(--line);
+  font-size: 14pt;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 30px 0 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
   break-after: avoid;
 }
 h3 {
-  font-size: 11pt;
-  margin: 18px 0 7px;
-  color: var(--brass);
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 20px 0 8px;
   break-after: avoid;
 }
-p { margin: 0 0 9px; }
+p { margin: 0 0 10px; }
 
-/* ── 표 ──────────────────────────────────────────────── */
+.lead {
+  font-size: 11.5pt;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.015em;
+  margin-bottom: 16px;
+}
+
+/* ── 표 — 채움 없음, 세로줄 없음, 헤어라인만 ───────────── */
 table {
   width: 100%;
   border-collapse: collapse;
-  margin: 10px 0 14px;
-  font-size: 9.5pt;
+  margin: 12px 0 18px;
+  font-size: 9pt;
   break-inside: avoid;
 }
-th, td {
-  border: 1px solid var(--line);
-  padding: 6px 9px;
-  text-align: left;
-  vertical-align: top;
-}
 th {
-  background: var(--brass-soft);
-  font-weight: 700;
-  color: var(--brass);
+  font-weight: 400;
+  font-size: 8pt;
+  color: var(--muted);
+  text-align: left;
+  padding: 0 12px 7px 0;
+  border-bottom: 1px solid var(--line);
 }
-td code, p code, li code {
-  background: #f5f5f4;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-family: Consolas, 'D2Coding', monospace;
-  font-size: 9pt;
+td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  color: var(--ink);
+}
+tr:last-child td { border-bottom: none; }
+td:last-child, th:last-child { padding-right: 0; }
+td strong { font-weight: 700; }
+
+td code, p code, li code, figcaption code {
+  font-size: 8.5pt;
+  color: var(--ink);
+  background: none;
+  padding: 0;
 }
 
-/* ── 코드 블록 ───────────────────────────────────────── */
+/* ── 코드 블록 — 덱의 고정폭 톤에 맞춰 밝게 ─────────────── */
 pre {
-  background: #1c1917;
-  color: #e7e5e4;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
   padding: 11px 13px;
-  border-radius: 5px;
-  font-family: Consolas, 'D2Coding', monospace;
   font-size: 8.5pt;
-  line-height: 1.5;
-  overflow-x: auto;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-all;
   break-inside: avoid;
   margin: 8px 0 12px;
 }
 
-/* ── 강조 상자 ───────────────────────────────────────── */
+/* ── 콜아웃 — 덱의 "검은 왼쪽 바 + 흰 카드" ──────────────── */
 .note {
-  border-left: 3px solid var(--brass);
-  background: var(--brass-soft);
-  padding: 9px 13px;
-  margin: 11px 0;
+  background: var(--card);
+  border-left: 3px solid var(--ink);
+  border-radius: 0 6px 6px 0;
+  padding: 13px 16px;
+  margin: 14px 0;
   break-inside: avoid;
 }
-.note strong { color: var(--brass); }
+.note strong {
+  display: block;
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 8pt;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-weight: 400;
+  margin-bottom: 6px;
+}
+.note a { color: var(--ink); }
 
-/* 제출 전 반드시 채워야 하는 자리. 노란 배경이라 훑어도 눈에 걸린다. */
+/* ── 빈칸 — 제출 전 반드시 채울 자리 ───────────────────── */
 .blank {
-  background: var(--warn);
-  border: 1px dashed #b45309;
-  padding: 2px 7px;
-  border-radius: 3px;
-  font-weight: 700;
-  color: #78350f;
+  background: var(--mark);
+  border-bottom: 1.5px solid var(--mark-line);
+  padding: 1px 5px;
+  font-weight: 500;
+  color: #6b5900;
 }
 .blank-block {
-  background: var(--warn);
-  border: 1.5px dashed #b45309;
-  padding: 11px 14px;
-  margin: 11px 0;
-  border-radius: 4px;
-  color: #78350f;
+  background: var(--mark);
+  border-left: 3px solid var(--mark-line);
+  border-radius: 0 6px 6px 0;
+  padding: 13px 16px;
+  margin: 14px 0;
+  color: #5c4d00;
   break-inside: avoid;
 }
-.blank-block strong { color: #78350f; }
-
-ul, ol { margin: 0 0 10px; padding-left: 20px; }
-li { margin-bottom: 4px; }
-
-.lead {
-  font-size: 11.5pt;
-  color: var(--brass);
-  font-weight: 700;
-  margin-bottom: 14px;
+.blank-block strong {
+  display: block;
+  font-family: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 8pt;
+  letter-spacing: 0.1em;
+  font-weight: 400;
+  margin-bottom: 6px;
 }
+
+ul, ol { margin: 0 0 10px; padding-left: 18px; }
+li { margin-bottom: 5px; }
+
+figcaption { color: var(--muted); }
 
 .pagebreak { break-before: page; }
 
 footer {
-  margin-top: 30px;
-  padding-top: 9px;
+  margin-top: 34px;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
-  font-size: 8.5pt;
-  color: var(--muted);
+  font-size: 8pt;
+  color: var(--faint);
 }
