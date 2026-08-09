@@ -14,9 +14,15 @@
   <p class="sub">게임 소개 및 설명 문서 · 코드네임 <code>codename-clockbird</code></p>
 </div>
 
-<p class="lead">스팀펑크 세계관 도시의 레지스탕스가 되어, 대화만으로 동료를 찾아내고 신분을 위조해 탈출하는 잠입 게임.</p>
+<p class="lead">강철 로봇이 점령한 도시에서, 로봇은 할 수 없는 사람만의 방식으로 동료와 접선하고 임무를 완수하라.</p>
 
-<p>플레이어는 레지스탕스 공작원입니다. 무기도 체력바도 없습니다. 가진 것은 <strong>대화</strong> 하나뿐이고, 상대는 전부 생성형 AI가 실시간으로 작동시키는 인물입니다. 누가 동료인지, 상대가 무엇을 감추는지, 내 거짓말이 들키지 않았는지 — 판단의 재료가 매번 새로 만들어지기 때문에 <strong>매번 새로운 플레이 경험을 줍니다.</strong></p>
+<p>당신은 저항군의 일원입니다. 로봇의 감시가 삼엄한 도시에서, 그들의 눈을 피해 동료를 만나세요.</p>
+
+<p>동료를 만났다고 해서 끝이 아닙니다. 로봇은 흉내 낼 수 없는 방식으로 자신을 증명해야 합니다.</p>
+
+<p>이 도시의 인물들은 정해진 대사를 읽지 않습니다. <strong>생성형 AI가 실시간으로 움직이기 때문에 사람처럼 사고하고 반응합니다.</strong></p>
+
+<p>그래서 동료를 찾고 자신을 증명하는 과정이 <strong>매번 새로운 경험이 됩니다.</strong></p>
 
 <h2>1. 게임 방법</h2>
 
@@ -71,18 +77,10 @@
 
 <h2 class="pagebreak">2. 실행 방법</h2>
 
-<h3>① 브라우저에서 바로 플레이 (권장 — 설치 불필요)</h3>
+<h3>① 브라우저에서 바로 플레이</h3>
 <div class="note">
   <strong>플레이 링크</strong><br>
   <span style="font-size:12pt"><a href="https://web-production-6923e.up.railway.app">https://web-production-6923e.up.railway.app</a></span><br>
-  링크를 열면 바로 시작합니다. 설치·로그인·API 키 입력이 필요 없습니다.
-</div>
-
-<div class="note">
-  <strong>정적 호스팅(GitHub Pages)이 아닌 이유.</strong> 이 게임은 매 턴 Claude API를 호출하며,
-  그 API 키는 <strong>서버에만</strong> 있어야 합니다. 정적 호스팅에 올리면 키가 브라우저 번들에
-  들어가 누구나 열람할 수 있게 됩니다. 그래서 Express 서버가 API 키를 쥐고 클라이언트를 함께
-  서빙하는 형태로 배포했으며, 심사자 입장의 사용법은 동일합니다 — <strong>링크 클릭 한 번</strong>입니다.
 </div>
 
 <h3>② 소스에서 직접 실행</h3>
@@ -93,7 +91,6 @@
   <li><strong>Git LFS</strong> — 그림·영상이 LFS에 있습니다. 클론 후 한 번 실행해 주세요.
     <pre>git lfs install
 git lfs pull</pre>
-    <span style="color:#b45309">⚠ 이 단계를 건너뛰면 <strong>게임 화면이 통째로 비어 보입니다.</strong> 그림 자리에 130바이트짜리 포인터 텍스트가 들어오기 때문입니다.</span>
   </li>
   <li><strong>Anthropic API 키</strong> — <code>.env.example</code>을 <code>.env</code>로 복사한 뒤 키 입력
     <pre>ANTHROPIC_API_KEY=sk-ant-...</pre>
