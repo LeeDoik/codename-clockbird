@@ -9,7 +9,6 @@
 |---|---|
 | ▶ **지금 바로 플레이** | **https://web-production-6923e.up.railway.app** — 설치·로그인·API 키 입력이 필요 없습니다 |
 | 🎬 **플레이 영상** | **https://youtu.be/HMJo2wnLqyc** |
-| 📄 **제출 문서** | [게임 소개서](docs/제출물/01_게임소개서.pdf) · [AI 활용 기술 문서](docs/제출물/02_AI활용기술문서.pdf) · [팀원 롤 기술서](docs/제출물/03_팀원롤기술서.pdf) |
 | 💻 **소스** | 이 저장소 (공개) — 로컬 실행은 [4. 로컬 실행](#4-로컬-실행) |
 
 ---
@@ -48,19 +47,15 @@
 
 ## 2. 제출물 위치 (심사 5항목)
 
-> 5항목 중 하나라도 누락 시 심사에서 제외됩니다. 심사자가 한 곳에서 전부 찾을 수 있도록 여기에 모읍니다.
+| # | 항목 | 위치 |
+|---|---|---|
+| ① | 플레이 가능한 빌드 + 소스 코드 | **[플레이 링크](https://web-production-6923e.up.railway.app)** · 이 저장소(공개) |
+| ② | 플레이 영상 (30~60초) | [youtu.be/HMJo2wnLqyc](https://youtu.be/HMJo2wnLqyc) |
+| ③ | 게임 소개 및 설명 문서 | 별도 제출 |
+| ④ | AI 활용 기술 문서 | 별도 제출 |
+| ⑤ | 팀원 롤 기술서 (2인 이상) | 별도 제출 |
 
-| # | 항목 | 위치 | 상태 |
-|---|---|---|---|
-| ① | 플레이 가능한 빌드 + 소스 코드 | **[플레이 링크](https://web-production-6923e.up.railway.app)** · 이 저장소(공개) | ✅ |
-| ② | 플레이 영상 (30~60초) | [youtu.be/HMJo2wnLqyc](https://youtu.be/HMJo2wnLqyc) | ✅ |
-| ③ | 게임 소개 및 설명 문서 | [`docs/제출물/01_게임소개서.pdf`](docs/제출물/01_게임소개서.pdf) | ✅ |
-| ④ | AI 활용 기술 문서 | [`docs/제출물/02_AI활용기술문서.pdf`](docs/제출물/02_AI활용기술문서.pdf) | ⚠ 에셋 출처·라이선스 미기재 |
-| ⑤ | 팀원 롤 기술서 (2인 이상) | [`docs/제출물/03_팀원롤기술서.pdf`](docs/제출물/03_팀원롤기술서.pdf) | ⬜ 역할 분담 합의 필요 |
-
-**②는 30~60초입니다** — 실제 플레이 화면 그대로여야 하고 AI 조작·합성은 불가입니다.
-③④⑤ 문서는 `docs/제출물/`의 HTML이 원본이고 PDF는 `pdf.bat`으로 굽는 산출물입니다.
-남은 빈칸은 문서 안에서 **노란 배경**으로 표시돼 있습니다.
+문서 ③④⑤는 대회 제출 채널로 따로 냅니다. 이 저장소에는 게임 소스와 실행에 필요한 것만 둡니다.
 
 > **정적 호스팅(GitHub Pages)이 아닌 이유.** 이 게임은 매 턴 Claude API를 호출하며 그 API 키는
 > 서버에만 있어야 합니다. 정적 호스팅에 올리면 키가 브라우저 번들에 들어가 누구나 열람할 수
@@ -88,7 +83,7 @@
 
 프롬프트 10종은 전부 `src/data/prompts/*.txt`에 텍스트로 분리돼 있어 **코드 수정 없이 튜닝**할 수
 있습니다 (아래 **프롬프트 스튜디오** 항목 참고).
-설계 의도·프롬프트 전문·실측은 [AI 활용 기술 문서](docs/제출물/02_AI활용기술문서.pdf)에 있습니다.
+설계 의도·프롬프트 전문·실측은 별도 제출하는 「AI 활용 기술 문서」에 있습니다.
 
 ---
 
@@ -180,9 +175,6 @@ src/
     *Session.js        인메모리 세션 — 접선 코드·신분 단어는 여기에만 존재
   data/                코드 단어 풀 · NPC 페르소나 · 프롬프트 10종  (서버 전용)
 public/                런타임 로드 에셋 — 오프닝 · 초상 26종 · UI · 오디오 19종  [Git LFS]
-scripts/               PoC · 스모크 테스트 · 맵 임포트 · 실측 실험
-tools/                 타일맵 스튜디오 · 스크린샷 캡처
-docs/                  기획·설계 문서 (색인: docs/README.md) · 제출 문서(docs/제출물/)
 ```
 
 ### 보안 설계
@@ -198,7 +190,7 @@ docs/                  기획·설계 문서 (색인: docs/README.md) · 제출 
 
 | | |
 |---|---|
-| **팀** | `[채울 것 — 이름 2인 · 역할]` (상세: [팀원 롤 기술서](docs/제출물/03_팀원롤기술서.pdf)) |
+| **팀** | `[채울 것 — 이름 2인 · 역할]` (상세는 별도 제출하는 팀원 롤 기술서에) |
 | **개발 기간** | 2026-07-17 ~ 08-08 · 220여 커밋 |
 | **기술 스택** | Phaser 3 + Vite / Node.js 22 + Express 5 / Anthropic Claude SDK / Railway |
 | **오디오 19종** (BGM 7 · SFX 12) | `[채울 것 — 출처·라이선스]` |
@@ -267,10 +259,6 @@ docs/                  기획·설계 문서 (색인: docs/README.md) · 제출 
 <details>
 <summary><b>팀원용 — 프롬프트 스튜디오 (코드 없이 프롬프트 튜닝)</b></summary>
 
-> 처음이라면 [`docs/프롬프트튜닝_가이드.md`](./docs/프롬프트튜닝_가이드.md) 부터 — 환경 준비부터 올리는 법까지 순서대로 담겨 있습니다.
-
-Windows에서는 **`studio.bat` 더블클릭** 한 번이면 됩니다 (서버 기동 + 브라우저 자동 열기).
-
 ```bash
 npm run dev          # 또는 서버만: npm run dev:server
 ```
@@ -301,38 +289,6 @@ npm run dev          # 또는 서버만: npm run dev:server
 </details>
 
 <details>
-<summary><b>개발자용 — 검증 스크립트</b></summary>
-
-게임을 띄우지 않고 AI 파이프라인만 터미널에서 확인합니다. 프롬프트 튜닝 시 빠르게 반복하세요.
-
-```bash
-npm run poc              # 연상 단어 생성 + 중복 판정 (무작위 코드 단어)
-npm run poc -- 톱니바퀴    # 코드 단어 지정
-npm run poc:talk         # NPC 자유 대화 (페르소나·스트리밍·가드레일)
-npm run exp:diff         # 중복률 대규모 실측
-```
-
-서버까지 포함한 스모크 테스트 (라우트·SSE 프레이밍·코드 단어 비유출):
-
-```bash
-npm run dev:server       # 다른 터미널에서
-npm run smoke            # 자유 대화 SSE
-npm run smoke:tutorial   # 튜토리얼
-npm run smoke:mansion    # 스테이지 2 저택
-npm run smoke:escape     # 스테이지 3 심문
-npm run check:escape     # 스폰·시야·세션 정합
-npm run check:jail       # 감옥/구출 규칙
-```
-
-화면 확인 (Playwright 없이 headless Chrome 캡처):
-
-```bash
-node tools/shot.mjs "/?tutorial" --wait 7000 -o hq.png
-```
-
-</details>
-
-<details>
 <summary><b>배포</b></summary>
 
 Railway에 배포돼 있습니다 (`railway up -c --service web` — 로컬 디렉터리를 그대로 업로드).
@@ -344,7 +300,3 @@ Railway에 배포돼 있습니다 (`railway up -c --service web` — 로컬 디�
 - **심사 기간 중 재배포 금지** — 인메모리 세션이 날아가 진행 중인 판이 끊긴다.
 
 </details>
-
----
-
-📚 기획·설계 문서 전체 색인: [`docs/README.md`](./docs/README.md) · 기획 마스터: [`docs/NAN2026_계획서.md`](./docs/NAN2026_계획서.md)

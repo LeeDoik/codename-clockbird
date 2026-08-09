@@ -27,5 +27,19 @@ design/맵/_png/
 # Claude Code 로컬 설정
 .claude/settings.local.json
 
-# 브레인스토밍 목업 서버 작업물 (docs/superpowers/ 의 스펙·계획은 커밋한다)
+# 브레인스토밍 목업 서버 작업물
 .superpowers/
+
+# 저장소에는 게임 소스와 실행에 필요한 것만 둔다 (2026-08-09).
+# 제출 문서·기획 문서·원본 아트·개발 스크립트·도구는 로컬에서만 관리한다 —
+# 심사용 공개 저장소를 게임 구동 필수 파일로 한정하기 위해서다.
+# README 배너 한 장만 예외로 남긴다.
+docs/*
+!docs/banner.png
+design/
+scripts/
+tools/
+build/
+studio.bat
+walkmask.bat
+share.bat
