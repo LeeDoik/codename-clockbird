@@ -1,6 +1,6 @@
 # 코드네임: 태엽새 · HEART OF STEEL
 
-![타이틀 화면](docs/banner.png)
+![타이틀 화면](https://media.githubusercontent.com/media/LeeDoik/codename-clockbird/master/docs/banner.png)
 
 > **NAN 2026 · NHN GAME × AI 해커톤 사전과제 출품작**
 > 스팀펑크 도시의 레지스탕스가 되어, **대화만으로** 동료를 찾아내고 신분을 위조해 탈출하는 잠입 게임.
@@ -204,6 +204,9 @@ public/                런타임 로드 에셋 — 오프닝 · 초상 26종 · 
 
 <details>
 <summary><b>개발 노트 — 설계 근거 (실측)</b></summary>
+
+> 개발 노트에 나오는 `scripts/` 측정·검증 도구(`npm run exp:diff` · `smoke*` · `check:*` 등)는
+> **로컬 전용**이라 이 공개 저장소에는 없습니다 — 저장소는 게임 구동 필수 파일로 한정했습니다.
 
 - **연상 단어는 동료 1인당 1회 독립 호출** 로 생성한다. 5인을 한 번에 생성하면 모델이
   서로를 의식해 단어를 분산시켜 중복이 사라지고, 체포·구출 메커닉 전체가 죽는다.
