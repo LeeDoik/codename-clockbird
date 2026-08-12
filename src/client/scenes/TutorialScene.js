@@ -26,7 +26,7 @@ import {
   NPC_TEXTURE,
 } from '../entities/npcSprite.js';
 import { InteractionManager } from '../world/interact.js';
-import { readSSE } from '../net.js';
+import { readSSE, fetchStageStart } from '../net.js';
 import { nameLabelStyle } from '../ui/theme.js';
 import { TransitionScreen } from '../ui/TransitionScreen.js';
 import { playBgm, setLoop } from '../audio/SoundManager.js';
@@ -87,6 +87,8 @@ export class TutorialScene extends Phaser.Scene {
     this.ended = false;
     // /start 가 실패했다 — [Space] 로 다시 시도할 수 있게 열어 둔다.
     this.startFailed = false;
+    // 스테이지 1 의 /start 가 실패했다 — ended 상태에서도 재시도를 열어 둔다 (#goStage).
+    this.stageStartFailed = false;
   }
 
   create() {
@@ -277,6 +279,17 @@ export class TutorialScene extends Phaser.Scene {
     // 발소리가 깔리던 자리다.
     if (this.ended) {
       setLoop('walk', false);
+      // 스테이지 시작 실패 후 대기 중 — ended 라 아래 입력 처리가 전부 죽어 있으므로
+      // 재시도만 여기서 받는다. 실패한 프로미스는 레지스트리에 굳어 있으니 새로 쏘고
+      // 같은 길(#goStage)을 다시 걷는다. 이게 없으면 새로고침(=튜토리얼 처음부터)뿐이다.
+      if (
+        this.stageStartFailed &&
+        (Phaser.Input.Keyboard.JustDown(this.keySpace) || Phaser.Input.Keyboard.JustDown(this.keyEsc))
+      ) {
+        this.stageStartFailed = false;
+        this.registry.set('startPromise', fetchStageStart());
+        this.#goStage();
+      }
       return;
     }
 
@@ -521,15 +534,20 @@ export class TutorialScene extends Phaser.Scene {
       ]);
 
       if (!res || res.error) {
-        // 본부로 되돌아와 오류를 읽게 한다 — 로딩 화면 위에 올리면 재시도(Space 재시작)
-        // 같은 본부의 손잡이가 전부 로딩 판 아래 깔린다.
+        // 본부로 되돌아와 오류를 읽게 한다 — 로딩 화면 위에 올리면 재시도 안내가
+        // 로딩 판 아래 깔린다. ended 는 그대로 둔다(훈련은 이미 끝났다) — 재시도는
+        // update() 의 ended 갈래가 stageStartFailed 로 받는다.
         this.transition.hide();
         this.hud.fadeIn(400);
         this.cameras.main.fadeIn(400, 0, 0, 0);
         this.uiCam?.fadeIn(400, 0, 0, 0);
+        this.stageStartFailed = true;
         this.dialogue.show(
           '오류',
-          `스테이지 시작 실패\n${res?.error ?? '알 수 없는 오류'}\n\n.env 에 ANTHROPIC_API_KEY 를 넣었는지 확인하세요.`,
+          `스테이지를 시작할 수 없습니다.\n${res?.error ?? '알 수 없는 오류'}\n\n` +
+            '회선이 불안정할 수 있다 — [Space] 로 다시 시도한다.' +
+            // 키 누락은 개발 환경에서만 있는 사고다 — 플레이어에게 .env 얘기를 하지 않는다.
+            (import.meta.env.DEV ? '\n\n(개발: .env 의 ANTHROPIC_API_KEY 확인)' : ''),
         );
         return;
       }

@@ -53,11 +53,12 @@ export async function judgeDuplicates({ associations }) {
   if (remaining.length >= 2) {
     const list = remaining.map((a) => `- ${a.npcId}: "${a.word}"`).join('\n');
 
-    const message = await anthropic.beta.messages.parse({
-      model: MODEL_JUDGE,
-      max_tokens: 1000,
-      thinking: { type: 'disabled' },
-      system: `너는 단어 게임의 심판이다. 주어진 단어들 중 "사실상 같은 단어"인 것들을 찾아 묶어라.
+    try {
+      const message = await anthropic.beta.messages.parse({
+        model: MODEL_JUDGE,
+        max_tokens: 1000,
+        thinking: { type: 'disabled' },
+        system: `너는 단어 게임의 심판이다. 주어진 단어들 중 "사실상 같은 단어"인 것들을 찾아 묶어라.
 
 같은 단어로 보는 기준:
 - 동의어 (예: "기어" / "톱니바퀴")
@@ -69,18 +70,26 @@ export async function judgeDuplicates({ associations }) {
 - 상위·하위 개념 (예: "기계" / "톱니바퀴" 는 다른 단어다)
 
 애매하면 다른 단어로 판정하라. 겹치는 단어가 없으면 빈 배열을 반환하라.`,
-      output_format: betaZodOutputFormat(DuplicateSchema),
-      messages: [{ role: 'user', content: `단어 목록:\n${list}` }],
-    });
+        output_format: betaZodOutputFormat(DuplicateSchema),
+        messages: [{ role: 'user', content: `단어 목록:\n${list}` }],
+      });
 
-    usage = message.usage;
-    const parsed = message.parsed_output;
-    if (parsed) {
-      const validIds = new Set(remaining.map((a) => a.npcId));
-      for (const g of parsed.duplicateGroups) {
-        const ids = g.npcIds.filter((id) => validIds.has(id));
-        if (ids.length > 1) groups.push({ npcIds: ids, reason: g.reason });
+      usage = message.usage;
+      const parsed = message.parsed_output;
+      if (parsed) {
+        const validIds = new Set(remaining.map((a) => a.npcId));
+        for (const g of parsed.duplicateGroups) {
+          const ids = g.npcIds.filter((id) => validIds.has(id));
+          if (ids.length > 1) groups.push({ npcIds: ids, reason: g.reason });
+        }
       }
+    } catch (err) {
+      // API 장애(529 등, SDK 재시도 소진)가 스테이지 시작을 통째로 막지 않게 한다 —
+      // 1차(표기 일치) 결과만으로 진행한다. 동의어 중복 하나를 놓친 판은 중복이 안
+      // 나온 정상 판과 구분되지 않지만, 여기서 던지면 판 자체가 열리지 않는다
+      // (2026-08-13 심사 기간에 실제로 맞은 529 — wordGen 5회는 다 성공하고
+      //  이 마지막 1회가 실패해 /start 전체가 500 이 됐다).
+      console.warn(`[judge] 동의어 판정 실패 — 표기 일치 결과만으로 진행: ${err.message}`);
     }
   }
 
